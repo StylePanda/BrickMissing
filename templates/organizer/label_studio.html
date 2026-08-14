@@ -1,0 +1,22 @@
+{% extends "base.html" %}{% load static %}{% block title %}Etiketten & QR-Codes{% endblock %}{% block content %}
+<link rel="stylesheet" href="{% static 'css/labels.css' %}">
+<div class="page-head no-print"><div><p class="eyebrow">HERMA No. 5077 · Word-Vorlage</p><h1>Etiketten & QR-Codes</h1><p class="muted">99,1 × 67,7 mm · A4-Hochformat · 2 Spalten × 4 Reihen</p></div><div class="actions"><button type="button" data-label-select-all>Alle auswählen</button><button class="primary" type="button" data-print-page>Etiketten drucken</button></div></div>
+<div class="label-studio" data-label-studio>
+  <form class="label-controls no-print" method="get" data-label-form>
+    <input type="hidden" name="selection" value="1">
+    <label>Etikettentyp<select name="type">{% for value,label in label_types.items %}<option value="{{ value }}"{% if label_type == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+    <label class="check-row"><input type="hidden" name="images" value="0"><input type="checkbox" name="images" value="1"{% if show_images %} checked{% endif %}> <span><strong>Setbilder anzeigen</strong><small>Gilt für Vorschau und Ausdruck.</small></span></label>
+    <label>Erste Etikettenposition<select name="start">{% for position in start_positions %}<option value="{{ position.value }}"{% if start == position.value %} selected{% endif %}>Position {{ position.value }} · Reihe {{ position.row }}, Spalte {{ position.column }}</option>{% endfor %}</select></label>
+    <label>QR-Ziel<select name="qr_target">{% for value,label in qr_targets.items %}<option value="{{ value }}"{% if qr_target == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+    <label>QR-Basisadresse<input value="{{ public_origin }}" readonly></label>
+    <label><span class="sr-only">Sets suchen</span><input type="search" name="q" value="{{ query }}" placeholder="Setnummer oder Name suchen" data-label-search></label>
+    <div class="label-selection-head"><strong>Sets auswählen</strong><button type="button" class="ghost" data-label-select-none>Alle abwählen</button></div>
+    <div class="label-set-list">{% for lego_set in sets %}<label><input type="checkbox" name="item" value="{{ lego_set.pk }}"{% if lego_set.pk|stringformat:'s' in selected_ids %} checked{% endif %}><span><strong>{{ lego_set.set_number }}</strong><small>{{ lego_set.name }}</small></span></label>{% empty %}<p>Keine eigenen Sets gefunden.</p>{% endfor %}</div>
+  </form>
+  <section class="label-preview-shell" data-label-preview>
+    <p class="print-hint no-print">Passend zur bereitgestellten HERMA-Vorlage: A4, Hochformat, Skalierung 100 %, Ränder „Keine“ und Kopf-/Fußzeilen deaktivieren.</p>
+    <div class="label-sheet">{% for label in slots %}<article class="print-label{% if not label %} is-empty{% endif %}">{% if label %}{% if label_type == 'colors' %}<div class="label-color"><span class="eyebrow">BrickMissing · Farbsackerl</span><h2>{{ label.color_name }}</h2><p>{{ label.color_group }}</p><img class="label-qr" src="{{ label.qr_url }}" alt="QR-Code für {{ label.color_name }}"><small>{{ label.qr_label }}</small></div>{% else %}<div class="label-content"><span class="label-brand">BrickMissing · LEGO Set</span><h2>{{ label.lego_set.set_number }}</h2>{% if label_type == 'full' %}<h3>{{ label.lego_set.name }}</h3><p>{{ label.lego_set.theme|default:'Ohne Theme' }}{% if label.lego_set.year %} · {{ label.lego_set.year }}{% endif %}</p>{% if show_images and label.lego_set.image_url %}<img class="label-set-image" src="{{ label.lego_set.image_url }}" alt="Set {{ label.lego_set.set_number }}">{% endif %}<div class="label-badges"><span>{{ label.lego_set.get_condition_display|default:label.lego_set.condition|capfirst }}</span><span>{{ label.completeness.label }}</span><span>{{ label.minifigure_count }} Minifigur{{ label.minifigure_count|pluralize:'en' }}</span></div><footer>{{ label.lego_set.total_parts }} Teile · ID {{ label.lego_set.legacy_id|default:'–' }}</footer>{% endif %}</div><div class="label-qr-block"><img class="label-qr" src="{{ label.qr_url }}" alt="QR-Code: {{ label.qr_label }}"><small>{{ label.qr_label }}</small></div>{% endif %}{% endif %}</article>{% endfor %}</div>
+  </section>
+</div>
+<script src="{% static 'js/labels.js' %}" defer></script>
+{% endblock %}

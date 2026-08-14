@@ -30,7 +30,9 @@
         <a href="{% url 'media_library:list' %}"{% if request.resolver_match.namespace == 'media_library' %} aria-current="page"{% endif %}>Dokumente</a>
         <a href="{% url 'data_portability:import_page' %}"{% if request.resolver_match.namespace == 'data_portability' %} aria-current="page"{% endif %}>Import und Export</a>
         <a href="{% url 'notifications' %}"{% if request.resolver_match.url_name == 'notifications' %} aria-current="page"{% endif %}>Benachrichtigungen</a>
-        <a href="{% url 'organizer:list' 'collections' %}"{% if request.resolver_match.namespace == 'organizer' %} aria-current="page"{% endif %}>Organisation</a>
+        <a href="{% url 'organizer:minifigure_list' %}"{% if request.resolver_match.url_name == 'minifigure_list' %} aria-current="page"{% endif %}>Minifiguren</a>
+        <a href="{% url 'organizer:label_studio' %}"{% if request.resolver_match.url_name == 'label_studio' or request.resolver_match.url_name == 'label_set_qr' %} aria-current="page"{% endif %}>Etiketten & QR-Codes</a>
+        <a href="{% url 'organizer:list' 'collections' %}"{% if request.resolver_match.namespace == 'organizer' and request.resolver_match.url_name != 'minifigure_list' and request.resolver_match.url_name != 'label_studio' and request.resolver_match.url_name != 'label_set_qr' %} aria-current="page"{% endif %}>Organisation</a>
         <a href="{% url 'catalog:trash' %}"{% if request.resolver_match.url_name == 'trash' %} aria-current="page"{% endif %}>Papierkorb</a>
         {% if user.is_staff %}<a href="{% url 'backups:list' %}">Backups</a><a href="{% url 'admin:index' %}">Administration</a>{% endif %}
       </nav>

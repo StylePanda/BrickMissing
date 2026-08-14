@@ -4,6 +4,13 @@ from . import views
 
 app_name = "organizer"
 urlpatterns = [
+    path("organisation/minifiguren/", views.minifigure_list, name="minifigure_list"),
+    path("organisation/etiketten-qr/", views.label_studio, name="label_studio"),
+    path(
+        "organisation/etiketten-qr/qr/<uuid:set_pk>.svg",
+        views.label_set_qr,
+        name="label_set_qr",
+    ),
     path("organisation/labels/<int:pk>/preview/", views.label_preview, name="label_preview"),
     path("organisation/labels/<int:pk>/print.css", views.label_print_css, name="label_print_css"),
     path("organisation/labels/<int:pk>/qr/<int:item_pk>.svg", views.label_qr, name="label_qr"),

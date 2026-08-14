@@ -1,12 +1,18 @@
+from collections import OrderedDict
+
+from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.db import models, transaction
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from apps.accounts.totp import qr_svg
 from apps.audit.models import AuditEvent
+from apps.catalog.colors import color_category
 from apps.catalog.models import LegoSet
+from apps.catalog.services import set_completeness
 from apps.core.services import record_recent
 from apps.inventory.models import InventoryItem, WarehouseLocation
 
@@ -105,6 +111,105 @@ AREA_DISPLAY = {
     "labels": _label_display,
     "minifigures": _minifigure_display,
 }
+
+
+MINIFIGURE_SORTS = {
+    "set_number": "Setnummer aufsteigend",
+    "-set_number": "Setnummer absteigend",
+    "name": "Minifigurenname A–Z",
+    "-name": "Minifigurenname Z–A",
+    "figure_number": "Minifigur-ID aufsteigend",
+    "-figure_number": "Minifigur-ID absteigend",
+    "completeness": "Vollständigkeit",
+    "-missing": "Fehlteile absteigend",
+    "missing": "Fehlteile aufsteigend",
+    "-required": "Benötigte Teile absteigend",
+    "-owned": "Vorhandene Teile absteigend",
+}
+
+
+def _minifigure_record(figure):
+    parts = list(figure.parts.all())
+    required = sum(part.quantity for part in parts if not part.is_spare)
+    owned = sum(min(part.owned_quantity, part.quantity) for part in parts if not part.is_spare)
+    missing = max(required - owned, 0)
+    if not parts or not required:
+        status, status_label = "unknown", "Unbekannt"
+    elif missing == 0:
+        status, status_label = "complete", "Vollständig"
+    elif owned == 0:
+        status, status_label = "missing", "Fehlend"
+    else:
+        status, status_label = "partial", "Teilweise"
+    return {
+        "figure": figure,
+        "parts": parts,
+        "required": required,
+        "owned": owned,
+        "missing": missing,
+        "percent": round(owned * 100 / required) if required else 0,
+        "status": status,
+        "status_label": status_label,
+    }
+
+
+@login_required
+def minifigure_list(request):
+    figures = (
+        SetMinifigure.objects.filter(owner=request.user, lego_set__deleted_at__isnull=True)
+        .select_related("lego_set")
+        .prefetch_related("parts")
+    )
+    query = request.GET.get("q", "").strip()
+    if query:
+        figures = figures.filter(
+            models.Q(name__icontains=query)
+            | models.Q(figure_number__icontains=query)
+            | models.Q(lego_set__set_number__icontains=query)
+            | models.Q(lego_set__name__icontains=query)
+        )
+    set_id = request.GET.get("set", "")
+    if set_id:
+        figures = figures.filter(lego_set_id=set_id)
+    records = [_minifigure_record(figure) for figure in figures]
+    sort = request.GET.get("sort", "set_number")
+    if sort not in MINIFIGURE_SORTS:
+        sort = "set_number"
+    key_name = sort.lstrip("-")
+    reverse_sort = sort.startswith("-")
+    status_order = {"complete": 0, "partial": 1, "missing": 2, "unknown": 3}
+
+    def sort_key(record):
+        if key_name == "set_number":
+            return record["figure"].lego_set.set_number.casefold()
+        if key_name in {"name", "figure_number"}:
+            return getattr(record["figure"], key_name).casefold()
+        if key_name == "completeness":
+            return status_order[record["status"]]
+        return record[key_name]
+
+    records.sort(key=sort_key, reverse=reverse_sort)
+    groups = OrderedDict()
+    for record in records:
+        lego_set = record["figure"].lego_set
+        group = groups.setdefault(lego_set.pk, {"lego_set": lego_set, "figures": []})
+        group["figures"].append(record)
+    available_sets = LegoSet.objects.filter(
+        owner=request.user, deleted_at__isnull=True, minifigures_inventory__isnull=False
+    ).distinct().order_by("set_number")
+    return render(
+        request,
+        "organizer/minifigure_list.html",
+        {
+            "groups": list(groups.values()),
+            "figure_count": len(records),
+            "query": query,
+            "set_id": set_id,
+            "available_sets": available_sets,
+            "sort": sort,
+            "sorts": MINIFIGURE_SORTS,
+        },
+    )
 
 
 def _area(name):
@@ -306,6 +411,152 @@ def label_qr(request, pk, item_pk):
     )
 
 
+LABEL_TYPES = {
+    "full": "Vollständiges Set-Etikett",
+    "collected": "Setnummern gesammelt · jede einmal",
+    "per_minifigure": "Nur Setnummer · einmal pro Minifigur",
+    "colors": "Farbsackerl · durchsucht",
+}
+QR_TARGETS = {
+    "set": "Setseite",
+    "inventory": "Inventarliste",
+    "missing": "Fehlteile",
+    "edit": "Bearbeiten",
+    "bricklink": "BrickLink",
+    "rebrickable": "Rebrickable",
+}
+
+
+def _public_origin(request):
+    configured = getattr(settings, "PUBLIC_URL", "").strip().rstrip("/")
+    return configured or request.build_absolute_uri("/").rstrip("/")
+
+
+def _set_number_slug(lego_set):
+    return lego_set.set_number if "-" in lego_set.set_number else f"{lego_set.set_number}-1"
+
+
+def _qr_target(request, lego_set, target):
+    if target == "bricklink":
+        return f"https://www.bricklink.com/v2/catalog/catalogitem.page?S={_set_number_slug(lego_set)}"
+    if target == "rebrickable":
+        return f"https://rebrickable.com/sets/{_set_number_slug(lego_set)}/"
+    route = reverse("catalog:set_detail", args=[lego_set.pk])
+    if target == "inventory":
+        route += "#set-inventory"
+    elif target == "missing":
+        route = f'{reverse("catalog:missing_parts")}?set={lego_set.pk}'
+    elif target == "edit":
+        route = reverse("catalog:set_edit", args=[lego_set.pk])
+    return f"{_public_origin(request)}{route}"
+
+
+def _label_data(request, lego_set, qr_target):
+    completeness = set_completeness(lego_set)
+    minifigure_count = sum(figure.quantity for figure in lego_set.minifigures_inventory.all())
+    return {
+        "lego_set": lego_set,
+        "completeness": completeness,
+        "minifigure_count": minifigure_count,
+        "qr_label": QR_TARGETS[qr_target],
+        "qr_url": reverse("organizer:label_set_qr", args=[lego_set.pk])
+        + f"?target={qr_target}",
+        "target_url": _qr_target(request, lego_set, qr_target),
+    }
+
+
+@login_required
+def label_studio(request):
+    own_sets = (
+        LegoSet.objects.filter(owner=request.user, deleted_at__isnull=True)
+        .prefetch_related("inventory_items", "minifigures_inventory__parts")
+        .order_by("set_number")
+    )
+    query = request.GET.get("q", "").strip()
+    visible_sets = own_sets
+    if query:
+        visible_sets = visible_sets.filter(
+            models.Q(set_number__icontains=query) | models.Q(name__icontains=query)
+        )
+    label_type = request.GET.get("type", "full")
+    if label_type not in LABEL_TYPES:
+        label_type = "full"
+    qr_target = request.GET.get("qr_target", "set")
+    if qr_target not in QR_TARGETS:
+        qr_target = "set"
+    try:
+        start = min(max(int(request.GET.get("start", 1)), 1), 8)
+    except (TypeError, ValueError):
+        start = 1
+    selected_ids = request.GET.getlist("item")
+    if "selection" not in request.GET:
+        selected_sets = list(own_sets)
+        selected_ids = [str(lego_set.pk) for lego_set in selected_sets]
+    else:
+        selected_sets = list(own_sets.filter(pk__in=selected_ids))
+    labels = []
+    if label_type in {"full", "collected"}:
+        labels = [_label_data(request, lego_set, qr_target) for lego_set in selected_sets]
+    elif label_type == "per_minifigure":
+        for lego_set in selected_sets:
+            data = _label_data(request, lego_set, qr_target)
+            labels.extend([data] * data["minifigure_count"])
+    else:
+        seen = set()
+        for lego_set in selected_sets:
+            for item in lego_set.inventory_items.all():
+                name = item.color_name.strip()
+                if not name or name.casefold() in seen:
+                    continue
+                seen.add(name.casefold())
+                labels.append(
+                    {
+                        "color_name": name,
+                        "color_group": color_category(name),
+                        "lego_set": lego_set,
+                        "qr_label": "Fehlteile",
+                        "qr_url": reverse("organizer:label_set_qr", args=[lego_set.pk])
+                        + "?target=missing",
+                    }
+                )
+    slots = [None] * (start - 1) + labels
+    slots += [None] * ((-len(slots)) % 8)
+    if not slots:
+        slots = [None] * 8
+    return render(
+        request,
+        "organizer/label_studio.html",
+        {
+            "sets": visible_sets,
+            "selected_ids": set(selected_ids),
+            "query": query,
+            "label_type": label_type,
+            "label_types": LABEL_TYPES,
+            "qr_target": qr_target,
+            "qr_targets": QR_TARGETS,
+            "start": start,
+            "start_positions": [
+                {"value": value, "row": (value + 1) // 2, "column": 2 if value % 2 == 0 else 1}
+                for value in range(1, 9)
+            ],
+            "show_images": request.GET.get("images", "1") != "0",
+            "slots": slots,
+            "public_origin": _public_origin(request),
+        },
+    )
+
+
+@login_required
+def label_set_qr(request, set_pk):
+    lego_set = get_object_or_404(
+        LegoSet, pk=set_pk, owner=request.user, deleted_at__isnull=True
+    )
+    target = request.GET.get("target", "set")
+    if target not in QR_TARGETS:
+        target = "set"
+    return HttpResponse(qr_svg(_qr_target(request, lego_set, target)), content_type="image/svg+xml")
+
+
 def _moc_parts_snapshot(moc):
     return list(
         moc.parts.order_by("pk").values(
@@ -492,6 +743,8 @@ def minifigure_part_quantity(request, figure_pk, pk):
     part.full_clean()
     part.save(update_fields=["owned_quantity"])
     AuditEvent.objects.create(actor=request.user, target_user=request.user, action="minifigure_part.quantity_changed", entity_type="minifigure_part", entity_id=str(part.pk), details={"owned_quantity": quantity}, request_id=request.request_id)
+    if request.POST.get("return") == "list":
+        return redirect("organizer:minifigure_list")
     return redirect("organizer:detail", area="minifigures", pk=figure.pk)
 
 

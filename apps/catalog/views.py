@@ -15,32 +15,11 @@ from apps.inventory.models import InventoryItem
 from apps.orders.models import Order
 from apps.organizer.models import Moc, SetMinifigure
 
+from .colors import grouped_colors
 from .forms import LegoSetForm, PartForm, SetCopyForm, SetInventoryItemForm
 from .models import LegoSet, Part, SetCopy, SetInventoryItem
+from .services import set_completeness as _set_completeness
 from .services import soft_delete, update_part
-
-
-def _color_group(name):
-    value = name.casefold()
-    groups = (
-        ("BLACK", ("black",)), ("WHITE", ("white", "nougat")),
-        ("GRAY", ("gray", "grey", "silver", "metal")),
-        ("RED", ("red", "coral", "magenta", "pink")),
-        ("BLUE", ("blue", "azure", "aqua", "turquoise")),
-        ("GREEN", ("green", "olive")), ("YELLOW", ("yellow", "gold")),
-        ("BROWN", ("brown", "tan", "copper")),
-        ("ORANGE", ("orange",)), ("PURPLE", ("purple", "lavender")),
-    )
-    return next((label for label, needles in groups if any(word in value for word in needles)), "WEITERE")
-
-
-def _color_groups(values):
-    grouped = {}
-    for value in values:
-        display = "Keine Farbangabe" if value == "[No Color/Any Color]" else value
-        grouped.setdefault(_color_group(value), []).append({"value": value, "label": display})
-    order = ("BLACK", "WHITE", "GRAY", "RED", "BLUE", "GREEN", "YELLOW", "BROWN", "ORANGE", "PURPLE", "WEITERE")
-    return [{"label": label, "colors": grouped[label]} for label in order if label in grouped]
 
 
 def _page(request, queryset, size=50):
@@ -142,7 +121,7 @@ def set_detail(request, pk):
     stats = {key: value or 0 for key, value in stats.items()}
     stats["missing"] = max(stats["required"] - stats["owned"], 0)
     stats["percent"] = min(round(stats["owned"] * 100 / stats["required"]), 100) if stats["required"] else 0
-    return render(request, "catalog/set_detail.html", {"lego_set": lego_set, "inventory_items": inventory, "inventory_stats": stats, "inventory_kind": kind, "inventory_query": query, "inventory_stock": stock, "inventory_sort": sort, "color_groups": _color_groups(colors), "selected_colors": selected_colors, "color_summary": f"{len(selected_colors)} Farben" if selected_colors else "Alle Farben"})
+    return render(request, "catalog/set_detail.html", {"lego_set": lego_set, "inventory_items": inventory, "inventory_stats": stats, "inventory_kind": kind, "inventory_query": query, "inventory_stock": stock, "inventory_sort": sort, "color_groups": grouped_colors(colors), "selected_colors": selected_colors, "color_summary": f"{len(selected_colors)} Farben" if selected_colors else "Alle Farben", "derived_completeness": _set_completeness(lego_set)})
 
 
 @login_required
@@ -336,7 +315,7 @@ def missing_parts(request):
             "page_obj": page_obj,
             "missing_total": sum(group["missing"] for group in groups),
             "query": query,
-            "color_groups": _color_groups(list(colors)),
+            "color_groups": grouped_colors(list(colors)),
             "selected_colors": selected_colors,
             "color_summary": f"{len(selected_colors)} Farben" if selected_colors else "Alle Farben",
             "status": status,

@@ -1,0 +1,123 @@
+BRICKMISSING 8 – PHASE 7.6 ABSCHLUSSBERICHT
+Stand: 15.08.2026
+
+1. SET-VOLLSTÄNDIGKEITSLOGIK
+- Zentraler Service: apps/catalog/services.py, set_completeness().
+- Grundlage sind normale SetInventoryItem-Positionen und MinifigurePart-Positionen.
+- Ersatzteile (is_spare=True) werden nicht als Pflichtteile gewertet.
+- Benötigt, vorhanden und fehlend werden aus den Mengen berechnet; Überbestände werden gedeckelt.
+- Keine belastbare Position: Unbekannt; Fehlmenge 0: Vollständig; Fehlmenge > 0: Unvollständig.
+- Der gespeicherte Legacy-Text bleibt unverändert; Set-Detail und Etiketten zeigen den abgeleiteten Status.
+
+2. FARBKATEGORIEN / ZENTRALE KLASSIFIZIERUNG
+- Neue zentrale Implementierung in apps/catalog/colors.py.
+- Gemeinsame Nutzung durch Set-Inventar und Fehlteile über grouped_colors().
+- Kategorien: BLACK, WHITE, GRAY, RED, BLUE, GREEN, YELLOW, ORANGE, BROWN,
+  PURPLE, TRANS, METALLIC / PEARL / FLAT, OTHER.
+- Tokenbasierte, normalisierte Klassifizierung; Trans sowie Metallic/Pearl/Flat haben Vorrang.
+- Geprüft: Lime, Light Nougat, Trans-Clear, Trans-Dark Blue, Flat Silver,
+  Pearl Gold, Dark Bluish Gray und Black.
+
+3. MINIFIGUREN-SEITE
+- Route: /organisation/minifiguren/ (organizer:minifigure_list).
+- Suche: Name, Figurennummer, Setnummer und Setname; kein stilles 25er-Limit.
+- Filter: Alle Sets oder ein eigenes Set.
+- Sortierungen: Setnummer auf/ab, Name A–Z/Z–A, Figurennummer auf/ab,
+  Vollständigkeit, Fehlteile auf/ab, benötigte und vorhandene Teile absteigend.
+- Ausgabe in kompakten Set-Gruppen mit Setnummer, Setname und Figurenanzahl.
+- Hauptzeile: Bild/Fallback, ID, Name, Menge im Set, Bestand/Gesamt, Fortschritt,
+  abgeleiteter Status und Bearbeiten-Aktion.
+- Aufklappbare Einzelteile: Bild, Name, Part-/Element-ID, Farbe, benötigt,
+  vorhanden, Status und direkte Mengensteuerung.
+- Mengenregel serverseitig: 0 <= owned_quantity <= quantity.
+- Minifigurstatus: keine Teile = Unbekannt; alles vorhanden = Vollständig;
+  nichts vorhanden = Fehlend; sonst Teilweise.
+- Bilder verwenden die vorhandene CSP-konforme Lightbox.
+- Fremde Figuren/Teile sind durch owner-scoped Querysets und 404 geschützt.
+- Fehlende Minifigurenteile bleiben fachlich unter ihrer Minifigur/ihrem Set getrennt
+  und fließen zusätzlich in die Set-Vollständigkeit ein; normale Fehlteile-Gruppen werden
+  dadurch nicht mit gleichfarbigen Minifigurpositionen kollidiert oder zerstört.
+
+4. NAVIGATION UND RESPONSIVE UI
+- Eigene Navigationseinträge „Minifiguren“ und „Etiketten & QR-Codes“.
+- Active State ist gegenseitig exklusiv; „Organisation“ bleibt auf den übrigen CRUD-Seiten aktiv.
+- Desktop: informationsdichte Set-Gruppen; Tablet: zweispaltige Filter und umbrechende Zeilen;
+  Mobile: einspaltige Filter/Hauptzeilen und horizontal scrollbare Teiletabellen.
+- Alle neuen sichtbaren Texte sind Deutsch; technische Eigennamen bleiben unverändert.
+
+5. ETIKETTEN & QR-CODES
+- Route: /organisation/etiketten-qr/ (organizer:label_studio).
+- QR-Route: /organisation/etiketten-qr/qr/<set-uuid>.svg.
+- Architektur: owner-scoped Django-View rendert Etikettendaten; serverseitige SVG-QR-Codes;
+  statisches labels.js aktualisiert die Vorschau per Fetch ohne vollständigen Seitenreload.
+- Template: templates/organizer/label_studio.html.
+- JS: static/js/labels.js; keine Inline-Handler, kein unsafe-inline/unsafe-eval.
+- CSS/Druck-CSS: static/css/labels.css.
+- HERMA 5077: exakt 99,1 × 67,7 mm, A4 Hochformat, 2 Spalten × 4 Reihen.
+- Bogen: 198,2 × 270,8 mm Etikettenfläche, Druckränder 5,9 mm seitlich und
+  13,1 mm oben/unten; weitere ausgewählte Etiketten werden in vollständigen 8er-Blöcken ausgegeben.
+- Etikettentypen: vollständiges Set-Etikett; Setnummern gesammelt/einmal;
+  Setnummer einmal pro Minifigurmenge; Farbsackerl.
+- Setauswahl: Suche, einzeln, alle, keine; ausschließlich nicht gelöschte eigene Sets.
+- Startpositionen: Position 1–8 mit korrekter Reihe/Spalte; vorherige Felder bleiben leer.
+- Setbilder können für Vorschau und Druck deaktiviert werden.
+- QR-Ziele: Setseite, Inventarliste, Fehlteile, Bearbeiten, BrickLink, Rebrickable.
+- Interne URLs entstehen über reverse(); externe URLs über normalisierte Setnummern.
+- Origin: bevorzugt validiertes PUBLIC_URL; sonst build_absolute_uri() unter ALLOWED_HOSTS.
+  Keine fest eingebaute localhost-/127.0.0.1-Production-Adresse.
+- QR-Erzeugung: vorhandener serverseitiger SVG-Generator, schwarz auf weiß und verlustfrei skalierbar.
+- Set-Etiketten verwenden die neue abgeleitete Vollständigkeit und die tatsächliche
+  Summe der SetMinifigure.quantity-Werte.
+- Farbsackerl verwenden color_category(); keine zweite Farblogik.
+- Druck: vorhandener CSP-konformer data-print-page-Listener ruft den Browserdruck auf;
+  Navigation, Sidebar, Buttons und Hinweise sind im Druck ausgeblendet.
+- Bekannte Unterschiede zu V7: modernes Midnight-Violet-Bedienfeld; Browserdruckeinstellungen
+  (100 %, keine Kopf-/Fußzeilen) können technisch nicht erzwungen werden und werden angezeigt.
+
+6. GEÄNDERTE DATEIEN
+- apps/catalog/colors.py (neu)
+- apps/catalog/services.py
+- apps/catalog/tests.py
+- apps/catalog/views.py
+- apps/organizer/tests.py
+- apps/organizer/urls.py
+- apps/organizer/views.py
+- static/css/app.css
+- static/css/labels.css (neu)
+- static/js/labels.js (neu)
+- templates/base.html
+- templates/catalog/set_detail.html
+- templates/organizer/label_studio.html (neu)
+- templates/organizer/minifigure_list.html (neu)
+- PHASE_7_6_ABSCHLUSSBERICHT.txt (neu)
+
+7. TESTS UND CHECKS
+- python manage.py test: 179 Tests, 179 passed, 0 failed, 0 skipped.
+- ruff check .: bestanden.
+- python manage.py check: bestanden, 0 Probleme.
+- python manage.py makemigrations --check --dry-run: bestanden, „No changes detected“.
+- python manage.py collectstatic --dry-run --noinput: bestanden;
+  5 Dateien würden kopiert, 134 bleiben unverändert.
+- node --check static/js/app.js: bestanden.
+- node --check static/js/labels.js: bestanden.
+- CSP-Scan nach javascript:-URLs, Inline-Eventhandlern und Inline-Skripten:
+  keine Produktivtreffer; einziger Treffer ist die absichtliche Scan-RegEx im Sicherheitstest.
+- Neue Regressionstests decken Statusableitung, Ersatzteile, Farbmatrix, Suche, Setfilter,
+  alle Sortierungen, Gruppierung, Teile/Status, Mengenänderung, User-Scoping,
+  Etikettentypen, Startpositionen, Bildoption, QR-Ziele und Production-Origin ab.
+
+8. DEPLOYMENT-RELEVANZ
+- Migration nötig: NEIN.
+- collectstatic nötig: JA, wegen app.css, labels.css und labels.js.
+- brickmissing.service Restart nötig: JA, weil Python-Views/Services/URLs geändert wurden.
+- In diesem Auftrag wurden weder Deployment noch Restart noch Push ausgeführt.
+- Production-Daten, Production-Datenbank, V7-Import und Secrets wurden nicht verändert.
+
+9. OFFENE PROBLEME
+- Keine bekannte funktionale oder sicherheitsrelevante Blockade innerhalb Phase 7.6.
+- Die physische Druckpassung hängt zusätzlich von 100-%-Browserskalierung und deaktivierten
+  Browser-Kopf-/Fußzeilen ab; dies ist in der UI ausdrücklich dokumentiert.
+
+10. GIT STATUS
+- Arbeitsbaum enthält die oben aufgeführten, nicht committeten Phase-7.6-Änderungen.
+- Kein Commit, kein Push, kein Deployment.

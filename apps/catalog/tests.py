@@ -2,7 +2,53 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
+from apps.organizer.models import MinifigurePart, SetMinifigure
+
+from .colors import color_category
 from .models import LegoSet, Part, SetInventoryItem
+from .services import set_completeness
+
+
+class CompletenessAndColorTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create(username="derived", email="derived@example.test")
+        self.lego_set = LegoSet.objects.create(owner=self.user, set_number="1", name="Set")
+
+    def test_set_completeness_is_derived_from_normal_and_minifigure_parts(self):
+        self.assertEqual(set_completeness(self.lego_set)["key"], "unknown")
+        item = SetInventoryItem.objects.create(
+            lego_set=self.lego_set, part_number="3001", name="Stein",
+            required_quantity=2, owned_quantity=2,
+        )
+        self.assertEqual(set_completeness(self.lego_set)["key"], "complete")
+        item.owned_quantity = 1
+        item.save(update_fields=["owned_quantity"])
+        self.assertEqual(set_completeness(self.lego_set)["key"], "incomplete")
+        figure = SetMinifigure.objects.create(
+            owner=self.user, lego_set=self.lego_set, figure_number="fig-1", name="Figur"
+        )
+        MinifigurePart.objects.create(
+            minifigure=figure, part_number="head", name="Kopf", quantity=1, owned_quantity=0
+        )
+        self.assertEqual(set_completeness(self.lego_set)["missing"], 2)
+
+    def test_spares_do_not_make_a_set_incomplete(self):
+        SetInventoryItem.objects.create(
+            lego_set=self.lego_set, part_number="spare", name="Ersatz",
+            required_quantity=1, owned_quantity=0, is_spare=True,
+        )
+        self.assertEqual(set_completeness(self.lego_set)["key"], "unknown")
+
+    def test_central_color_categories(self):
+        cases = {
+            "Lime": "GREEN", "Light Nougat": "BROWN", "Trans-Clear": "TRANS",
+            "Trans-Dark Blue": "TRANS", "Flat Silver": "METALLIC / PEARL / FLAT",
+            "Pearl Gold": "METALLIC / PEARL / FLAT", "Dark Bluish Gray": "GRAY",
+            "Black": "BLACK",
+        }
+        for color, expected in cases.items():
+            with self.subTest(color=color):
+                self.assertEqual(color_category(color), expected)
 
 
 class OwnershipTests(TestCase):

@@ -337,6 +337,17 @@ dd { margin: 0; }
 .organizer-list .row { min-height: 72px; align-items: center; padding-block: var(--space-4); }
 .organizer-list .row small { display: block; margin-top: var(--space-1); }
 .organizer-list .empty { display: grid; gap: var(--space-2); padding: var(--space-6); text-align: center; }
+.minifigure-filters{display:grid;grid-template-columns:minmax(220px,1fr) minmax(180px,.45fr) minmax(220px,.45fr) auto;gap:var(--space-3);align-items:end}
+.minifigure-set-group{margin-block:var(--space-5);overflow:hidden;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface)}
+.minifigure-set-group>header,.minifigure-row{display:flex;align-items:center;justify-content:space-between;gap:var(--space-5);padding:var(--space-4)}
+.minifigure-set-group>header{background:var(--surface-raised);border-bottom:1px solid var(--border)}
+.minifigure-set-group h2,.minifigure-row h3{margin:0}.minifigure-row{min-height:116px;border-bottom:1px solid var(--border)}
+.minifigure-identity{display:flex;flex:1 1 50%;align-items:center;gap:var(--space-4);min-width:0}.minifigure-identity img,.minifigure-parts img{width:76px;height:76px;object-fit:contain;border-radius:var(--radius-sm);background:#fff}
+.minifigure-progress{display:grid;grid-template-columns:auto minmax(100px,220px) auto;align-items:center;gap:var(--space-3);min-width:min(100%,420px)}
+.minifigure-progress progress{width:100%}.minifigure-parts{background:var(--surface-raised)}.minifigure-parts summary{display:flex;justify-content:space-between;padding:var(--space-4);cursor:pointer;font-weight:700}.minifigure-parts table{margin:0}.minifigure-parts small{display:block;color:var(--muted)}
+.badge.partial{color:#f4c15d;background:#f4c15d22}.badge.complete{color:var(--success);background:color-mix(in srgb,var(--success) 14%,transparent)}
+@media(max-width:980px){.minifigure-filters{grid-template-columns:1fr 1fr}.minifigure-row{align-items:flex-start;flex-wrap:wrap}.minifigure-progress{flex:1 1 100%}}
+@media(max-width:600px){.minifigure-filters{grid-template-columns:1fr}.minifigure-set-group>header,.minifigure-row{align-items:stretch;flex-direction:column}.minifigure-progress{grid-template-columns:1fr}.minifigure-parts .table-wrap{overflow-x:auto}.minifigure-identity img{width:64px;height:64px}}
 .filters a[aria-current="page"] { border-color: var(--accent); background: var(--color-surface-hover); color: var(--accent); }
 .combobox { position: relative; z-index: 1; }
 .combobox:focus-within { z-index: 60; }
