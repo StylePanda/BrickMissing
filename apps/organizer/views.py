@@ -3,14 +3,13 @@ from collections import OrderedDict
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.db import models, transaction
-from django.http import Http404, HttpResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from apps.accounts.totp import qr_svg
 from apps.audit.models import AuditEvent
-from apps.catalog.colors import color_category
 from apps.catalog.models import LegoSet
 from apps.catalog.services import set_completeness
 from apps.core.services import record_recent
@@ -484,8 +483,11 @@ def label_studio(request):
     qr_target = request.GET.get("qr_target", "set")
     if qr_target not in QR_TARGETS:
         qr_target = "set"
+    capacity = 189 if label_type == "per_minifigure" else 8
+    columns = 7 if label_type == "per_minifigure" else 2
+    rows = 27 if label_type == "per_minifigure" else 4
     try:
-        start = min(max(int(request.GET.get("start", 1)), 1), 8)
+        start = min(max(int(request.GET.get("start", 1)), 1), capacity)
     except (TypeError, ValueError):
         start = 1
     selected_ids = request.GET.getlist("item")
@@ -494,39 +496,28 @@ def label_studio(request):
         selected_ids = [str(lego_set.pk) for lego_set in selected_sets]
     else:
         selected_sets = list(own_sets.filter(pk__in=selected_ids))
+    checked_text = request.GET.get("checked_text", "DURCHSUCHT").strip()[:40] or "DURCHSUCHT"
+    try:
+        checked_count = min(max(int(request.GET.get("checked_count", 8)), 1), 100)
+    except (TypeError, ValueError):
+        checked_count = 8
     labels = []
-    if label_type in {"full", "collected"}:
+    if label_type == "full":
         labels = [_label_data(request, lego_set, qr_target) for lego_set in selected_sets]
+    elif label_type == "collected":
+        numbers = sorted({lego_set.set_number for lego_set in selected_sets}, key=str.casefold)
+        labels = [{"numbers": numbers[offset : offset + 20]} for offset in range(0, len(numbers), 20)]
     elif label_type == "per_minifigure":
         for lego_set in selected_sets:
             data = _label_data(request, lego_set, qr_target)
             labels.extend([data] * data["minifigure_count"])
     else:
-        seen = set()
-        for lego_set in selected_sets:
-            for item in lego_set.inventory_items.all():
-                name = item.color_name.strip()
-                if not name or name.casefold() in seen:
-                    continue
-                seen.add(name.casefold())
-                labels.append(
-                    {
-                        "color_name": name,
-                        "color_group": color_category(name),
-                        "lego_set": lego_set,
-                        "qr_label": "Fehlteile",
-                        "qr_url": reverse("organizer:label_set_qr", args=[lego_set.pk])
-                        + "?target=missing",
-                    }
-                )
+        labels = [{"text": checked_text} for _ in range(checked_count)]
     slots = [None] * (start - 1) + labels
-    slots += [None] * ((-len(slots)) % 8)
+    slots += [None] * ((-len(slots)) % capacity)
     if not slots:
-        slots = [None] * 8
-    return render(
-        request,
-        "organizer/label_studio.html",
-        {
+        slots = [None] * capacity
+    context = {
             "sets": visible_sets,
             "selected_ids": set(selected_ids),
             "query": query,
@@ -536,13 +527,25 @@ def label_studio(request):
             "qr_targets": QR_TARGETS,
             "start": start,
             "start_positions": [
-                {"value": value, "row": (value + 1) // 2, "column": 2 if value % 2 == 0 else 1}
-                for value in range(1, 9)
+                {"value": value, "row": (value + columns - 1) // columns,
+                 "column": ((value - 1) % columns) + 1}
+                for value in range(1, capacity + 1)
             ],
             "show_images": request.GET.get("images", "1") != "0",
+            "checked_text": checked_text,
+            "checked_count": checked_count,
             "slots": slots,
+            "capacity": capacity,
+            "columns": columns,
+            "rows": rows,
             "public_origin": _public_origin(request),
-        },
+        }
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return render(request, "organizer/labels/preview.html", context)
+    return render(
+        request,
+        "organizer/label_studio.html",
+        context,
     )
 
 
@@ -743,6 +746,42 @@ def minifigure_part_quantity(request, figure_pk, pk):
     part.full_clean()
     part.save(update_fields=["owned_quantity"])
     AuditEvent.objects.create(actor=request.user, target_user=request.user, action="minifigure_part.quantity_changed", entity_type="minifigure_part", entity_id=str(part.pk), details={"owned_quantity": quantity}, request_id=request.request_id)
+    if request.headers.get("Accept") == "application/json":
+        figure_record = _minifigure_record(
+            SetMinifigure.objects.prefetch_related("parts").get(pk=figure.pk)
+        )
+        completeness = set_completeness(
+            LegoSet.objects.prefetch_related(
+                "inventory_items", "minifigures_inventory__parts"
+            ).get(pk=figure.lego_set_id)
+        )
+        return JsonResponse(
+            {
+                "ok": True,
+                "part": {
+                    "owned": part.owned_quantity,
+                    "required": part.quantity,
+                    "missing": part.missing_quantity,
+                    "status": (
+                        "complete" if part.missing_quantity == 0
+                        else "missing" if part.owned_quantity == 0 else "partial"
+                    ),
+                    "status_label": (
+                        "Komplett" if part.missing_quantity == 0
+                        else "Fehlend" if part.owned_quantity == 0 else "Teilweise"
+                    ),
+                },
+                "figure": {
+                    "owned": figure_record["owned"],
+                    "required": figure_record["required"],
+                    "missing": figure_record["missing"],
+                    "percent": figure_record["percent"],
+                    "status": figure_record["status"],
+                    "status_label": figure_record["status_label"],
+                },
+                "set": completeness,
+            }
+        )
     if request.POST.get("return") == "list":
         return redirect("organizer:minifigure_list")
     return redirect("organizer:detail", area="minifigures", pk=figure.pk)

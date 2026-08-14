@@ -314,6 +314,20 @@ class MinifigureInventoryInteractionTests(TestCase):
         response = self.client.post(reverse("organizer:minifigure_part_quantity", args=[self.figure.pk, self.part.pk]), {"owned_quantity": 2})
         self.assertEqual(response.status_code, 404)
 
+    def test_inline_quantity_returns_complete_json_without_redirect(self):
+        response = self.client.post(
+            reverse("organizer:minifigure_part_quantity", args=[self.figure.pk, self.part.pk]),
+            {"owned_quantity": 2},
+            HTTP_ACCEPT="application/json",
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["part"]["status"], "complete")
+        self.assertEqual(payload["figure"]["status"], "complete")
+        self.assertEqual(payload["set"]["key"], "complete")
+
 
 class MinifigurePageTests(TestCase):
     def setUp(self):
@@ -384,7 +398,7 @@ class LabelStudioTests(TestCase):
         url = reverse("organizer:label_studio")
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "HERMA No. 5077")
+        self.assertContains(response, "HERMA 5077")
         self.assertContains(response, "Transport Chopper")
         self.assertNotContains(response, "Geheimes Set")
         self.assertEqual(len(response.context["slots"]), 8)
@@ -413,6 +427,26 @@ class LabelStudioTests(TestCase):
             self.client.get(reverse("organizer:label_set_qr", args=[self.foreign_pk])).status_code,
             404,
         )
+
+    def test_four_templates_have_independent_layouts_and_partial_response(self):
+        url = reverse("organizer:label_studio")
+        common = {"selection": 1, "item": self.lego_set.pk}
+        collected = self.client.get(url, {**common, "type": "collected"})
+        self.assertContains(collected, "number-grid")
+        self.assertEqual(collected.context["slots"][0]["numbers"], ["7345-1"])
+        small = self.client.get(url, {**common, "type": "per_minifigure", "start": 189})
+        self.assertContains(small, "25,4 × 10 mm")
+        self.assertEqual(small.context["capacity"], 189)
+        checked = self.client.get(
+            url, {"selection": 1, "type": "colors", "checked_text": "GEPRÜFT", "checked_count": 3}
+        )
+        self.assertEqual(sum(slot is not None for slot in checked.context["slots"]), 3)
+        self.assertContains(checked, "GEPRÜFT")
+        partial = self.client.get(
+            url, {**common, "type": "full"}, HTTP_X_REQUESTED_WITH="XMLHttpRequest"
+        )
+        self.assertTemplateUsed(partial, "organizer/labels/preview.html")
+        self.assertNotContains(partial, "<html")
 
     @override_settings(PUBLIC_URL="https://brickmissing.example")
     def test_configured_public_origin_is_used_without_localhost(self):

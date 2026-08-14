@@ -13,7 +13,7 @@ from apps.core.rate_limit import limited
 from apps.core.services import record_recent
 from apps.inventory.models import InventoryItem
 from apps.orders.models import Order
-from apps.organizer.models import Moc, SetMinifigure
+from apps.organizer.models import MinifigurePart, Moc, SetMinifigure
 
 from .colors import grouped_colors
 from .forms import LegoSetForm, PartForm, SetCopyForm, SetInventoryItemForm
@@ -236,7 +236,11 @@ def missing_parts(request):
     if set_filter:
         queryset = queryset.filter(lego_set_id=set_filter, lego_set__owner=request.user)
     part_kind = request.GET.get("kind", "all")
-    if part_kind == "assigned":
+    if part_kind == "normal":
+        queryset = queryset.filter(lego_set__isnull=False)
+    elif part_kind == "minifigure":
+        queryset = queryset.none()
+    elif part_kind == "assigned":
         queryset = queryset.filter(lego_set__isnull=False)
     elif part_kind == "unassigned":
         queryset = queryset.filter(lego_set__isnull=True)
@@ -254,13 +258,22 @@ def missing_parts(request):
         "lego_set__set_number": "first_set", "-lego_set__set_number": "first_set",
     }
     ordering = ordering if ordering in sort_fields else "name"
-    colors = (
-        Part.objects.filter(owner=request.user, deleted_at__isnull=True)
-        .exclude(color="")
-        .values_list("color", flat=True)
-        .distinct()
-        .order_by("color")
-    )
+    colors = set()
+    if part_kind != "minifigure":
+        colors.update(
+            Part.objects.filter(owner=request.user, deleted_at__isnull=True)
+            .exclude(color="")
+            .values_list("color", flat=True)
+            .distinct()
+        )
+    if part_kind in {"all", "minifigure"}:
+        colors.update(
+            MinifigurePart.objects.filter(minifigure__owner=request.user)
+            .exclude(color_name="")
+            .values_list("color_name", flat=True)
+            .distinct()
+        )
+    colors = sorted(colors, key=str.casefold)
     records = list(queryset.order_by("pk"))
     grouped = {}
     for part in records:
@@ -283,7 +296,62 @@ def missing_parts(request):
             group["image_url"] = part.image_url
         group["allocations"].append(part)
     groups = list(grouped.values())
+    if part_kind in {"all", "minifigure"}:
+        minifigure_parts = MinifigurePart.objects.filter(
+            minifigure__owner=request.user,
+            minifigure__lego_set__deleted_at__isnull=True,
+        ).select_related("minifigure", "minifigure__lego_set")
+        if query:
+            minifigure_parts = minifigure_parts.filter(
+                Q(part_number__icontains=query)
+                | Q(element_id__icontains=query)
+                | Q(name__icontains=query)
+                | Q(minifigure__name__icontains=query)
+                | Q(minifigure__lego_set__set_number__icontains=query)
+            )
+        if selected_colors:
+            minifigure_parts = minifigure_parts.filter(color_name__in=selected_colors)
+        if set_filter:
+            minifigure_parts = minifigure_parts.filter(
+                minifigure__lego_set_id=set_filter,
+                minifigure__lego_set__owner=request.user,
+            )
+        if rarity == "single":
+            minifigure_parts = minifigure_parts.filter(quantity=1)
+        elif rarity == "multiple":
+            minifigure_parts = minifigure_parts.filter(quantity__gte=2)
+        for part in minifigure_parts:
+            missing = part.missing_quantity
+            status_key = (
+                "complete" if missing == 0 else "partial" if part.owned_quantity else "missing"
+            )
+            groups.append(
+                {
+                    "element_id": part.element_id,
+                    "design_id": part.part_number,
+                    "part_number": part.part_number,
+                    "name": part.name,
+                    "color": part.color_name,
+                    "image_url": part.image_url,
+                    "required": part.quantity,
+                    "owned": part.owned_quantity,
+                    "missing": missing,
+                    "allocations": [part],
+                    "statuses": {status_key},
+                    "cost": 0,
+                    "status": status_key,
+                    "status_label": (
+                        "Komplett" if missing == 0
+                        else "Teilweise vorhanden" if part.owned_quantity else "Fehlt"
+                    ),
+                    "first_set": part.minifigure.lego_set.set_number,
+                    "bulk_value": "",
+                    "is_minifigure": True,
+                }
+            )
     for group in groups:
+        if group.get("is_minifigure"):
+            continue
         if group["missing"] == 0:
             group["status"], group["status_label"] = Part.Status.FOUND, "Gefunden"
         elif group["owned"]:

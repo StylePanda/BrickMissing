@@ -51,6 +51,40 @@ class CompletenessAndColorTests(TestCase):
                 self.assertEqual(color_category(color), expected)
 
 
+class MissingPartKindTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create(username="kinds", email="kinds@example.test")
+        self.lego_set = LegoSet.objects.create(owner=self.user, set_number="9449", name="Podracer")
+        Part.objects.create(
+            owner=self.user, lego_set=self.lego_set, element_id="normal", name="Normaler Stein",
+            quantity=1, owned_quantity=0,
+        )
+        figure = SetMinifigure.objects.create(
+            owner=self.user, lego_set=self.lego_set, figure_number="fig-sebulba", name="Sebulba"
+        )
+        MinifigurePart.objects.create(
+            minifigure=figure, part_number="head", element_id="mini", name="Sebulba-Kopf",
+            quantity=1, owned_quantity=0,
+        )
+        self.client.force_login(self.user)
+
+    def test_all_normal_minifigure_and_exclusion_filters(self):
+        url = reverse("catalog:missing_parts")
+        all_parts = self.client.get(url, {"kind": "all"})
+        self.assertContains(all_parts, "Normaler Stein")
+        self.assertContains(all_parts, "Sebulba-Kopf")
+        self.assertContains(all_parts, "9449 – Minifigur Sebulba")
+        only_mini = self.client.get(url, {"kind": "minifigure"})
+        self.assertContains(only_mini, "Sebulba-Kopf")
+        self.assertNotContains(only_mini, "Normaler Stein")
+        normal = self.client.get(url, {"kind": "normal"})
+        self.assertContains(normal, "Normaler Stein")
+        self.assertNotContains(normal, "Sebulba-Kopf")
+        excluded = self.client.get(url, {"kind": "exclude_minifigure"})
+        self.assertContains(excluded, "Normaler Stein")
+        self.assertNotContains(excluded, "Sebulba-Kopf")
+
+
 class OwnershipTests(TestCase):
     def setUp(self):
         user = get_user_model()
