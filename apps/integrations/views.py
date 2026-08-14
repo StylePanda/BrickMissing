@@ -3,10 +3,11 @@ from decimal import Decimal, InvalidOperation
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
-from django.http import HttpResponse, HttpResponseBadRequest
+from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_POST
 
+from apps.accounts.totp import decrypt_secret
 from apps.audit.models import AuditEvent
 from apps.catalog.models import LegoSet, Part, SetInventoryItem
 from apps.core.rate_limit import limited
@@ -14,6 +15,7 @@ from apps.organizer.models import MinifigurePart, SetMinifigure
 
 from .models import PriceObservation
 from .services import (
+    RebrickableError,
     brickeconomy_set,
     bricklink_price,
     brickset_set,
@@ -22,6 +24,7 @@ from .services import (
     rebrickable_instructions,
     rebrickable_minifigures,
     rebrickable_set,
+    rebrickable_set_metadata,
 )
 
 
@@ -32,8 +35,12 @@ def sync_rebrickable(request, pk):
     if limited(request, "integration-rebrickable", 20, 3600, per_user=True):
         return HttpResponse("Rate limit exceeded", status=429)
     lego_set = get_object_or_404(LegoSet.objects.select_for_update(), pk=pk, owner=request.user, deleted_at__isnull=True)
+    if not request.user.rebrickable_api_key_encrypted:
+        messages.error(request, "Bitte richte Rebrickable zuerst in deinen Kontoeinstellungen ein.")
+        return redirect("catalog:set_detail", pk=pk)
+    api_key = decrypt_secret(request.user.rebrickable_api_key_encrypted)
     try:
-        metadata, parts = rebrickable_set(lego_set.set_number)
+        metadata, parts = rebrickable_set(lego_set.set_number, api_key)
     except ValueError as exc:
         messages.error(request, str(exc))
         return redirect("catalog:set_detail", pk=pk)
@@ -51,7 +58,7 @@ def sync_rebrickable(request, pk):
         )
     figure_count = component_count = 0
     try:
-        figures = rebrickable_minifigures(lego_set.set_number)
+        figures = rebrickable_minifigures(lego_set.set_number, api_key)
     except ValueError:
         figures = []
         messages.warning(request, "Minifiguren konnten nicht synchronisiert werden.")
@@ -102,8 +109,34 @@ def instructions(request, pk):
     lego_set = get_object_or_404(LegoSet, pk=pk, owner=request.user, deleted_at__isnull=True)
     return render(
         request, "integrations/instructions.html",
-        {"lego_set": lego_set, "instructions": rebrickable_instructions(lego_set.set_number)},
+        {"lego_set": lego_set, "instructions": rebrickable_instructions(
+            lego_set.set_number,
+            decrypt_secret(request.user.rebrickable_api_key_encrypted)
+            if request.user.rebrickable_api_key_encrypted else "",
+        )},
     )
+
+
+@login_required
+@require_GET
+def rebrickable_set_lookup(request):
+    if limited(request, "rebrickable-set-lookup", 60, 3600, per_user=True):
+        return JsonResponse({"ok": False, "code": "rate_limit", "message": "Zu viele Anfragen. Bitte später erneut versuchen."}, status=429)
+    if not request.user.rebrickable_api_key_encrypted:
+        return JsonResponse({"ok": False, "code": "missing_key", "message": "Für das automatische Laden von LEGO-Setinformationen musst du zuerst Rebrickable mit deinem BrickMissing-Konto verbinden."}, status=400)
+    try:
+        api_key = decrypt_secret(request.user.rebrickable_api_key_encrypted)
+        data = rebrickable_set_metadata(request.GET.get("set_number", ""), api_key)
+    except RebrickableError as exc:
+        messages_by_code = {
+            "authentication": "Der Rebrickable API-Key ist ungültig.",
+            "not_found": "Unter dieser Setnummer wurde bei Rebrickable kein Set gefunden.",
+            "rate_limit": "Rebrickable hat zu viele Anfragen erhalten. Bitte versuche es später erneut.",
+            "invalid_set_number": "Bitte gib eine gültige Setnummer ein.",
+        }
+        status = 404 if exc.code == "not_found" else 400 if exc.code in {"authentication", "invalid_set_number"} else 503
+        return JsonResponse({"ok": False, "code": exc.code, "message": messages_by_code.get(exc.code, "Rebrickable ist momentan nicht erreichbar. Bitte versuche es später erneut.")}, status=status)
+    return JsonResponse({"ok": True, "message": "Setinformationen gefunden.", "set": data})
 
 
 @login_required

@@ -4,6 +4,7 @@ from . import views
 
 app_name = "integrations"
 urlpatterns = [
+    path("integrationen/rebrickable/set-suche/", views.rebrickable_set_lookup, name="rebrickable_set_lookup"),
     path("integrationen/rebrickable/sets/<uuid:pk>/", views.sync_rebrickable, name="sync_rebrickable"),
     path("integrationen/rebrickable/sets/<uuid:pk>/anleitungen/", views.instructions, name="instructions"),
     path("integrationen/bild/", views.image_proxy, name="image_proxy"),

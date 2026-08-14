@@ -81,6 +81,28 @@ class CatalogFlowTests(TestCase):
         item.refresh_from_db()
         self.assertIsNone(item.deleted_at)
 
+    def test_set_form_has_scoped_theme_combobox_and_accepts_new_theme(self):
+        LegoSet.objects.create(owner=self.user, set_number="1", name="One", theme="  Space  ", subtheme="Classic")
+        LegoSet.objects.create(owner=self.user, set_number="2", name="Two", theme="space", subtheme="classic")
+        other = get_user_model().objects.create_user("theme-other", "theme-other@example.test", "Strong-password-123")
+        LegoSet.objects.create(owner=other, set_number="3", name="Other", theme="Secret Theme")
+        response = self.client.get(reverse("catalog:set_create"))
+        self.assertContains(response, 'list="theme-suggestions"')
+        self.assertContains(response, 'value="Space"')
+        self.assertNotContains(response, "Secret Theme")
+        response = self.client.post(reverse("catalog:set_create"), {"set_number": "4", "name": "New", "theme": "Brand New Theme", "condition": "neu", "completeness": "vollständig", "build_status": "gebaut", "purchase_price": "0", "current_value": "0"})
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(LegoSet.objects.filter(owner=self.user, theme="Brand New Theme").exists())
+
+    def test_set_form_has_lookup_hook_and_part_form_uses_shared_structure(self):
+        set_page = self.client.get(reverse("catalog:set_create"))
+        self.assertContains(set_page, "data-set-lookup-url")
+        self.assertContains(set_page, 'id="set-lookup-status"')
+        part_page = self.client.get(reverse("catalog:part_create"))
+        self.assertTemplateUsed(part_page, "catalog/part_form.html")
+        self.assertContains(part_page, 'class="sectioned-form"')
+        self.assertContains(part_page, "Teilinformationen")
+
     def test_set_inventory_bulk_creates_owned_missing_parts(self):
         lego_set = LegoSet.objects.create(owner=self.user, set_number="100-1", name="Test")
         SetInventoryItem.objects.create(lego_set=lego_set, part_number="3001", element_id="300101", name="Brick", required_quantity=4, owned_quantity=1)
@@ -163,6 +185,15 @@ class CatalogFlowTests(TestCase):
         self.assertContains(response, "Erstes Set")
         self.assertContains(response, "Zweites Set")
         self.assertContains(response, "Teilweise gefunden")
+
+    def test_missing_part_image_lightbox_and_placeholder_are_safe(self):
+        Part.objects.create(owner=self.user, element_id="with-image", name="Mit Bild", quantity=1, image_url="https://cdn.rebrickable.com/part.jpg")
+        Part.objects.create(owner=self.user, element_id="without-image", name="Ohne Bild", quantity=1)
+        response = self.client.get(reverse("catalog:missing_parts"))
+        self.assertContains(response, "data-lightbox-image")
+        self.assertContains(response, 'id="image-lightbox"')
+        self.assertContains(response, "Kein Bild")
+        self.assertContains(response, 'aria-label="Bild von Mit Bild vergrößern"')
 
     def test_permanent_delete_is_post_only_and_owner_scoped(self):
         from django.utils import timezone

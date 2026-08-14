@@ -10,8 +10,8 @@
             {% if model.admin_url %}<a href="{{ model.admin_url }}"{% if model.admin_url in request.path|urlencode %} aria-current="page"{% endif %}>{{ model.name }}</a>{% else %}{{ model.name }}{% endif %}
           </div>
           <div class="admin-model-actions">
-            {% if model.add_url %}<a href="{{ model.add_url }}" class="addlink" aria-describedby="{{ app.app_label }}-{{ model_name }}">Hinzufügen</a>{% endif %}
             {% if model.admin_url and show_changelinks %}<a href="{{ model.admin_url }}" class="{% if model.view_only %}viewlink{% else %}changelink{% endif %}" aria-describedby="{{ app.app_label }}-{{ model_name }}">{% if model.view_only %}Anzeigen{% else %}Verwalten{% endif %}</a>{% endif %}
+            {% if model.add_url %}<a href="{{ model.add_url }}" class="addlink" aria-describedby="{{ app.app_label }}-{{ model_name }}">Hinzufügen</a>{% endif %}
           </div>
         </article>
         {% endwith %}

@@ -50,6 +50,8 @@ class AdminInterfaceTests(TestCase):
         self.assertContains(response, 'href="/"')
         self.assertContains(response, "admin/css/brickmissing-admin.css")
         self.assertNotContains(response, "java" + "script:")
+        content = response.content.decode()
+        self.assertLess(content.index("Verwalten"), content.index("Hinzufügen"))
 
     def test_primary_admin_lists_and_forms_remain_available(self):
         lego_set = LegoSet.objects.create(

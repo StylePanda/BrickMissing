@@ -43,6 +43,80 @@ document.querySelectorAll("a[data-history-back]").forEach((link) => {
     window.history.back();
   });
 });
+
+const setForm = document.querySelector("form[data-set-lookup-url]");
+if (setForm) {
+  const numberField = setForm.querySelector('[name="set_number"]');
+  const status = document.getElementById("set-lookup-status");
+  const mappedFields = ["name", "theme", "subtheme", "year", "total_parts", "minifigures", "image_url"];
+  let timer;
+  let controller;
+  let lastNumber = "";
+  mappedFields.forEach((name) => {
+    const field = setForm.elements[name];
+    if (field?.value && field.value !== "0") field.dataset.userEdited = "true";
+    field?.addEventListener("input", (event) => { event.currentTarget.dataset.userEdited = "true"; });
+  });
+  numberField?.addEventListener("input", () => {
+    window.clearTimeout(timer);
+    const number = numberField.value.trim();
+    if (number.length < 3 || number === lastNumber) return;
+    timer = window.setTimeout(async () => {
+      controller?.abort();
+      controller = new AbortController();
+      status.textContent = "Lade Setinformationen von Rebrickable …";
+      status.className = "lookup-status muted is-loading-text";
+      try {
+        const url = new URL(setForm.dataset.setLookupUrl, window.location.origin);
+        url.searchParams.set("set_number", number);
+        const response = await fetch(url, {headers: {"Accept": "application/json"}, signal: controller.signal});
+        const payload = await response.json();
+        if (!response.ok || !payload.ok) throw new Error(payload.message || "Setinformationen konnten nicht geladen werden.");
+        if (payload.set.set_number && !number.includes("-")) numberField.value = payload.set.set_number;
+        mappedFields.forEach((name) => {
+          const field = setForm.elements[name];
+          const value = payload.set[name];
+          if (field && value !== null && value !== "" && (!field.dataset.userEdited || !field.value)) {
+            field.value = value;
+            field.dispatchEvent(new Event("change", {bubbles: true}));
+          }
+        });
+        lastNumber = number;
+        status.textContent = payload.message;
+        status.className = "lookup-status good";
+      } catch (error) {
+        if (error.name === "AbortError") return;
+        status.textContent = error.message || "Rebrickable ist momentan nicht erreichbar. Bitte versuche es später erneut.";
+        status.className = "lookup-status warn";
+      }
+    }, 600);
+  });
+}
+
+const lightbox = document.getElementById("image-lightbox");
+if (lightbox) {
+  const image = lightbox.querySelector("img");
+  const title = document.getElementById("image-lightbox-title");
+  const closeButton = lightbox.querySelector("[data-lightbox-close]");
+  let opener;
+  const close = () => lightbox.close();
+  document.querySelectorAll("[data-lightbox-image]").forEach((button) => {
+    button.addEventListener("click", () => {
+      opener = button;
+      image.src = button.dataset.lightboxImage;
+      image.alt = button.dataset.lightboxTitle;
+      title.textContent = button.dataset.lightboxTitle;
+      lightbox.showModal();
+      closeButton.focus();
+    });
+  });
+  closeButton.addEventListener("click", close);
+  lightbox.addEventListener("click", (event) => { if (event.target === lightbox) close(); });
+  lightbox.addEventListener("close", () => {
+    image.removeAttribute("src");
+    opener?.focus();
+  });
+}
 document.querySelectorAll("form").forEach((form) => {
   form.addEventListener("submit", (event) => {
     if (event.defaultPrevented || !form.checkValidity()) return;

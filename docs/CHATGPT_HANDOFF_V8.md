@@ -270,7 +270,6 @@ BACKUP_RETENTION_COUNT
 SECURE_HSTS_SECONDS
 SECURE_HSTS_INCLUDE_SUBDOMAINS
 SECURE_HSTS_PRELOAD
-REBRICKABLE_API_KEY
 BRICKECONOMY_API_KEY
 BRICKSET_API_KEY
 BRICKLINK_CONSUMER_KEY
@@ -284,7 +283,7 @@ BRICKLINK_TOKEN_SECRET
 | Service | Purpose | Credential variables | Requirement | Status |
 |---|---|---|---|---|
 | SMTP | Verification/reset mail | `EMAIL_*`, sender variables | Required for production auth mail | Mock/console tests PASS; production NOT VERIFIED |
-| Rebrickable | Set/instruction metadata | `REBRICKABLE_API_KEY` | Optional | Mock matrix PASS; live NOT VERIFIED |
+| Rebrickable | Set-/Teilemetadaten | persönlicher, verschlüsselt gespeicherter API-Key je Benutzerkonto | Optional | Mock matrix PASS; live NOT VERIFIED |
 | BrickEconomy | Market values | `BRICKECONOMY_API_KEY` | Optional | Mock matrix PASS; live NOT VERIFIED |
 | Brickset | Retail/market lookup | `BRICKSET_API_KEY` | Optional | Mock matrix PASS; live NOT VERIFIED |
 | BrickLink | OAuth price guide | four `BRICKLINK_*` variables | Optional | Signing/error matrix PASS; live NOT VERIFIED |

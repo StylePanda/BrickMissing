@@ -13,6 +13,12 @@ import urllib.request
 from django.conf import settings
 
 
+class RebrickableError(ValueError):
+    def __init__(self, message, code="unavailable"):
+        super().__init__(message)
+        self.code = code
+
+
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         return None
@@ -44,29 +50,48 @@ def fetch_json(url, headers=None, limit=5 * 1024 * 1024):
         raise ValueError("Externe Datenquelle ist nicht erreichbar oder ungültig") from exc
 
 
-def rebrickable_set(set_number):
-    if not settings.REBRICKABLE_API_KEY:
-        raise ValueError("REBRICKABLE_API_KEY ist nicht konfiguriert")
-    number = set_number if "-" in set_number else f"{set_number}-1"
-    base = "https://rebrickable.com/api/v3/lego/sets/"
-    set_data = fetch_json(base + urllib.parse.quote(number, safe="") + "/", {"Authorization": f"key {settings.REBRICKABLE_API_KEY}"})
-    parts = fetch_json(base + urllib.parse.quote(number, safe="") + "/parts/?page_size=1000", {"Authorization": f"key {settings.REBRICKABLE_API_KEY}"})
+def normalize_rebrickable_set_number(set_number):
+    number = str(set_number).strip()
+    if not number or len(number) > 64 or not all(char.isalnum() or char == "-" for char in number):
+        raise RebrickableError("Die Setnummer ist ungültig.", "invalid_set_number")
+    return number if "-" in number else f"{number}-1"
+
+
+def _rebrickable_json(path, api_key):
+    if not api_key:
+        raise RebrickableError("Rebrickable ist für dieses Konto nicht eingerichtet.", "missing_key")
+    try:
+        return fetch_json(
+            "https://rebrickable.com/api/v3/lego/" + path,
+            {"Authorization": f"key {api_key}"},
+        )
+    except ValueError as exc:
+        message = str(exc)
+        if "Authentifizierung" in message:
+            raise RebrickableError("Der Rebrickable API-Key ist ungültig.", "authentication") from exc
+        if "Rate Limit" in message:
+            raise RebrickableError("Rebrickable hat zu viele Anfragen erhalten.", "rate_limit") from exc
+        if "HTTP 404" in message:
+            raise RebrickableError("Set wurde nicht gefunden.", "not_found") from exc
+        raise RebrickableError("Rebrickable ist momentan nicht erreichbar.", "unavailable") from exc
+
+
+def rebrickable_set(set_number, api_key):
+    number = normalize_rebrickable_set_number(set_number)
+    path = urllib.parse.quote(number, safe="")
+    set_data = _rebrickable_json("sets/" + path + "/", api_key)
+    parts = _rebrickable_json("sets/" + path + "/parts/?page_size=1000", api_key)
     return set_data, parts.get("results", [])
 
 
-def _rebrickable_get(path):
-    if not settings.REBRICKABLE_API_KEY:
-        raise ValueError("REBRICKABLE_API_KEY ist nicht konfiguriert")
-    return fetch_json(
-        "https://rebrickable.com/api/v3/lego/" + path,
-        {"Authorization": f"key {settings.REBRICKABLE_API_KEY}"},
-    )
+def _rebrickable_get(path, api_key):
+    return _rebrickable_json(path, api_key)
 
 
-def rebrickable_minifigures(set_number):
-    number = set_number if "-" in set_number else f"{set_number}-1"
+def rebrickable_minifigures(set_number, api_key):
+    number = normalize_rebrickable_set_number(set_number)
     figures = _rebrickable_get(
-        "sets/" + urllib.parse.quote(number, safe="") + "/minifigs/?page_size=1000"
+        "sets/" + urllib.parse.quote(number, safe="") + "/minifigs/?page_size=1000", api_key
     ).get("results", [])
     result = []
     for figure in figures:
@@ -74,14 +99,14 @@ def rebrickable_minifigures(set_number):
         if not figure_number:
             continue
         parts = _rebrickable_get(
-            "minifigs/" + urllib.parse.quote(figure_number, safe="") + "/parts/?page_size=1000"
+            "minifigs/" + urllib.parse.quote(figure_number, safe="") + "/parts/?page_size=1000", api_key
         ).get("results", [])
         result.append((figure, parts))
     return result
 
 
-def rebrickable_instructions(set_number):
-    number = set_number if "-" in set_number else f"{set_number}-1"
+def rebrickable_instructions(set_number, api_key):
+    number = normalize_rebrickable_set_number(set_number)
     fallback = [
         {
             "name": "Rebrickable",
@@ -96,7 +121,7 @@ def rebrickable_instructions(set_number):
     ]
     try:
         rows = _rebrickable_get(
-            "sets/" + urllib.parse.quote(number, safe="") + "/instructions/"
+            "sets/" + urllib.parse.quote(number, safe="") + "/instructions/", api_key
         ).get("results", [])
     except ValueError:
         return fallback
@@ -108,6 +133,37 @@ def rebrickable_instructions(set_number):
                 {"name": row.get("name") or "Bauanleitung", "url": url, "source": "Rebrickable"}
             )
     return instructions or fallback
+
+
+def test_rebrickable_connection(api_key):
+    return _rebrickable_json("colors/?page_size=1", api_key)
+
+
+def rebrickable_set_metadata(set_number, api_key):
+    number = normalize_rebrickable_set_number(set_number)
+    encoded = urllib.parse.quote(number, safe="")
+    metadata = _rebrickable_json(f"sets/{encoded}/", api_key)
+    theme_name = subtheme_name = ""
+    theme_id = metadata.get("theme_id")
+    if theme_id is not None:
+        current_theme = _rebrickable_json(f"themes/{int(theme_id)}/", api_key)
+        theme_name = str(current_theme.get("name") or "")
+        parent_id = current_theme.get("parent_id")
+        if parent_id is not None:
+            subtheme_name = theme_name
+            parent = _rebrickable_json(f"themes/{int(parent_id)}/", api_key)
+            theme_name = str(parent.get("name") or theme_name)
+    figures = _rebrickable_json(f"sets/{encoded}/minifigs/?page_size=1", api_key)
+    return {
+        "set_number": str(metadata.get("set_num") or number),
+        "name": str(metadata.get("name") or ""),
+        "year": metadata.get("year"),
+        "theme": theme_name,
+        "subtheme": subtheme_name,
+        "total_parts": metadata.get("num_parts"),
+        "minifigures": figures.get("count", 0),
+        "image_url": str(metadata.get("set_img_url") or ""),
+    }
 
 
 def brickeconomy_set(set_number):

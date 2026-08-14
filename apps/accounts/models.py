@@ -26,6 +26,7 @@ class User(AbstractUser):
     legacy_id = models.PositiveBigIntegerField(null=True, blank=True, unique=True)
     totp_secret_encrypted = models.TextField(blank=True)
     totp_enabled = models.BooleanField(default=False)
+    rebrickable_api_key_encrypted = models.TextField(blank=True)
     objects = UserManager()
 
     REQUIRED_FIELDS = ["email"]
@@ -40,6 +41,10 @@ class User(AbstractUser):
     @property
     def has_placeholder_email(self) -> bool:
         return self.email.casefold().endswith("@invalid.local")
+
+    @property
+    def has_rebrickable_api_key(self) -> bool:
+        return bool(self.rebrickable_api_key_encrypted)
 
 
 class PendingEmailChange(models.Model):

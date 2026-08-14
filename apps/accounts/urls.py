@@ -5,6 +5,9 @@ from . import views
 
 app_name = "accounts"
 urlpatterns = [
+    path("profil/rebrickable/speichern/", views.rebrickable_save, name="rebrickable_save"),
+    path("profil/rebrickable/testen/", views.rebrickable_test, name="rebrickable_test"),
+    path("profil/rebrickable/entfernen/", views.rebrickable_remove, name="rebrickable_remove"),
     path("registrieren/", views.register, name="register"),
     path(
         "anmelden/",

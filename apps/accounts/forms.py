@@ -36,6 +36,15 @@ class EmailChangeForm(forms.Form):
     email = forms.EmailField(label="Neue E-Mail-Adresse")
     password = forms.CharField(label="Aktuelles Passwort", widget=forms.PasswordInput)
 
+
+class RebrickableApiKeyForm(forms.Form):
+    api_key = forms.CharField(
+        label="Rebrickable API-Key",
+        max_length=255,
+        strip=True,
+        widget=forms.PasswordInput(attrs={"autocomplete": "off"}, render_value=False),
+    )
+
     def clean_email(self):
         return User.objects.normalize_email(self.cleaned_data["email"]).casefold()
 

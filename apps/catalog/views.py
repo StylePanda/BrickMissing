@@ -105,10 +105,27 @@ def set_edit(request, pk=None):
             request_id=request.request_id,
         )
         return redirect("catalog:set_detail", pk=instance.pk)
+    def suggestions(field):
+        values = LegoSet.objects.filter(owner=request.user).exclude(**{field: ""}).values_list(field, flat=True)
+        normalized = {}
+        for value in values:
+            cleaned = " ".join(value.split())
+            if cleaned:
+                key = cleaned.casefold()
+                current = normalized.get(key)
+                if current is None or (current.islower() and not cleaned.islower()):
+                    normalized[key] = cleaned
+        return sorted(normalized.values(), key=str.casefold)
+
     return render(
         request,
         "catalog/set_form.html",
-        {"form": form, "title": "Set bearbeiten" if lego_set else "Set hinzufügen"},
+        {
+            "form": form, "title": "Set bearbeiten" if lego_set else "Set hinzufügen",
+            "theme_suggestions": suggestions("theme"),
+            "subtheme_suggestions": suggestions("subtheme"),
+            "rebrickable_connected": request.user.has_rebrickable_api_key,
+        },
     )
 
 
@@ -301,7 +318,7 @@ def part_edit(request, pk=None):
         return redirect("catalog:part_list")
     return render(
         request,
-        "catalog/form.html",
+        "catalog/part_form.html",
         {"form": form, "title": "Teil bearbeiten" if part else "Teil hinzufügen"},
     )
 

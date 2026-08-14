@@ -17,6 +17,8 @@ class LegoSetForm(forms.ModelForm):
             "description": forms.Textarea(attrs={"rows": 3}),
             "notes": forms.Textarea(attrs={"rows": 3}),
             "purchase_date": forms.DateInput(attrs={"type": "date"}),
+            "theme": forms.TextInput(attrs={"list": "theme-suggestions", "autocomplete": "off"}),
+            "subtheme": forms.TextInput(attrs={"list": "subtheme-suggestions", "autocomplete": "off"}),
         }
         labels = {
             "set_number": "Setnummer", "name": "Name", "theme": "Themenwelt",
@@ -35,10 +37,22 @@ class LegoSetForm(forms.ModelForm):
 
 
 class PartForm(forms.ModelForm):
+    priority = forms.ChoiceField(
+        label="Priorität",
+        choices=(("low", "Niedrig"), ("normal", "Normal"), ("high", "Hoch"), ("urgent", "Dringend")),
+    )
     class Meta:
         model = Part
         exclude = ("owner", "legacy_id", "deleted_at")
         widgets = {"notes": forms.Textarea(attrs={"rows": 3})}
+        labels = {
+            "lego_set": "Set-Zuordnung", "element_id": "Element-ID", "design_id": "Design-ID",
+            "part_number": "Teilenummer", "name": "Name", "color": "Farbe",
+            "quantity": "Benötigte Menge", "owned_quantity": "Vorhandene Menge",
+            "unassigned_found_quantity": "Nicht zugeordnete Fundmenge", "is_present": "Vorhanden",
+            "status": "Status", "unit_price": "Stückpreis", "supplier": "Lieferant",
+            "notes": "Notizen", "image_url": "Bild-URL",
+        }
 
     def __init__(self, *args, owner=None, **kwargs):
         super().__init__(*args, **kwargs)

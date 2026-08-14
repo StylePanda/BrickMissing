@@ -29,6 +29,7 @@ from .forms import (
     AccountDeleteForm,
     DeliverablePasswordResetForm,
     EmailChangeForm,
+    RebrickableApiKeyForm,
     RegistrationForm,
     VerifiedAuthenticationForm,
 )
@@ -159,7 +160,63 @@ def profile(request):
             )
             messages.success(request, "E-Mail geändert. Bitte erneut bestätigen.")
             return redirect("accounts:profile")
-    return render(request, "accounts/profile.html", {"form": form})
+    return render(
+        request,
+        "accounts/profile.html",
+        {"form": form, "rebrickable_form": RebrickableApiKeyForm()},
+    )
+
+
+@login_required
+@require_POST
+def rebrickable_save(request):
+    form = RebrickableApiKeyForm(request.POST)
+    if form.is_valid():
+        request.user.rebrickable_api_key_encrypted = encrypt_secret(form.cleaned_data["api_key"])
+        request.user.save(update_fields=["rebrickable_api_key_encrypted", "updated_at"])
+        AuditEvent.objects.create(
+            actor=request.user, target_user=request.user,
+            action="integration.rebrickable_key_saved", request_id=request.request_id,
+        )
+        messages.success(request, "Rebrickable API-Key wurde sicher gespeichert.")
+    else:
+        messages.error(request, "Der Rebrickable API-Key ist ungültig.")
+    return redirect("accounts:profile")
+
+
+@login_required
+@require_POST
+def rebrickable_test(request):
+    from apps.integrations.services import RebrickableError, test_rebrickable_connection
+
+    if limited(request, "rebrickable-test", 10, 3600, per_user=True):
+        return HttpResponse("Zu viele Anfragen. Bitte später erneut versuchen.", status=429)
+    if not request.user.rebrickable_api_key_encrypted:
+        messages.error(request, "Es ist kein Rebrickable API-Key hinterlegt.")
+        return redirect("accounts:profile")
+    try:
+        test_rebrickable_connection(decrypt_secret(request.user.rebrickable_api_key_encrypted))
+    except RebrickableError as exc:
+        if exc.code == "authentication":
+            messages.error(request, "Der Rebrickable API-Key ist ungültig.")
+        else:
+            messages.error(request, "Rebrickable ist momentan nicht erreichbar. Bitte versuche es später erneut.")
+    else:
+        messages.success(request, "Rebrickable-Verbindung erfolgreich.")
+    return redirect("accounts:profile")
+
+
+@login_required
+@require_POST
+def rebrickable_remove(request):
+    request.user.rebrickable_api_key_encrypted = ""
+    request.user.save(update_fields=["rebrickable_api_key_encrypted", "updated_at"])
+    AuditEvent.objects.create(
+        actor=request.user, target_user=request.user,
+        action="integration.rebrickable_key_removed", request_id=request.request_id,
+    )
+    messages.success(request, "Rebrickable-Verbindung wurde entfernt.")
+    return redirect("accounts:profile")
 
 
 @login_required
@@ -344,7 +401,10 @@ def account_profile(request):
         .order_by("-created_at")
         .first()
     )
-    return render(request, "accounts/profile.html", {"pending_email_change": pending})
+    return render(
+        request, "accounts/profile.html",
+        {"pending_email_change": pending, "rebrickable_form": RebrickableApiKeyForm()},
+    )
 
 
 @login_required

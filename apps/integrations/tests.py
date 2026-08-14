@@ -7,16 +7,20 @@ from django.test import TestCase
 from django.urls import reverse
 
 from apps.accounts.models import User
+from apps.accounts.totp import decrypt_secret, encrypt_secret
 from apps.catalog.models import LegoSet, Part
 from apps.organizer.models import MinifigurePart, SetMinifigure
 
 from .services import (
+    RebrickableError,
     _external_json,
     brickeconomy_set,
     bricklink_price,
     brickset_set,
     lego_pick_a_brick_url,
+    normalize_rebrickable_set_number,
     rebrickable_set,
+    rebrickable_set_metadata,
     validated_image_url,
 )
 
@@ -24,6 +28,8 @@ from .services import (
 class IntegrationSecurityTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user("owner", "owner@example.test", "A-long-safe-password-123", email_verified=True)
+        self.user.rebrickable_api_key_encrypted = encrypt_secret("owner-test-key")  # noqa: S106
+        self.user.save(update_fields=["rebrickable_api_key_encrypted"])
         self.other = User.objects.create_user("other", "other@example.test", "A-long-safe-password-123", email_verified=True)
         self.foreign_set = LegoSet.objects.create(owner=self.other, set_number="123-1", name="Foreign")
         self.client.force_login(self.user)
@@ -160,10 +166,33 @@ class PricingParityTests(TestCase):
         self.assertTrue(url.startswith("https://www.lego.com/de-at/pick-and-build/pick-a-brick?"))
         self.assertIn("query=3001", url)
 
+    def test_rebrickable_set_number_normalization_is_deterministic(self):
+        self.assertEqual(normalize_rebrickable_set_number("60069"), "60069-1")
+        self.assertEqual(normalize_rebrickable_set_number("60069-2"), "60069-2")
+        with self.assertRaisesRegex(ValueError, "ungültig"):
+            normalize_rebrickable_set_number("../60069")
+
+    @patch("apps.integrations.services._rebrickable_json")
+    def test_rebrickable_metadata_maps_set_theme_subtheme_and_minifigures(self, remote):
+        def response(path, api_key):
+            self.assertEqual(api_key, "user-key")
+            if path == "sets/60069-1/":
+                return {"set_num": "60069-1", "name": "Swamp Police Station", "year": 2015, "theme_id": 2, "num_parts": 707, "set_img_url": "https://cdn.rebrickable.com/set.jpg"}
+            if path == "themes/2/":
+                return {"id": 2, "name": "Swamp Police", "parent_id": 1}
+            if path == "themes/1/":
+                return {"id": 1, "name": "City", "parent_id": None}
+            if path == "sets/60069-1/minifigs/?page_size=1":
+                return {"count": 6, "results": []}
+            raise AssertionError(path)
+        remote.side_effect = response
+        result = rebrickable_set_metadata("60069", "user-key")
+        self.assertEqual(result, {"set_number": "60069-1", "name": "Swamp Police Station", "year": 2015, "theme": "City", "subtheme": "Swamp Police", "total_parts": 707, "minifigures": 6, "image_url": "https://cdn.rebrickable.com/set.jpg"})
+
     @patch("apps.integrations.services.urllib.request.build_opener")
     def test_rebrickable_and_brickeconomy_complete_failure_matrix(self, opener):
-        with self.settings(REBRICKABLE_API_KEY=""), self.assertRaisesRegex(ValueError, "nicht konfiguriert"):
-            rebrickable_set("100")
+        with self.assertRaisesRegex(ValueError, "nicht eingerichtet"):
+            rebrickable_set("100", "")
         with self.settings(BRICKECONOMY_API_KEY=""), self.assertRaisesRegex(ValueError, "nicht konfiguriert"):
             brickeconomy_set("100")
         error_cases = [
@@ -175,12 +204,12 @@ class PricingParityTests(TestCase):
         ]
         for error in error_cases:
             opener.return_value.open.side_effect = error
-            with self.settings(REBRICKABLE_API_KEY="key"), self.assertRaises(ValueError):
-                rebrickable_set("100")
+            with self.assertRaises(ValueError):
+                rebrickable_set("100", "key")  # noqa: S106
         opener.return_value.open.side_effect = None
         opener.return_value.open.return_value = self._response([])
-        with self.settings(REBRICKABLE_API_KEY="key"), self.assertRaisesRegex(ValueError, "Ungültige"):
-            rebrickable_set("100")
+        with self.assertRaisesRegex(ValueError, "momentan nicht erreichbar"):
+            rebrickable_set("100", "key")  # noqa: S106
         opener.return_value.open.return_value = self._response({"data": {}})
         with self.settings(BRICKECONOMY_API_KEY="key"), self.assertRaisesRegex(ValueError, "Keine Preisdaten"):
             brickeconomy_set("100")
@@ -210,6 +239,73 @@ class PricingParityTests(TestCase):
             self.client.get(reverse("integrations:pick_a_brick", args=[foreign.pk])).status_code,
             404,
         )
+
+    @patch("apps.integrations.views.rebrickable_set_metadata")
+    def test_user_scoped_lookup_returns_validated_metadata(self, lookup):
+        user = User.objects.create_user("lookup", "lookup@example.test", "A-long-safe-password-123", email_verified=True)
+        user.rebrickable_api_key_encrypted = encrypt_secret("lookup-secret")  # noqa: S106
+        user.save(update_fields=["rebrickable_api_key_encrypted"])
+        self.client.force_login(user)
+        lookup.return_value = {"set_number": "60069-1", "name": "Swamp Police Station", "year": 2015, "theme": "City", "subtheme": "Swamp Police", "total_parts": 707, "minifigures": 6, "image_url": "https://cdn.rebrickable.com/set.jpg"}
+        response = self.client.get(reverse("integrations:rebrickable_set_lookup"), {"set_number": "60069"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["set"]["theme"], "City")
+        lookup.assert_called_once_with("60069", "lookup-secret")
+
+    def test_lookup_without_key_is_safe_and_does_not_call_remote(self):
+        user = User.objects.create_user("nokey", "nokey@example.test", "A-long-safe-password-123", email_verified=True)
+        self.client.force_login(user)
+        with patch("apps.integrations.views.rebrickable_set_metadata") as remote:
+            response = self.client.get(reverse("integrations:rebrickable_set_lookup"), {"set_number": "60069"})
+        self.assertEqual((response.status_code, response.json()["code"]), (400, "missing_key"))
+        remote.assert_not_called()
+
+    def test_api_key_is_encrypted_scoped_and_never_rendered(self):
+        first = User.objects.create_user("first-key", "first-key@example.test", "A-long-safe-password-123", email_verified=True)
+        second = User.objects.create_user("second-key", "second-key@example.test", "A-long-safe-password-123", email_verified=True)
+        second.rebrickable_api_key_encrypted = encrypt_secret("second-plain-secret")  # noqa: S106
+        second.save(update_fields=["rebrickable_api_key_encrypted"])
+        self.client.force_login(first)
+        response = self.client.post(reverse("accounts:rebrickable_save"), {"api_key": "first-plain-secret"})  # noqa: S106
+        self.assertRedirects(response, reverse("accounts:profile"))
+        first.refresh_from_db()
+        self.assertNotIn("first-plain-secret", first.rebrickable_api_key_encrypted)
+        self.assertEqual(decrypt_secret(first.rebrickable_api_key_encrypted), "first-plain-secret")
+        profile = self.client.get(reverse("accounts:profile"))
+        self.assertNotContains(profile, "first-plain-secret")
+        self.assertNotContains(profile, "second-plain-secret")
+        self.assertTrue(second.has_rebrickable_api_key)
+
+    @patch("apps.integrations.services.test_rebrickable_connection")
+    def test_connection_test_success_and_remove_do_not_expose_secret(self, connection):
+        user = User.objects.create_user("connection", "connection@example.test", "A-long-safe-password-123", email_verified=True)
+        user.rebrickable_api_key_encrypted = encrypt_secret("connection-secret")  # noqa: S106
+        user.save(update_fields=["rebrickable_api_key_encrypted"])
+        self.client.force_login(user)
+        response = self.client.post(reverse("accounts:rebrickable_test"), follow=True)
+        self.assertContains(response, "Rebrickable-Verbindung erfolgreich")
+        connection.assert_called_once_with("connection-secret")
+        self.assertNotContains(response, "connection-secret")
+        self.client.post(reverse("accounts:rebrickable_remove"))
+        user.refresh_from_db()
+        self.assertFalse(user.has_rebrickable_api_key)
+
+    def test_connection_test_handles_invalid_key_timeout_and_rate_limit(self):
+        user = User.objects.create_user("connection-errors", "connection-errors@example.test", "A-long-safe-password-123", email_verified=True)
+        user.rebrickable_api_key_encrypted = encrypt_secret("inert-secret")  # noqa: S106
+        user.save(update_fields=["rebrickable_api_key_encrypted"])
+        self.client.force_login(user)
+        cases = (
+            (RebrickableError("invalid", "authentication"), "API-Key ist ungültig"),
+            (RebrickableError("timeout", "unavailable"), "momentan nicht erreichbar"),
+            (RebrickableError("limited", "rate_limit"), "momentan nicht erreichbar"),
+        )
+        for error, expected in cases:
+            with self.subTest(code=error.code), patch(
+                "apps.integrations.services.test_rebrickable_connection", side_effect=error
+            ):
+                response = self.client.post(reverse("accounts:rebrickable_test"), follow=True)
+                self.assertContains(response, expected)
 
     def test_price_sources_are_selectable_in_normal_set_ui(self):
         user = User.objects.create_user(

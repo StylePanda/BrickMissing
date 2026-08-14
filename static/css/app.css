@@ -206,6 +206,16 @@ input[type="file"]::file-selector-button { min-height: 34px; margin-right: var(-
 .missing-part-head { display: grid; grid-template-columns: 112px minmax(220px, 1fr) minmax(300px, .8fr); align-items: center; gap: var(--space-5); }
 .missing-part-head > img, .part-placeholder { width: 112px; height: 92px; border: 1px solid var(--color-border-subtle); border-radius: var(--radius-sm); background: #fff; object-fit: contain; }
 .part-placeholder { display: grid; place-items: center; background: var(--color-background-elevated); color: var(--color-text-muted); font-size: .8rem; text-align: center; }
+.part-image-trigger { width: 112px; min-height: 92px; border: 0; padding: 0; background: transparent; }
+.part-image-trigger img { width: 112px; height: 92px; border: 1px solid var(--color-border-subtle); border-radius: var(--radius-sm); background: #fff; object-fit: contain; }
+.part-image-trigger:hover img, .part-image-trigger:focus-visible img { border-color: var(--color-primary); }
+.image-lightbox { width: min(960px, calc(100% - 32px)); max-height: calc(100vh - 32px); overflow: visible; border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: var(--space-5); background: var(--color-surface); color: var(--color-text); box-shadow: var(--shadow-md); }
+.image-lightbox::backdrop { background: rgb(5 3 10 / .88); backdrop-filter: blur(4px); }
+.image-lightbox img { display: block; width: 100%; max-height: calc(100vh - 150px); border-radius: var(--radius-md); background: #fff; object-fit: contain; }
+.image-lightbox p { margin-top: var(--space-3); text-align: center; }
+.lightbox-close { position: absolute; top: calc(-1 * var(--space-3)); right: calc(-1 * var(--space-3)); width: 44px; min-height: 44px; border-radius: 50%; background: var(--color-surface-active); font-size: 1.5rem; }
+.lookup-status { align-self: end; min-height: var(--control-height); border-left: 3px solid var(--color-primary); padding: var(--space-2) var(--space-3); }
+.lookup-status.is-loading-text { animation: pulse 1.2s ease-in-out infinite alternate; }
 .missing-totals { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-3); }
 .missing-totals div { border-left: 2px solid var(--color-primary); padding-left: var(--space-3); }
 .missing-totals dt { font-size: .78rem; }
@@ -246,6 +256,7 @@ dd { margin: 0; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
 
 @keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse { to { opacity: .55; } }
 
 @media (max-width: 1100px) {
   .topbar { flex-wrap: wrap; }
