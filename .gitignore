@@ -1,7 +1,7 @@
 data/*
 !data/.gitkeep
-backups/*
-!backups/.gitkeep
+/backups/*
+!/backups/.gitkeep
 cache/*
 !cache/.gitkeep
 .vendor/
@@ -52,7 +52,7 @@ logs/
 *.sql
 *.sql.gz
 *.dump
-backups/
+/backups/
 
 # IDE
 .vscode/
