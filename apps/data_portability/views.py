@@ -4,6 +4,7 @@ import io
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import F, Sum
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
@@ -75,32 +76,21 @@ def export_json(request):
 def export_missing_csv(request):
     output = io.StringIO(newline="")
     writer = csv.writer(output, lineterminator="\n")
-    writer.writerow(
-        ["Element-ID", "Part Number", "Name", "Farbe", "BenÃ¶tigt", "Vorhanden", "Fehlt", "Set"]
-    )
+    writer.writerow(["elementId", "quantity"])
     records = Part.objects.filter(
-        owner=request.user, status=Part.Status.MISSING, deleted_at__isnull=True
-    ).select_related("lego_set")
-    for part in records:
-        writer.writerow(
-            [
-                _csv_safe(part.element_id),
-                _csv_safe(part.part_number),
-                _csv_safe(part.name),
-                _csv_safe(part.color),
-                part.quantity,
-                part.owned_quantity,
-                part.missing_quantity,
-                _csv_safe(part.lego_set.set_number if part.lego_set else ""),
-            ]
-        )
+        owner=request.user, deleted_at__isnull=True, quantity__gt=F("owned_quantity")
+    ).exclude(element_id="").values("element_id").annotate(
+        export_quantity=Sum(F("quantity") - F("owned_quantity"))
+    ).order_by("element_id")
+    for record in records:
+        writer.writerow([_csv_safe(record["element_id"]), record["export_quantity"]])
     response = HttpResponse("\ufeff" + output.getvalue(), content_type="text/csv; charset=utf-8")
     response["Content-Disposition"] = 'attachment; filename="brickmissing-fehlteile.csv"'
     AuditEvent.objects.create(
         actor=request.user,
         target_user=request.user,
         action="export.csv",
-        details={"rows": records.count()},
+        details={"rows": len(records)},
         request_id=request.request_id,
     )
     return response
@@ -230,5 +220,3 @@ def import_confirm(request, pk):
             details=counters, request_id=request.request_id,
         )
     return render(request, "data_portability/report.html", {"report": counters})
-
-

@@ -3,6 +3,7 @@ from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
 from django.core.mail import send_mail
+from django.core.paginator import Paginator
 from django.db import connection
 from django.db.models import Count, Q
 from django.http import FileResponse, JsonResponse
@@ -70,14 +71,30 @@ def notification_read(request, pk):
 @login_required
 def global_search(request):
     query = request.GET.get("q", "").strip()[:200]
-    context = {"query": query, "sets": [], "parts": [], "inventory": [], "mocs": []}
+    context = {"query": query}
     if query:
-        context.update({
-            "sets": LegoSet.objects.filter(owner=request.user, deleted_at__isnull=True).filter(Q(set_number__icontains=query) | Q(name__icontains=query))[:25],
-            "parts": Part.objects.filter(owner=request.user, deleted_at__isnull=True).filter(Q(element_id__icontains=query) | Q(part_number__icontains=query) | Q(name__icontains=query))[:25],
-            "inventory": InventoryItem.objects.filter(owner=request.user, archived_at__isnull=True).filter(Q(part_number__icontains=query) | Q(name__icontains=query))[:25],
-            "mocs": Moc.objects.filter(owner=request.user, deleted_at__isnull=True).filter(Q(name__icontains=query) | Q(project_code__icontains=query))[:25],
-        })
+        result_sets = LegoSet.objects.filter(owner=request.user, deleted_at__isnull=True).filter(
+            Q(set_number__icontains=query) | Q(name__icontains=query) | Q(theme__icontains=query)
+        ).order_by("set_number", "pk")
+        result_parts = Part.objects.filter(owner=request.user, deleted_at__isnull=True).filter(
+            Q(element_id__icontains=query) | Q(design_id__icontains=query)
+            | Q(part_number__icontains=query) | Q(name__icontains=query)
+            | Q(lego_set__set_number__icontains=query) | Q(lego_set__name__icontains=query)
+        ).select_related("lego_set").order_by("name", "pk")
+        result_inventory = InventoryItem.objects.filter(owner=request.user, archived_at__isnull=True).filter(
+            Q(element_id__icontains=query) | Q(design_id__icontains=query)
+            | Q(part_number__icontains=query) | Q(name__icontains=query)
+        ).order_by("name", "pk")
+        result_mocs = Moc.objects.filter(owner=request.user, deleted_at__isnull=True).filter(
+            Q(name__icontains=query) | Q(project_code__icontains=query)
+        ).order_by("name", "pk")
+        for key, records in {
+            "sets": result_sets, "parts": result_parts,
+            "inventory": result_inventory, "mocs": result_mocs,
+        }.items():
+            context[key] = Paginator(records, 25).get_page(request.GET.get(f"{key}_page"))
+    else:
+        context.update({"sets": None, "parts": None, "inventory": None, "mocs": None})
     return render(request, "core/search.html", context)
 
 

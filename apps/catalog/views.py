@@ -107,7 +107,7 @@ def set_edit(request, pk=None):
         return redirect("catalog:set_detail", pk=instance.pk)
     return render(
         request,
-        "catalog/form.html",
+        "catalog/set_form.html",
         {"form": form, "title": "Set bearbeiten" if lego_set else "Set hinzufügen"},
     )
 
@@ -196,15 +196,40 @@ def missing_parts(request):
         .order_by("color")
     )
     queryset = queryset.order_by(ordering, "pk")
+    records = list(queryset)
+    grouped = {}
+    for part in records:
+        key = (part.element_id.casefold(), part.color.casefold())
+        group = grouped.setdefault(key, {
+            "element_id": part.element_id, "design_id": part.design_id,
+            "part_number": part.part_number, "name": part.name, "color": part.color,
+            "image_url": part.image_url, "required": 0, "owned": 0, "missing": 0,
+            "allocations": [], "statuses": set(),
+        })
+        group["required"] += part.quantity
+        group["owned"] += part.owned_quantity
+        group["missing"] += part.missing_quantity
+        group["statuses"].add(part.status)
+        if not group["image_url"] and part.image_url:
+            group["image_url"] = part.image_url
+        group["allocations"].append(part)
+    groups = list(grouped.values())
+    for group in groups:
+        if group["missing"] == 0:
+            group["status"], group["status_label"] = Part.Status.FOUND, "Gefunden"
+        elif group["owned"]:
+            group["status"], group["status_label"] = "partial", "Teilweise gefunden"
+        elif group["statuses"] == {Part.Status.ORDERED}:
+            group["status"], group["status_label"] = Part.Status.ORDERED, "Bestellt"
+        else:
+            group["status"], group["status_label"] = Part.Status.MISSING, "Fehlt"
+    page_obj = Paginator(groups, 30).get_page(request.GET.get("page"))
     return render(
         request,
         "catalog/missing_parts.html",
         {
-            "page_obj": _page(request, queryset),
-            "missing_total": queryset.aggregate(total=Sum(F("quantity") - F("owned_quantity")))[
-                "total"
-            ]
-            or 0,
+            "page_obj": page_obj,
+            "missing_total": sum(group["missing"] for group in groups),
             "query": query,
             "color": color,
             "colors": colors,
@@ -321,6 +346,26 @@ def restore(request, kind, pk):
         entity_id=str(pk),
         request_id=request.request_id,
     )
+    return redirect("catalog:trash")
+
+
+@login_required
+@require_POST
+@transaction.atomic
+def permanent_delete(request, kind, pk):
+    model = LegoSet if kind == "set" else Part if kind == "part" else None
+    if model is None:
+        return HttpResponse("Ungültiger Eintragstyp", status=400)
+    item = get_object_or_404(
+        model.objects.select_for_update(), pk=pk, owner=request.user,
+        deleted_at__isnull=False,
+    )
+    AuditEvent.objects.create(
+        actor=request.user, target_user=request.user,
+        action=f"{kind}.permanently_deleted", entity_type=kind,
+        entity_id=str(pk), request_id=request.request_id,
+    )
+    item.delete()
     return redirect("catalog:trash")
 
 

@@ -37,7 +37,7 @@ def upload(request):
         )
         return redirect("media_library:list")
     return render(
-        request, "catalog/form.html", {"form": form, "title": "Privates Dokument hochladen"}
+        request, "media_library/form.html", {"form": form, "title": "Privates Dokument hochladen"}
     )
 
 

@@ -7,6 +7,9 @@ from apps.inventory.models import InventoryItem, WarehouseLocation
 
 
 class Order(models.Model):
+    STATUS_LABELS = {"draft": "Entwurf", "ordered": "Bestellt", "shipped": "Versendet", "received": "Erhalten", "cancelled": "Storniert"}
+    PAYMENT_LABELS = {"": "–", "open": "Offen", "paid": "Bezahlt", "refunded": "Erstattet"}
+    SHIPPING_LABELS = {"": "–", "pending": "Ausstehend", "shipped": "Versendet", "delivered": "Zugestellt"}
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     legacy_id = models.PositiveBigIntegerField(null=True, blank=True)
     supplier = models.CharField(max_length=191)
@@ -30,6 +33,18 @@ class Order(models.Model):
 
     class Meta:
         indexes = [models.Index(fields=["owner", "status", "deleted_at"])]
+
+    @property
+    def status_label(self):
+        return self.STATUS_LABELS.get(self.status, self.status)
+
+    @property
+    def payment_status_label(self):
+        return self.PAYMENT_LABELS.get(self.payment_status, self.payment_status)
+
+    @property
+    def shipping_status_label(self):
+        return self.SHIPPING_LABELS.get(self.shipping_status, self.shipping_status)
 
 
 class OrderItem(models.Model):

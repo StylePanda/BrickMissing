@@ -101,7 +101,14 @@ class ImportExportTests(TestCase):
         response = self.client.get(reverse("data_portability:export_csv"))
         body = b"".join(response.streaming_content) if response.streaming else response.content
         self.assertIn(b"'=CMD()", body)
-        self.assertIn(b"'@evil", body)
+        self.assertNotIn(b"@evil", body)
+
+    def test_missing_csv_has_exact_header_and_aggregated_quantity(self):
+        Part.objects.create(owner=self.user, element_id="300321", name="Brick", quantity=10, owned_quantity=2)
+        Part.objects.create(owner=self.user, element_id="300321", name="Brick", quantity=12, owned_quantity=2)
+        response = self.client.get(reverse("data_portability:export_csv"))
+        body = response.content.decode("utf-8-sig").splitlines()
+        self.assertEqual(body, ["elementId,quantity", "300321,18"])
 
     def test_adversarial_import_matrix_never_returns_500(self):
         cases = [

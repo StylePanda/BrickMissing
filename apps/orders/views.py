@@ -30,7 +30,7 @@ def order_edit(request, pk=None):
         saved.save()
         AuditEvent.objects.create(actor=request.user, target_user=request.user, action="order.saved", entity_type="order", entity_id=str(saved.pk), request_id=request.request_id)
         return redirect("orders:detail", pk=saved.pk)
-    return render(request, "catalog/form.html", {"form": form, "title": "Bestellung bearbeiten" if item else "Bestellung hinzufügen"})
+    return render(request, "orders/form.html", {"form": form, "title": "Bestellung bearbeiten" if item else "Bestellung hinzufügen"})
 
 
 @login_required

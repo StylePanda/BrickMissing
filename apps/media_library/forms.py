@@ -22,9 +22,12 @@ EXECUTABLE_SIGNATURES = (b"MZ", b"\x7fELF", b"#!")
 
 
 class PrivateDocumentForm(forms.ModelForm):
+    entity_type = forms.ChoiceField(label="Objekttyp", choices=(("set", "Set"), ("part", "Teil"), ("order", "Bestellung"), ("inventory", "Inventar"), ("moc", "MOC"), ("other", "Sonstiges")))
+    document_type = forms.ChoiceField(label="Dokumenttyp", choices=(("invoice", "Rechnung"), ("instructions", "Anleitung"), ("photo", "Foto"), ("certificate", "Zertifikat"), ("other", "Sonstiges"), ("sonstiges", "Sonstiges (bestehender Wert)")))
     class Meta:
         model = PrivateDocument
         fields = ("entity_type", "entity_id", "document_type", "title", "file")
+        labels = {"entity_id": "Objekt-ID", "title": "Titel", "file": "Datei"}
 
     def clean_file(self):
         upload = self.cleaned_data["file"]

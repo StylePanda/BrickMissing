@@ -54,7 +54,7 @@ class CatalogFlowTests(TestCase):
     def test_form_cancel_link_is_csp_safe_with_dashboard_fallback(self):
         response = self.client.get(reverse("catalog:set_create"))
 
-        self.assertContains(response, 'href="/" data-history-back')
+        self.assertContains(response, 'href="/sets/"')
         self.assertNotContains(response, "java" + "script:")
 
     def test_set_create_soft_delete_and_restore(self):
@@ -111,7 +111,7 @@ class CatalogFlowTests(TestCase):
         )
         self.assertContains(response, "Red Brick")
         self.assertNotContains(response, "Foreign")
-        self.assertEqual(list(response.context["page_obj"].object_list)[0].part_number, "3001")
+        self.assertEqual(list(response.context["page_obj"].object_list)[0]["part_number"], "3001")
 
     def test_missing_parts_paginates_and_preserves_query(self):
         Part.objects.bulk_create(
@@ -150,3 +150,28 @@ class CatalogFlowTests(TestCase):
         foreign.refresh_from_db()
         self.assertEqual((own.owned_quantity, own.status), (3, Part.Status.FOUND))
         self.assertEqual((foreign.owned_quantity, foreign.status), (0, Part.Status.MISSING))
+
+    def test_missing_parts_groups_element_and_color_with_set_allocations(self):
+        first = LegoSet.objects.create(owner=self.user, set_number="100", name="Erstes Set")
+        second = LegoSet.objects.create(owner=self.user, set_number="200", name="Zweites Set")
+        Part.objects.create(owner=self.user, lego_set=first, element_id="6550135", name="Brick 1 x 4", color="White", quantity=4, owned_quantity=0)
+        Part.objects.create(owner=self.user, lego_set=second, element_id="6550135", name="Brick 1 x 4", color="White", quantity=4, owned_quantity=2)
+        response = self.client.get(reverse("catalog:missing_parts"))
+        groups = response.context["page_obj"].object_list
+        self.assertEqual(len(groups), 1)
+        self.assertEqual((groups[0]["required"], groups[0]["owned"], groups[0]["missing"]), (8, 2, 6))
+        self.assertContains(response, "Erstes Set")
+        self.assertContains(response, "Zweites Set")
+        self.assertContains(response, "Teilweise gefunden")
+
+    def test_permanent_delete_is_post_only_and_owner_scoped(self):
+        from django.utils import timezone
+        own = Part.objects.create(owner=self.user, element_id="trash-own", name="Eigen", deleted_at=timezone.now())
+        other_user = get_user_model().objects.create_user("trash-other", "trash-other@example.test", "Strong-password-123")
+        foreign = Part.objects.create(owner=other_user, element_id="trash-foreign", name="Fremd", deleted_at=timezone.now())
+        own_url = reverse("catalog:permanent_delete", args=["part", own.pk])
+        self.assertEqual(self.client.get(own_url).status_code, 405)
+        self.assertEqual(self.client.post(reverse("catalog:permanent_delete", args=["part", foreign.pk])).status_code, 404)
+        self.assertTrue(Part.objects.filter(pk=foreign.pk).exists())
+        self.assertRedirects(self.client.post(own_url), reverse("catalog:trash"))
+        self.assertFalse(Part.objects.filter(pk=own.pk).exists())

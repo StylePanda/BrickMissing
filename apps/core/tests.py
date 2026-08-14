@@ -9,6 +9,8 @@ from django.urls import reverse
 
 from apps.accounts.models import User
 from apps.catalog.models import LegoSet, Part
+from apps.inventory.models import InventoryItem
+from apps.organizer.models import Moc
 
 from .client_ip import client_ip
 from .models import DataQualityIssue, SavedView
@@ -104,6 +106,19 @@ class InterfaceQualityTests(TestCase):
         self.assertContains(response, "Lagerorte")
         self.assertContains(response, 'class="nav-toggle ghost"')
         self.assertContains(response, "icons/brickmissing.svg")
+
+    def test_global_search_finds_all_supported_identifiers_and_paginates(self):
+        lego_set = LegoSet.objects.create(owner=self.user, set_number="SEARCH-SET", name="Burg")
+        Part.objects.create(owner=self.user, lego_set=lego_set, element_id="E-100", design_id="DESIGN-42", name="Stein")
+        InventoryItem.objects.create(owner=self.user, part_number="P-1", element_id="INV-ELEMENT", design_id="INV-DESIGN", name="Platte")
+        Moc.objects.create(owner=self.user, project_code="MOC-SEARCH", name="Turm")
+        for query, expected in (("SEARCH-SET", "Burg"), ("DESIGN-42", "Stein"), ("INV-ELEMENT", "Platte"), ("MOC-SEARCH", "Turm")):
+            with self.subTest(query=query):
+                self.assertContains(self.client.get(reverse("global_search"), {"q": query}), expected)
+        Part.objects.bulk_create([Part(owner=self.user, element_id=f"PAGE-{index}", name="Treffer") for index in range(30)])
+        response = self.client.get(reverse("global_search"), {"q": "Treffer", "parts_page": 2})
+        self.assertEqual(response.context["parts"].paginator.count, 30)
+        self.assertEqual(response.context["parts"].number, 2)
 
     def test_custom_error_pages_render(self):
         for template_name, expected in (

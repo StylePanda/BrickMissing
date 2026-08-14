@@ -32,6 +32,21 @@ html[data-theme="light"] {
   --close-button-hover-bg: #3f4858;
 }
 
+/* BrickMissing Midnight Violet is the single admin theme in every OS color mode. */
+:root, html[data-theme="light"], html[data-theme="dark"] {
+  color-scheme: dark;
+  --primary: #9b6cff; --secondary: #1a1627; --accent: #c8b1ff;
+  --header-bg: #13101e; --header-color: #f6f3fb;
+  --breadcrumbs-bg: #1a1627; --breadcrumbs-fg: #c9c2d7; --breadcrumbs-link-fg: #c8b1ff;
+  --body-bg: #0d0b14; --body-fg: #f6f3fb; --body-quiet-color: #9890aa; --body-loud-color: #f6f3fb;
+  --darkened-bg: #1a1627; --selected-bg: #302642; --selected-row: #241e35;
+  --hairline-color: #292238; --border-color: #3b3250;
+  --link-fg: #c8b1ff; --link-hover-color: #f6f3fb; --link-selected-fg: #f6f3fb;
+  --button-bg: #9b6cff; --button-hover-bg: #b18cff;
+  --default-button-bg: #9b6cff; --default-button-hover-bg: #b18cff;
+  --object-tools-bg: #302642; --object-tools-hover-bg: #44355d;
+}
+
 html[data-theme="dark"] {
   --primary: #9b6cff;
   --secondary: #1a1627;

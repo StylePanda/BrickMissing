@@ -5,6 +5,7 @@ from apps.accounts.models import User
 from apps.catalog.models import LegoSet
 from apps.inventory.models import InventoryItem, InventoryMovement, WarehouseLocation
 
+from .forms import OrderForm
 from .models import Order, OrderItem
 
 
@@ -24,6 +25,12 @@ class OrderReceiptTests(TestCase):
         self.assertEqual(InventoryMovement.objects.get(item=inventory).difference, 3)
         self.order.refresh_from_db()
         self.assertEqual(self.order.status, "received")
+
+    def test_order_finite_fields_are_choice_fields_with_german_labels(self):
+        form = OrderForm()
+        for name in ("status", "payment_status", "shipping_status", "currency"):
+            self.assertEqual(form.fields[name].widget.input_type, "select")
+        self.assertEqual(form.fields["supplier"].label, "Lieferant")
 
     def test_receipt_rejects_overdelivery_and_foreign_order(self):
         self.assertEqual(self.client.post(reverse("orders:receive_item", args=[self.order.pk, self.item.pk]), {"quantity": 4}).status_code, 400)

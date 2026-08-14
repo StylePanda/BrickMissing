@@ -138,7 +138,7 @@ class AccountFlowTests(TestCase):
         response = self.client.post(
             reverse("accounts:two_factor_setup"), {"code": code_for(secret)}
         )
-        self.assertContains(response, "Recovery Codes")
+        self.assertContains(response, "Wiederherstellungscodes")
         user.refresh_from_db()
         self.assertTrue(user.totp_enabled)
         self.assertEqual(decrypt_secret(user.totp_secret_encrypted), secret)

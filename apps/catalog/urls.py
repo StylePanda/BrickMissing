@@ -22,4 +22,5 @@ urlpatterns = [
     path("fehlteile/aktion/", views.missing_parts_bulk, name="missing_parts_bulk"),
     path("papierkorb/", views.trash, name="trash"),
     path("papierkorb/<str:kind>/<uuid:pk>/wiederherstellen/", views.restore, name="restore"),
+    path("papierkorb/<str:kind>/<uuid:pk>/endgueltig-loeschen/", views.permanent_delete, name="permanent_delete"),
 ]
