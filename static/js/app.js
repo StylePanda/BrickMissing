@@ -52,6 +52,25 @@ document.querySelectorAll("[data-selection-scope]").forEach((scope) => {
   update();
 });
 
+document.querySelectorAll("[data-color-filter]").forEach((filter) => {
+  const boxes = [...filter.querySelectorAll('input[type="checkbox"]')];
+  const summary = filter.querySelector("[data-color-summary]");
+  const update = () => {
+    const selected = boxes.filter((box) => box.checked).length;
+    if (summary) summary.textContent = selected ? `${selected} Farben` : "Alle Farben";
+  };
+  filter.querySelector("[data-clear-colors]")?.addEventListener("click", () => {
+    boxes.forEach((box) => { box.checked = false; });
+    update();
+  });
+  filter.querySelector("[data-close-colors]")?.addEventListener("click", () => {
+    filter.open = false;
+    filter.querySelector("summary")?.focus();
+  });
+  boxes.forEach((box) => box.addEventListener("change", update));
+  update();
+});
+
 document.querySelectorAll("img[data-image-fallback]").forEach((image) => {
   image.addEventListener("error", () => {
     image.hidden = true;
@@ -65,21 +84,28 @@ document.querySelectorAll("[data-combobox]").forEach((box) => {
   const options = [...box.querySelectorAll("[data-combobox-option]")];
   let visible = options;
   let active = -1;
+  if (!list.id) list.id = `combobox-options-${Math.random().toString(36).slice(2)}`;
+  const setOpen = (open) => {
+    list.hidden = !open;
+    input.setAttribute("aria-expanded", String(open));
+  };
   const render = () => {
     const query = input.value.trim().toLocaleLowerCase("de");
     visible = options.filter((option) => option.dataset.comboboxOption.toLocaleLowerCase("de").includes(query));
     options.forEach((option) => { option.hidden = !visible.includes(option); option.setAttribute("aria-selected", "false"); });
     active = Math.min(active, visible.length - 1);
     if (active >= 0) visible[active].setAttribute("aria-selected", "true");
-    list.hidden = visible.length === 0;
+    setOpen(visible.length > 0);
   };
-  const choose = (option) => { input.value = option.dataset.comboboxOption; list.hidden = true; input.dispatchEvent(new Event("change", {bubbles: true})); input.focus(); };
+  const choose = (option) => { input.value = option.dataset.comboboxOption; setOpen(false); input.dispatchEvent(new Event("change", {bubbles: true})); input.focus(); };
   input.setAttribute("role", "combobox");
   input.setAttribute("aria-autocomplete", "list");
+  input.setAttribute("aria-controls", list.id);
+  input.setAttribute("aria-expanded", "false");
   input.addEventListener("focus", render);
   input.addEventListener("input", render);
   input.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") { list.hidden = true; return; }
+    if (event.key === "Escape") { setOpen(false); return; }
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
       if (list.hidden) render();
@@ -89,7 +115,7 @@ document.querySelectorAll("[data-combobox]").forEach((box) => {
     } else if (event.key === "Enter" && !list.hidden && active >= 0) { event.preventDefault(); choose(visible[active]); }
   });
   options.forEach((option) => option.addEventListener("click", () => choose(option)));
-  document.addEventListener("click", (event) => { if (!box.contains(event.target)) list.hidden = true; });
+  document.addEventListener("click", (event) => { if (!box.contains(event.target)) setOpen(false); });
 });
 
 const setForm = document.querySelector("form[data-set-lookup-url]");

@@ -8,6 +8,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from .admin import InventoryItemAdmin
+from .forms import InventoryItemForm
 from .models import InventoryItem, InventoryMovement, WarehouseLocation
 from .services import adjust_inventory, change_inventory
 
@@ -53,6 +54,10 @@ class InventoryIntegrityTests(TestCase):
                 adjust_inventory(self.item, self.user, quantity, reserved, "test")
         self.item.refresh_from_db()
         self.assertEqual((self.item.quantity, self.item.reserved_quantity), (5, 1))
+
+    def test_condition_uses_fixed_semantic_choices(self):
+        field = InventoryItemForm().fields["condition"]
+        self.assertEqual(list(field.choices), [("neu", "Neu"), ("gebraucht", "Gebraucht")])
         self.assertFalse(InventoryMovement.objects.exists())
 
     def test_failure_rolls_back_item_and_movement(self):

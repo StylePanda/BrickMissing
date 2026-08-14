@@ -249,3 +249,28 @@ class CatalogFlowTests(TestCase):
         self.assertRedirects(self.client.post(update, {"owned_quantity": 3}), reverse("catalog:set_detail", args=[lego_set.pk]))
         item.refresh_from_db()
         self.assertEqual(item.owned_quantity, 3)
+
+    def test_set_inventory_supports_multicolor_stock_filters_and_all_sorts(self):
+        lego_set = LegoSet.objects.create(owner=self.user, set_number="75010", name="B-wing")
+        SetInventoryItem.objects.create(lego_set=lego_set, part_number="2", name="Ziegel", color_name="Red", required_quantity=4, owned_quantity=2)
+        SetInventoryItem.objects.create(lego_set=lego_set, part_number="1", name="Platte", color_name="Black", required_quantity=1, owned_quantity=1)
+        response = self.client.get(reverse("catalog:set_detail", args=[lego_set.pk]), {"color": ["Red", "Black"], "stock": "partial", "sort": "-missing"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Ziegel")
+        self.assertNotContains(response, ">Platte</a>")
+        self.assertEqual(response.context["selected_colors"], ["Red", "Black"])
+        for ordering in ("name", "-name", "part_number", "-part_number", "color", "required", "-required", "owned", "-owned", "missing", "-missing"):
+            with self.subTest(ordering=ordering):
+                self.assertEqual(self.client.get(reverse("catalog:set_detail", args=[lego_set.pk]), {"sort": ordering}).status_code, 200)
+
+    def test_missing_workbench_combines_v7_parity_filters(self):
+        lego_set = LegoSet.objects.create(owner=self.user, set_number="123", name="Filterset")
+        target = Part.objects.create(owner=self.user, lego_set=lego_set, part_number="3001", element_id="E1", name="Ziel", color="Red", quantity=3, owned_quantity=0)
+        Part.objects.create(owner=self.user, part_number="3002", element_id="E2", name="Andere", color="Blue", quantity=1, owned_quantity=0)
+        response = self.client.get(reverse("catalog:missing_parts"), {"color": ["Red", "Blue"], "set": str(lego_set.pk), "kind": "assigned", "rarity": "multiple", "sort": "-missing"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, target.name)
+        self.assertNotContains(response, "Andere")
+        for label in ("Suche", "Status", "Farbe", "Set", "Teileart", "Seltenheit", "Sortierung"):
+            self.assertContains(response, label)
+        self.assertContains(response, 'class="table-wrap missing-worktable"')

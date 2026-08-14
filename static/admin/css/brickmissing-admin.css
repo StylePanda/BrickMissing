@@ -159,7 +159,7 @@ input:focus, textarea:focus, select:focus, a:focus-visible, button:focus-visible
 .admin-module-grid .module > h2 { border-bottom: 1px solid var(--hairline-color); background: var(--darkened-bg); }
 .admin-module-grid .module > h2 a { color: var(--body-loud-color); text-decoration: none; }
 .admin-model-list { display: grid; }
-.admin-model-row { display: flex; min-height: 58px; align-items: center; justify-content: space-between; gap: 16px; border-top: 1px solid var(--hairline-color); padding: 10px 16px; }
+.admin-model-row { display: grid; min-height: 64px; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 16px; border-top: 1px solid var(--hairline-color); padding: 10px 16px; }
 .admin-model-row:hover { background: var(--darkened-bg); }
 .admin-model-name { min-width: 0; font-weight: 700; }
 .admin-model-actions { display: flex; flex: 0 0 auto; gap: 8px; }
@@ -167,6 +167,7 @@ input:focus, textarea:focus, select:focus, a:focus-visible, button:focus-visible
 .admin-model-actions .changelink, .admin-model-actions .viewlink { border-color: var(--primary); background-color: var(--primary); color: #fff; }
 .admin-model-actions .changelink:hover, .admin-model-actions .viewlink:hover { background-color: var(--button-hover-bg); color: #fff; }
 .admin-model-actions .addlink { background-color: var(--darkened-bg); }
+.admin-model-actions .icon-only { width: 44px; min-width: 44px; padding: 0; background-image: none; font-size: 1.55rem; line-height: 1; }
 .admin-model-actions a:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 2px; }
 .admin-empty-state { display: grid; gap: 4px; margin: 0; border: 1px dashed var(--border-color); border-radius: 10px; padding: 20px; color: var(--body-quiet-color); }
 #content-related { margin: 0; }
@@ -202,9 +203,10 @@ input:focus, textarea:focus, select:focus, a:focus-visible, button:focus-visible
   .main > .content { padding: 16px; }
   .admin-welcome { padding: 20px 16px; }
   .admin-module-grid { grid-template-columns: 1fr; }
-  .admin-model-row { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .admin-model-row { grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
   .admin-model-actions { width: 100%; flex-wrap: wrap; }
   .admin-model-actions a { flex: 1 1 auto; text-align: center; }
+  .admin-model-actions .icon-only { flex: 0 0 44px; }
   .aligned .form-row, .aligned .form-row > div { display: grid; }
   .aligned label { width: auto; padding: 0 0 4px; }
   .submit-row { align-items: stretch; flex-direction: column; }

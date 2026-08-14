@@ -7,10 +7,10 @@
   <link rel="icon" href="{% static 'icons/favicon.ico' %}" sizes="any">
   <link rel="icon" href="{% static 'icons/brickmissing.svg' %}" type="image/svg+xml">
   <link rel="apple-touch-icon" href="{% static 'icons/apple-touch-icon.png' %}">
-  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=8.0-ui73">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=8.0-ui74">
   <link rel="manifest" href="{% static 'manifest.webmanifest' %}">
   <meta name="theme-color" content="#0d0b14">
-  <script src="{% static 'js/app.js' %}?v=8.0-ui73" defer></script>
+  <script src="{% static 'js/app.js' %}?v=8.0-ui74" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#content">Zum Inhalt springen</a>
@@ -19,7 +19,20 @@
     {% if user.is_authenticated %}
       <button class="nav-toggle ghost" type="button" aria-expanded="false" aria-controls="main-navigation">Menü</button>
       <nav id="main-navigation" aria-label="Hauptnavigation">
-        <a href="{% url 'dashboard' %}"{% if request.resolver_match.url_name == 'dashboard' %} aria-current="page"{% endif %}>Übersicht</a><a href="{% url 'global_search' %}"{% if request.resolver_match.url_name == 'global_search' %} aria-current="page"{% endif %}>Suche</a><a href="{% url 'catalog:set_list' %}"{% if request.resolver_match.namespace == 'catalog' and 'set' in request.resolver_match.url_name %} aria-current="page"{% endif %}>Sets</a><a href="{% url 'catalog:part_list' %}"{% if request.resolver_match.namespace == 'catalog' and 'part' in request.resolver_match.url_name %} aria-current="page"{% endif %}>Teile</a><a href="{% url 'catalog:missing_parts' %}"{% if request.resolver_match.url_name == 'missing_parts' %} aria-current="page"{% endif %}>Fehlteile</a><a href="{% url 'inventory:list' %}"{% if request.resolver_match.namespace == 'inventory' and request.resolver_match.url_name == 'list' %} aria-current="page"{% endif %}>Inventar</a><a href="{% url 'inventory:locations' %}"{% if request.resolver_match.namespace == 'inventory' and request.resolver_match.url_name == 'locations' %} aria-current="page"{% endif %}>Lagerorte</a><a href="{% url 'orders:list' %}"{% if request.resolver_match.namespace == 'orders' %} aria-current="page"{% endif %}>Bestellungen</a><a href="{% url 'media_library:list' %}"{% if request.resolver_match.namespace == 'media_library' %} aria-current="page"{% endif %}>Dokumente</a><a href="{% url 'data_portability:import_page' %}"{% if request.resolver_match.namespace == 'data_portability' %} aria-current="page"{% endif %}>Import und Export</a><a href="{% url 'notifications' %}"{% if request.resolver_match.url_name == 'notifications' %} aria-current="page"{% endif %}>Benachrichtigungen</a><a href="{% url 'organizer:list' 'collections' %}"{% if request.resolver_match.namespace == 'organizer' %} aria-current="page"{% endif %}>Organisation</a><a href="{% url 'catalog:trash' %}"{% if request.resolver_match.url_name == 'trash' %} aria-current="page"{% endif %}>Papierkorb</a>{% if user.is_staff %}<a href="{% url 'backups:list' %}">Backups</a><a href="{% url 'admin:index' %}">Administration</a>{% endif %}
+        <a href="{% url 'dashboard' %}"{% if request.resolver_match.url_name == 'dashboard' %} aria-current="page"{% endif %}>Übersicht</a>
+        <a href="{% url 'global_search' %}"{% if request.resolver_match.url_name == 'global_search' %} aria-current="page"{% endif %}>Suche</a>
+        <a href="{% url 'catalog:set_list' %}"{% if request.resolver_match.namespace == 'catalog' and request.resolver_match.url_name|slice:':3' == 'set' %} aria-current="page"{% endif %}>Sets</a>
+        <a href="{% url 'catalog:part_list' %}"{% if request.resolver_match.namespace == 'catalog' and request.resolver_match.url_name|slice:':4' == 'part' %} aria-current="page"{% endif %}>Teile</a>
+        <a href="{% url 'catalog:missing_parts' %}"{% if request.resolver_match.namespace == 'catalog' and request.resolver_match.url_name|slice:':13' == 'missing_parts' %} aria-current="page"{% endif %}>Fehlteile</a>
+        <a href="{% url 'inventory:list' %}"{% if request.resolver_match.namespace == 'inventory' and request.resolver_match.url_name != 'locations' and request.resolver_match.url_name|slice:':8' != 'location' %} aria-current="page"{% endif %}>Inventar</a>
+        <a href="{% url 'inventory:locations' %}"{% if request.resolver_match.namespace == 'inventory' and request.resolver_match.url_name|slice:':8' == 'location' %} aria-current="page"{% endif %}>Lagerorte</a>
+        <a href="{% url 'orders:list' %}"{% if request.resolver_match.namespace == 'orders' %} aria-current="page"{% endif %}>Bestellungen</a>
+        <a href="{% url 'media_library:list' %}"{% if request.resolver_match.namespace == 'media_library' %} aria-current="page"{% endif %}>Dokumente</a>
+        <a href="{% url 'data_portability:import_page' %}"{% if request.resolver_match.namespace == 'data_portability' %} aria-current="page"{% endif %}>Import und Export</a>
+        <a href="{% url 'notifications' %}"{% if request.resolver_match.url_name == 'notifications' %} aria-current="page"{% endif %}>Benachrichtigungen</a>
+        <a href="{% url 'organizer:list' 'collections' %}"{% if request.resolver_match.namespace == 'organizer' %} aria-current="page"{% endif %}>Organisation</a>
+        <a href="{% url 'catalog:trash' %}"{% if request.resolver_match.url_name == 'trash' %} aria-current="page"{% endif %}>Papierkorb</a>
+        {% if user.is_staff %}<a href="{% url 'backups:list' %}">Backups</a><a href="{% url 'admin:index' %}">Administration</a>{% endif %}
       </nav>
       <div class="user-menu"><a href="{% url 'accounts:profile' %}">{{ user.username }}</a><form method="post" action="{% url 'accounts:logout' %}">{% csrf_token %}<button class="link-button">Abmelden</button></form><button id="theme-toggle" class="ghost" type="button" aria-label="Farbschema wechseln">◐</button></div>
     {% endif %}

@@ -18,6 +18,10 @@ class WarehouseLocationForm(forms.ModelForm):
 
 
 class InventoryItemForm(forms.ModelForm):
+    condition = forms.ChoiceField(
+        label="Zustand",
+        choices=(("neu", "Neu"), ("gebraucht", "Gebraucht")),
+    )
     quantity = forms.IntegerField(min_value=0, label="Bestand", widget=forms.NumberInput(attrs={"class": "compact-number"}))
     reserved_quantity = forms.IntegerField(min_value=0, label="Reserviert", widget=forms.NumberInput(attrs={"class": "compact-number"}))
 

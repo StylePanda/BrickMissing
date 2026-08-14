@@ -18,6 +18,27 @@ from .models import LegoSet, Part, SetCopy, SetInventoryItem
 from .services import soft_delete, update_part
 
 
+def _color_group(name):
+    value = name.casefold()
+    groups = (
+        ("BLACK", ("black",)), ("WHITE", ("white", "nougat")),
+        ("GRAY", ("gray", "grey", "silver", "metal")),
+        ("RED", ("red", "coral", "magenta", "pink")),
+        ("BLUE", ("blue", "azure", "aqua", "turquoise")),
+        ("GREEN", ("green", "olive")), ("YELLOW", ("yellow", "gold")),
+        ("BROWN", ("brown", "tan", "copper")),
+        ("ORANGE", ("orange",)), ("PURPLE", ("purple", "lavender")),
+    )
+    return next((label for label, needles in groups if any(word in value for word in needles)), "WEITERE")
+
+
+def _color_groups(values):
+    grouped = {}
+    for value in values:
+        grouped.setdefault(_color_group(value), []).append(value)
+    return [{"label": label, "colors": colors} for label, colors in grouped.items()]
+
+
 def _page(request, queryset, size=50):
     return Paginator(queryset, size).get_page(request.GET.get("page"))
 
@@ -90,12 +111,34 @@ def set_detail(request, pk):
     query = request.GET.get("q", "").strip()
     if query:
         inventory = inventory.filter(Q(part_number__icontains=query) | Q(element_id__icontains=query) | Q(name__icontains=query) | Q(color_name__icontains=query))
+    selected_colors = [value for value in request.GET.getlist("color") if value]
+    if selected_colors:
+        inventory = inventory.filter(color_name__in=selected_colors)
+    stock = request.GET.get("stock", "all")
+    if stock == "complete":
+        inventory = inventory.filter(owned_quantity__gte=F("required_quantity"))
+    elif stock == "partial":
+        inventory = inventory.filter(owned_quantity__gt=0, owned_quantity__lt=F("required_quantity"))
+    elif stock == "missing":
+        inventory = inventory.filter(owned_quantity=0)
+    sort = request.GET.get("sort", "name")
+    inventory_sorting = {
+        "name": ("name", "pk"), "-name": ("-name", "pk"),
+        "part_number": ("part_number", "pk"), "-part_number": ("-part_number", "pk"),
+        "color": ("color_name", "name"), "required": ("required_quantity", "name"),
+        "-required": ("-required_quantity", "name"), "owned": ("owned_quantity", "name"),
+        "-owned": ("-owned_quantity", "name"), "missing": ("missing_amount", "name"),
+        "-missing": ("-missing_amount", "name"),
+    }
+    sort = sort if sort in inventory_sorting else "name"
+    inventory = inventory.annotate(missing_amount=F("required_quantity") - F("owned_quantity")).order_by(*inventory_sorting[sort])
     all_inventory = lego_set.inventory_items.all()
+    colors = list(all_inventory.exclude(color_name="").values_list("color_name", flat=True).distinct().order_by("color_name"))
     stats = all_inventory.aggregate(positions=Count("pk"), required=Sum("required_quantity"), owned=Sum("owned_quantity"))
     stats = {key: value or 0 for key, value in stats.items()}
     stats["missing"] = max(stats["required"] - stats["owned"], 0)
     stats["percent"] = min(round(stats["owned"] * 100 / stats["required"]), 100) if stats["required"] else 0
-    return render(request, "catalog/set_detail.html", {"lego_set": lego_set, "inventory_items": inventory, "inventory_stats": stats, "inventory_kind": kind, "inventory_query": query})
+    return render(request, "catalog/set_detail.html", {"lego_set": lego_set, "inventory_items": inventory, "inventory_stats": stats, "inventory_kind": kind, "inventory_query": query, "inventory_stock": stock, "inventory_sort": sort, "color_groups": _color_groups(colors), "selected_colors": selected_colors, "color_summary": f"{len(selected_colors)} Farben" if selected_colors else "Alle Farben"})
 
 
 @login_required
@@ -194,7 +237,7 @@ def missing_parts(request):
         quantity__gt=F("owned_quantity"),
     ).select_related("lego_set")
     query = request.GET.get("q", "").strip()
-    color = request.GET.get("color", "").strip()
+    selected_colors = [value for value in request.GET.getlist("color") if value]
     status = request.GET.get("status", Part.Status.MISSING)
     minimum = request.GET.get("minimum", "").strip()
     if query:
@@ -205,10 +248,23 @@ def missing_parts(request):
             | Q(lego_set__set_number__icontains=query)
             | Q(lego_set__name__icontains=query)
         )
-    if color:
-        queryset = queryset.filter(color=color)
+    if selected_colors:
+        queryset = queryset.filter(color__in=selected_colors)
     if status in Part.Status.values:
         queryset = queryset.filter(status=status)
+    set_filter = request.GET.get("set", "").strip()
+    if set_filter:
+        queryset = queryset.filter(lego_set_id=set_filter, lego_set__owner=request.user)
+    part_kind = request.GET.get("kind", "all")
+    if part_kind == "assigned":
+        queryset = queryset.filter(lego_set__isnull=False)
+    elif part_kind == "unassigned":
+        queryset = queryset.filter(lego_set__isnull=True)
+    rarity = request.GET.get("rarity", "all")
+    if rarity == "single":
+        queryset = queryset.filter(quantity=1)
+    elif rarity == "multiple":
+        queryset = queryset.filter(quantity__gte=2)
     if minimum.isdigit():
         queryset = queryset.annotate(missing=F("quantity") - F("owned_quantity")).filter(
             missing__gte=int(minimum)
@@ -216,7 +272,8 @@ def missing_parts(request):
     ordering = request.GET.get("sort", "name")
     allowed_ordering = {
         "name", "-name", "part_number", "element_id", "color",
-        "lego_set__set_number", "quantity", "-quantity", "owned_quantity",
+        "lego_set__set_number", "-lego_set__set_number", "quantity", "-quantity",
+        "owned_quantity", "-owned_quantity", "missing", "-missing",
     }
     ordering = ordering if ordering in allowed_ordering else "name"
     colors = (
@@ -226,7 +283,7 @@ def missing_parts(request):
         .distinct()
         .order_by("color")
     )
-    queryset = queryset.order_by(ordering, "pk")
+    queryset = queryset.annotate(missing=F("quantity") - F("owned_quantity")).order_by(ordering, "pk")
     records = list(queryset)
     grouped = {}
     for part in records:
@@ -262,12 +319,17 @@ def missing_parts(request):
             "page_obj": page_obj,
             "missing_total": sum(group["missing"] for group in groups),
             "query": query,
-            "color": color,
-            "colors": colors,
+            "color_groups": _color_groups(list(colors)),
+            "selected_colors": selected_colors,
+            "color_summary": f"{len(selected_colors)} Farben" if selected_colors else "Alle Farben",
             "status": status,
             "statuses": Part.Status.choices,
             "minimum": minimum,
             "sort": ordering,
+            "set_filter": set_filter,
+            "sets": LegoSet.objects.filter(owner=request.user, deleted_at__isnull=True).order_by("set_number"),
+            "part_kind": part_kind,
+            "rarity": rarity,
         },
     )
 

@@ -53,6 +53,11 @@ class AdminInterfaceTests(TestCase):
         content = response.content.decode()
         self.assertLess(content.index("Verwalten"), content.index("Hinzufügen"))
 
+    def test_admin_add_actions_are_compact_icon_buttons(self):
+        response = self.client.get(reverse("admin:index"))
+        self.assertContains(response, 'class="addlink icon-only"')
+        self.assertContains(response, 'aria-label="Hinzufügen"')
+
     def test_primary_admin_lists_and_forms_remain_available(self):
         lego_set = LegoSet.objects.create(
             owner=self.admin_user, set_number="10300", name="Zeitmaschine"
@@ -123,6 +128,12 @@ class InterfaceQualityTests(TestCase):
         self.assertContains(response, 'class="nav-toggle ghost"')
         self.assertContains(response, "icons/brickmissing.svg")
 
+    def test_missing_parts_has_exactly_one_primary_navigation_item(self):
+        response = self.client.get(reverse("catalog:missing_parts"))
+        navigation = re.search(r'<nav id="main-navigation".*?</nav>', response.content.decode(), re.DOTALL).group()
+        self.assertEqual(navigation.count('aria-current="page"'), 1)
+        self.assertIn('aria-current="page">Fehlteile</a>', navigation)
+
     def test_global_search_finds_all_supported_identifiers_and_paginates(self):
         lego_set = LegoSet.objects.create(owner=self.user, set_number="SEARCH-SET", name="Burg")
         Part.objects.create(owner=self.user, lego_set=lego_set, element_id="E-100", design_id="DESIGN-42", name="Stein")
@@ -166,6 +177,7 @@ class InterfaceQualityTests(TestCase):
         self.assertIn("--container-wide: 1760px", css)
         self.assertIn("icons/brickmissing.svg", manifest)
         self.assertTrue((static_root / "icons" / "brickmissing.svg").is_file())
+        self.assertIn("[hidden] { display: none !important; }", css)
 
 
 class ClientIPTests(TestCase):

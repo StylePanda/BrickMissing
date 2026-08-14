@@ -1,0 +1,137 @@
+BRICKMISSING 8 – PHASE 7.4 ABSCHLUSSBERICHT
+Stand: 14.08.2026
+
+STATUS
+Phase 7.4 ist im Code abgeschlossen. Es wurden keine Production-Aktionen, kein Deployment,
+kein Push, kein Datenimport und keine Änderung bestehender Daten ausgeführt.
+
+GEÄNDERTE DATEIEN
+- apps/catalog/views.py
+- apps/catalog/tests.py
+- apps/core/tests.py
+- apps/inventory/forms.py
+- apps/inventory/tests.py
+- static/admin/css/brickmissing-admin.css
+- static/css/app.css
+- static/js/app.js
+- templates/admin/app_list.html
+- templates/base.html
+- templates/catalog/missing_parts.html
+- templates/catalog/set_detail.html
+- templates/components/color_multiselect.html (neu)
+- PHASE_7_4_ABSCHLUSSBERICHT.txt (neu)
+
+1. DJANGO-ADMIN-AKTIONEN
+- „Hinzufügen“ ist in der App-/Modellübersicht eine kompakte, semantische 44×44-px-
+  Plus-Aktion mit aria-label und title.
+- Modellzeilen verwenden ein stabiles Grid aus Modellname und Aktionsbereich.
+- Auf kleinen Displays bleibt die Plus-Aktion kompakt; die Schaltflächen werden nicht
+  abgeschnitten oder aus der Karte gedrückt.
+- Rechte und serverseitige Django-Admin-Berechtigungen wurden nicht verändert.
+
+2. SET-INVENTAR – FILTER UND SORTIERUNG
+- Farbauswahl als gruppierter Mehrfachauswahl-Popover umgesetzt.
+- Mehrere Farben können gleichzeitig per GET-Parameter „color“ gefiltert werden.
+- Scrollbarer Popover, 44-px-Ziele, „Alle Farben anzeigen“ und „Übernehmen“ vorhanden.
+- Bestandsfilter: alle, vollständig vorhanden, teilweise vorhanden, nicht vorhanden/fehlend.
+- Teilefilter: normale und Ersatzteile, nur normale Teile, nur Ersatzteile.
+- Exakt verfügbare Sortierungen:
+  1. Name A–Z
+  2. Name Z–A
+  3. Teilenummer aufsteigend
+  4. Teilenummer absteigend
+  5. Farbe A–Z
+  6. Benötigte Menge aufsteigend
+  7. Benötigte Menge absteigend
+  8. Vorhandene Menge aufsteigend
+  9. Vorhandene Menge absteigend
+  10. Fehlmenge aufsteigend
+  11. Fehlmenge absteigend
+- Filterleiste ist auf Desktop kompakt, bricht auf mittleren Breiten dreispaltig und auf
+  Mobilgeräten einspaltig um.
+
+3. THEME-/SUBTHEME-COMBOBOX
+- Ursache des Überlappens: Die globale Button-Regel überstimmte das native hidden-Attribut.
+- Globale, CSP-neutrale Regel [hidden] { display: none !important; } ergänzt.
+- Popover verwendet gültige Theme-Variablen, begrenzte Höhe und eigenen Scrollbereich.
+- ARIA-Zustände aria-expanded/aria-controls werden zentral in app.js gepflegt.
+- Escape, Pfeiltasten, Enter, Mausauswahl und Klick außerhalb bleiben unterstützt.
+
+4. NAVIGATION
+- Zu breite Prüfung auf den Teilstring „part“ entfernt.
+- Set-, Teile- und Fehlteile-Routen werden anhand eindeutiger URL-Namenspräfixe markiert.
+- Auf /fehlteile/ ist nur „Fehlteile“ aktiv; „Teile“ ist nicht zusätzlich aktiv.
+- Inventar und Lagerorte sind ebenfalls sauber voneinander abgegrenzt.
+
+5. FEHLTEILE – V7-UX-PARITÄT
+- Kompakte Filterzeile mit Suche, Status, gruppierter Mehrfach-Farbauswahl, Set,
+  Teileart, Seltenheit, Sortierung und Aktualisieren.
+- Teileart: Set-Teile oder Datensätze ohne Set-Zuordnung.
+- Seltenheit: Einzelstück oder mehrfach benötigt.
+- Effiziente, horizontal scrollbar bleibende Arbeitstabelle mit Auswahl, Bild, Teil,
+  Set/Bestand, Gesamtmenge, Status, Kosten und Aktionen.
+- Direkte Mengen- und Statusformulare bleiben CSRF-geschützt und serverseitig validiert.
+- Statusänderungen halten die vorhandene Menge konsistent; Mengenänderungen leiten den
+  Status konsistent ab.
+- Bulk-Aktionen und Auswahlzähler bleiben erhalten.
+- Bildvorschau bleibt CSP-konform und tastaturzugänglich.
+
+6. FORMULAR-/CHOICE-AUDIT
+- Feste Inventar-Zustände waren als beliebiger Freitext editierbar.
+- InventoryItemForm verwendet nun die feste Auswahl „Neu“ / „Gebraucht“.
+- Catalog-Zustand, Vollständigkeit, Aufbaustatus und Priorität: bereits ChoiceFields.
+- Order-Status, Zahlung, Versand und Währung: bereits ChoiceFields.
+- Media-Dokument-/Objekttyp: bereits ChoiceFields.
+- Organizer-Beziehungen: bereits ModelChoiceFields mit fachlichen __str__-Darstellungen.
+- Theme/Subtheme bleiben absichtlich erweiterbare Textwerte mit zugänglicher Combobox.
+- Keine Migration erforderlich; das Datenbankfeld bleibt unverändert.
+
+7. GLOBALER RESTCHECK
+Suchbegriffe:
+- object (
+- LegoSet object
+- UUID
+- javascript:
+- Inline-Handler onclick/onchange/onsubmit/oninput/onkeydown/onkeyup
+- alte Klassen old, legacy, form-control
+- ChoiceField/Select/TextInput und sichtbare <select>-Elemente
+
+Ergebnis:
+- Keine sichtbaren „object (…)“- oder „LegoSet object (…)“-Labels in Templates.
+- UUID-Treffer betreffen interne Primärschlüssel/Tests, keine ModelChoice-Anzeige.
+- Keine javascript:-URLs und keine Inline-Eventhandler in Templates.
+- Keine alten Formular-CSS-Klassen in den geprüften UI-Templates.
+- „Legacy“ auf der Profilseite bezeichnet fachlich einen Legacy-E-Mail-Platzhalter und ist
+  kein veraltetes UI-Fragment.
+
+8. AUTOMATISIERTE TESTABDECKUNG
+- Mehrfach-Farbfilter und Bestandsfilter im Set-Inventar.
+- Alle 11 Set-Inventar-Sortierungen.
+- Kombinierte Fehlteile-Filter nach Farben, Set, Teileart, Seltenheit und Sortierung.
+- V7-nahe Fehlteile-Arbeitstabelle.
+- Exakt ein aktiver primärer Navigationspunkt auf der Fehlteile-Seite.
+- Kompakte, zugänglich beschriftete Admin-Plus-Aktion.
+- Feste semantische Inventar-Zustandsauswahl.
+- Globale hidden-Regel gegen offene/überlappende Combobox-Optionen.
+
+9. PRÜFERGEBNISSE
+- python manage.py test
+  Ergebnis: 166 Tests, 166 bestanden, 0 fehlgeschlagen, 0 übersprungen.
+  Wiederholungslauf: 165 bestanden, 1 zeitauflösungsabhängiger Backup-Vergleich
+  fehlgeschlagen (identischer UTC-Zeitpunkt als „Z“ gegenüber „.000Z“ serialisiert).
+  Der betroffene Test wurde unmittelbar isoliert erneut ausgeführt: 1/1 bestanden.
+- ruff check .
+  Ergebnis: All checks passed.
+- python manage.py check
+  Ergebnis: System check identified no issues (0 silenced).
+- python manage.py makemigrations --check --dry-run
+  Ergebnis: No changes detected.
+- python manage.py collectstatic --dry-run --noinput
+  Ergebnis: 3 geänderte statische Dateien würden kopiert, 134 unverändert.
+
+10. DEPLOYMENT-HINWEISE (NICHT AUSGEFÜHRT)
+- migrate: nicht nötig.
+- collectstatic: nötig, da app.css, app.js und brickmissing-admin.css geändert wurden.
+- brickmissing.service neu starten: nötig, da Python-Code in apps/catalog/views.py geändert wurde.
+- Keine Production-Daten migrieren oder erneut importieren.
+- Für ein später freigegebenes Deployment ausschließlich das bestehende deploy.sh verwenden.
