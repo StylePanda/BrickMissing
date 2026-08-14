@@ -1,3 +1,5 @@
+import uuid
+
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db import transaction
@@ -35,8 +37,10 @@ def _color_group(name):
 def _color_groups(values):
     grouped = {}
     for value in values:
-        grouped.setdefault(_color_group(value), []).append(value)
-    return [{"label": label, "colors": colors} for label, colors in grouped.items()]
+        display = "Keine Farbangabe" if value == "[No Color/Any Color]" else value
+        grouped.setdefault(_color_group(value), []).append({"value": value, "label": display})
+    order = ("BLACK", "WHITE", "GRAY", "RED", "BLUE", "GREEN", "YELLOW", "BROWN", "ORANGE", "PURPLE", "WEITERE")
+    return [{"label": label, "colors": grouped[label]} for label in order if label in grouped]
 
 
 def _page(request, queryset, size=50):
@@ -234,11 +238,10 @@ def missing_parts(request):
     queryset = Part.objects.filter(
         owner=request.user,
         deleted_at__isnull=True,
-        quantity__gt=F("owned_quantity"),
     ).select_related("lego_set")
     query = request.GET.get("q", "").strip()
     selected_colors = [value for value in request.GET.getlist("color") if value]
-    status = request.GET.get("status", Part.Status.MISSING)
+    status = request.GET.get("status", "")
     minimum = request.GET.get("minimum", "").strip()
     if query:
         queryset = queryset.filter(
@@ -250,8 +253,6 @@ def missing_parts(request):
         )
     if selected_colors:
         queryset = queryset.filter(color__in=selected_colors)
-    if status in Part.Status.values:
-        queryset = queryset.filter(status=status)
     set_filter = request.GET.get("set", "").strip()
     if set_filter:
         queryset = queryset.filter(lego_set_id=set_filter, lego_set__owner=request.user)
@@ -265,17 +266,15 @@ def missing_parts(request):
         queryset = queryset.filter(quantity=1)
     elif rarity == "multiple":
         queryset = queryset.filter(quantity__gte=2)
-    if minimum.isdigit():
-        queryset = queryset.annotate(missing=F("quantity") - F("owned_quantity")).filter(
-            missing__gte=int(minimum)
-        )
     ordering = request.GET.get("sort", "name")
-    allowed_ordering = {
-        "name", "-name", "part_number", "element_id", "color",
-        "lego_set__set_number", "-lego_set__set_number", "quantity", "-quantity",
-        "owned_quantity", "-owned_quantity", "missing", "-missing",
+    sort_fields = {
+        "name": "name", "-name": "name", "part_number": "part_number",
+        "element_id": "element_id", "color": "color", "quantity": "required",
+        "-quantity": "required", "owned_quantity": "owned",
+        "-owned_quantity": "owned", "missing": "missing", "-missing": "missing",
+        "lego_set__set_number": "first_set", "-lego_set__set_number": "first_set",
     }
-    ordering = ordering if ordering in allowed_ordering else "name"
+    ordering = ordering if ordering in sort_fields else "name"
     colors = (
         Part.objects.filter(owner=request.user, deleted_at__isnull=True)
         .exclude(color="")
@@ -283,21 +282,24 @@ def missing_parts(request):
         .distinct()
         .order_by("color")
     )
-    queryset = queryset.annotate(missing=F("quantity") - F("owned_quantity")).order_by(ordering, "pk")
-    records = list(queryset)
+    records = list(queryset.order_by("pk"))
     grouped = {}
     for part in records:
-        key = (part.element_id.casefold(), part.color.casefold())
+        identity = part.element_id.strip().casefold()
+        if not identity:
+            identity = (part.design_id or part.part_number).strip().casefold()
+        key = (identity, part.color.strip().casefold())
         group = grouped.setdefault(key, {
             "element_id": part.element_id, "design_id": part.design_id,
             "part_number": part.part_number, "name": part.name, "color": part.color,
             "image_url": part.image_url, "required": 0, "owned": 0, "missing": 0,
-            "allocations": [], "statuses": set(),
+            "allocations": [], "statuses": set(), "cost": 0,
         })
         group["required"] += part.quantity
         group["owned"] += part.owned_quantity
         group["missing"] += part.missing_quantity
         group["statuses"].add(part.status)
+        group["cost"] += part.unit_price * part.quantity
         if not group["image_url"] and part.image_url:
             group["image_url"] = part.image_url
         group["allocations"].append(part)
@@ -306,11 +308,26 @@ def missing_parts(request):
         if group["missing"] == 0:
             group["status"], group["status_label"] = Part.Status.FOUND, "Gefunden"
         elif group["owned"]:
-            group["status"], group["status_label"] = "partial", "Teilweise gefunden"
-        elif group["statuses"] == {Part.Status.ORDERED}:
-            group["status"], group["status_label"] = Part.Status.ORDERED, "Bestellt"
+            group["status"], group["status_label"] = "partial", "Teilweise vorhanden"
         else:
             group["status"], group["status_label"] = Part.Status.MISSING, "Fehlt"
+        group["first_set"] = min(
+            (item.lego_set.set_number for item in group["allocations"] if item.lego_set),
+            default="",
+        )
+        group["bulk_value"] = ",".join(str(item.pk) for item in group["allocations"])
+    if status == Part.Status.ORDERED:
+        groups = [group for group in groups if group["statuses"] == {Part.Status.ORDERED}]
+    elif status in {Part.Status.MISSING, Part.Status.FOUND, "partial"}:
+        groups = [group for group in groups if group["status"] == status]
+    elif not status:
+        groups = [group for group in groups if group["missing"] > 0]
+    if minimum.isdigit():
+        groups = [group for group in groups if group["missing"] >= int(minimum)]
+    groups.sort(
+        key=lambda group: (group[sort_fields[ordering]], group["name"].casefold()),
+        reverse=ordering.startswith("-"),
+    )
     page_obj = Paginator(groups, 30).get_page(request.GET.get("page"))
     return render(
         request,
@@ -323,7 +340,11 @@ def missing_parts(request):
             "selected_colors": selected_colors,
             "color_summary": f"{len(selected_colors)} Farben" if selected_colors else "Alle Farben",
             "status": status,
-            "statuses": Part.Status.choices,
+            "statuses": (
+                (Part.Status.MISSING, "Fehlt"), ("partial", "Teilweise vorhanden"),
+                (Part.Status.ORDERED, "Bestellt"), (Part.Status.FOUND, "Gefunden/Vollständig"),
+            ),
+            "part_statuses": Part.Status.choices,
             "minimum": minimum,
             "sort": ordering,
             "set_filter": set_filter,
@@ -340,7 +361,14 @@ def missing_parts(request):
 def missing_parts_bulk(request):
     if limited(request, "missing-parts-bulk", 60, 3600, per_user=True):
         return HttpResponse("Rate limit exceeded", status=429)
-    identifiers = request.POST.getlist("item")[:500]
+    identifiers = []
+    for value in request.POST.getlist("item")[:500]:
+        for candidate in value.split(","):
+            try:
+                identifiers.append(uuid.UUID(candidate))
+            except (ValueError, AttributeError):
+                continue
+    identifiers = list(dict.fromkeys(identifiers))[:500]
     action = request.POST.get("action")
     if action not in {"found", "missing", "ordered"}:
         return HttpResponse("Ungültige Aktion", status=400)

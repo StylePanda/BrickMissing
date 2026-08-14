@@ -2,7 +2,7 @@
   <summary><span data-color-summary>{{ color_summary }}</span></summary>
   <div class="color-filter-popover">
     <div class="color-options">
-      {% for group in color_groups %}<fieldset><legend>{{ group.label }}</legend>{% for option in group.colors %}<label><input type="checkbox" name="color" value="{{ option }}"{% if option in selected_colors %} checked{% endif %}> <span>{{ option }}</span></label>{% endfor %}</fieldset>{% empty %}<p class="muted">Keine Farben vorhanden.</p>{% endfor %}
+      {% for group in color_groups %}<fieldset><legend>{{ group.label }}</legend>{% for option in group.colors %}<label><input type="checkbox" name="color" value="{{ option.value }}"{% if option.value in selected_colors %} checked{% endif %}><span>{{ option.label }}</span></label>{% endfor %}</fieldset>{% empty %}<p class="muted">Keine Farben vorhanden.</p>{% endfor %}
     </div>
     <div class="color-filter-actions"><button type="button" data-clear-colors>Alle Farben anzeigen</button><button type="button" data-close-colors>Übernehmen</button></div>
   </div>

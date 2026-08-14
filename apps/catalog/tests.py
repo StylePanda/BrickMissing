@@ -139,7 +139,7 @@ class CatalogFlowTests(TestCase):
         )
         response = self.client.get(
             reverse("catalog:missing_parts"),
-            {"q": "Castle", "color": "Red", "status": "ordered", "minimum": "4", "sort": "-quantity"},
+            {"q": "Castle", "color": "Red", "status": "partial", "minimum": "4", "sort": "-quantity"},
         )
         self.assertContains(response, "Red Brick")
         self.assertNotContains(response, "Foreign")
@@ -194,7 +194,73 @@ class CatalogFlowTests(TestCase):
         self.assertEqual((groups[0]["required"], groups[0]["owned"], groups[0]["missing"]), (8, 2, 6))
         self.assertContains(response, "Erstes Set")
         self.assertContains(response, "Zweites Set")
-        self.assertContains(response, "Teilweise gefunden")
+        self.assertContains(response, "Teilweise vorhanden")
+
+    def test_grouped_missing_part_renders_one_main_row_and_all_allocations(self):
+        sets = [
+            LegoSet.objects.create(owner=self.user, set_number=number, name=name)
+            for number, name in (("9448", "Samurai X Mech"), ("70000", "Razcal's Glider"), ("9447", "Lasha's Bite Cycle"), ("70002", "Lennox' Lion Attack"))
+        ]
+        quantities = (3, 2, 3, 2)
+        for lego_set, quantity in zip(sets, quantities, strict=True):
+            Part.objects.create(owner=self.user, lego_set=lego_set, element_id=" 6000606 ", part_number="6000606", name="Bracket 1 x 2 - 1 x 2 Inverted", color="Dark Bluish Gray", quantity=quantity, owned_quantity=0, image_url="https://example.test/part.png")
+
+        response = self.client.get(reverse("catalog:missing_parts"))
+        groups = response.context["page_obj"].object_list
+        self.assertEqual(len(groups), 1)
+        self.assertEqual((groups[0]["required"], groups[0]["owned"], groups[0]["missing"]), (10, 0, 10))
+        self.assertEqual(groups[0]["status"], Part.Status.MISSING)
+        self.assertEqual(len(groups[0]["allocations"]), 4)
+        self.assertContains(response, 'class="missing-group-row"', count=1)
+        self.assertContains(response, 'data-lightbox-image="https://example.test/part.png"', count=1)
+        self.assertEqual({part.lego_set for part in groups[0]["allocations"]}, set(sets))
+
+    def test_grouping_separates_colors_and_derives_all_group_statuses(self):
+        lego_set = LegoSet.objects.create(owner=self.user, set_number="1", name="Statusset")
+        Part.objects.create(owner=self.user, lego_set=lego_set, element_id="same", name="Black", color="Black", quantity=2, owned_quantity=0)
+        Part.objects.create(owner=self.user, lego_set=lego_set, element_id="same", name="Red", color="Red", quantity=2, owned_quantity=1)
+        Part.objects.create(owner=self.user, lego_set=lego_set, element_id="full", name="Full", color="Red", quantity=2, owned_quantity=2, status=Part.Status.FOUND)
+        response = self.client.get(reverse("catalog:missing_parts"))
+        groups = response.context["page_obj"].object_list
+        self.assertEqual(len(groups), 2)
+        self.assertEqual({group["status"] for group in groups}, {Part.Status.MISSING, "partial"})
+        found = self.client.get(reverse("catalog:missing_parts"), {"status": "found"})
+        self.assertEqual(found.context["page_obj"].object_list[0]["status_label"], "Gefunden")
+
+    def test_group_filters_sort_and_bulk_apply_to_visible_allocations(self):
+        first = LegoSet.objects.create(owner=self.user, set_number="100", name="Erstes Set")
+        second = LegoSet.objects.create(owner=self.user, set_number="200", name="Zweites Set")
+        red_first = Part.objects.create(owner=self.user, lego_set=first, element_id="shared", name="Shared", color="Red", quantity=4, owned_quantity=1)
+        red_second = Part.objects.create(owner=self.user, lego_set=second, element_id="shared", name="Shared", color="Red", quantity=2, owned_quantity=0)
+        Part.objects.create(owner=self.user, lego_set=second, element_id="other", name="Other", color="Blue", quantity=9, owned_quantity=0)
+        response = self.client.get(reverse("catalog:missing_parts"), {"set": first.pk, "color": "Red", "sort": "-missing"})
+        groups = response.context["page_obj"].object_list
+        self.assertEqual(len(groups), 1)
+        self.assertEqual(groups[0]["allocations"], [red_first])
+        self.assertEqual(groups[0]["allocations"][0].lego_set, first)
+        bulk = self.client.post(reverse("catalog:missing_parts_bulk"), {"item": f"{red_first.pk},{red_second.pk}", "action": "found"})
+        self.assertEqual(bulk.status_code, 302)
+        red_first.refresh_from_db()
+        red_second.refresh_from_db()
+        self.assertEqual((red_first.owned_quantity, red_second.owned_quantity), (4, 2))
+
+    def test_single_allocation_quantity_change_updates_group_aggregation(self):
+        lego_set = LegoSet.objects.create(owner=self.user, set_number="300", name="Mengen")
+        part = Part.objects.create(owner=self.user, lego_set=lego_set, element_id="aggregate", name="Aggregate", color="White", quantity=4, owned_quantity=0)
+        self.client.post(reverse("catalog:missing_part_quantity", args=[part.pk]), {"owned_quantity": 3})
+        group = self.client.get(reverse("catalog:missing_parts")).context["page_obj"].object_list[0]
+        self.assertEqual((group["required"], group["owned"], group["missing"], group["status"]), (4, 3, 1, "partial"))
+
+    def test_color_multiselect_has_compact_shared_checkbox_layout(self):
+        lego_set = LegoSet.objects.create(owner=self.user, set_number="400", name="Farben")
+        SetInventoryItem.objects.create(lego_set=lego_set, element_id="x", name="No color", color_name="[No Color/Any Color]")
+        Part.objects.create(owner=self.user, element_id="y", name="Blue", color="Blue", quantity=1)
+        set_page = self.client.get(reverse("catalog:set_detail", args=[lego_set.pk]))
+        missing_page = self.client.get(reverse("catalog:missing_parts"))
+        for response in (set_page, missing_page):
+            self.assertContains(response, 'data-color-filter')
+            self.assertContains(response, 'class="color-filter-popover"')
+        self.assertContains(set_page, "Keine Farbangabe")
 
     def test_missing_part_image_lightbox_and_placeholder_are_safe(self):
         Part.objects.create(owner=self.user, element_id="with-image", name="Mit Bild", quantity=1, image_url="https://cdn.rebrickable.com/part.jpg")
