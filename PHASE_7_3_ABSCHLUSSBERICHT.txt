@@ -1,0 +1,223 @@
+BRICKMISSING 8 – PHASE 7.3 ABSCHLUSSBERICHT
+Stand: 14.08.2026
+
+SCOPE UND SICHERHEIT
+- Ausschließlich im Projekt BrickMissing-8-Django gearbeitet.
+- Keine Production-Verbindung, kein Deployment, kein echter Import, kein echter
+  E-Mail-Versand und keine Änderung bestehender Daten.
+- Keine CSP-Abschwächung, kein unsafe-inline und kein unsafe-eval.
+- Alle neuen Schreibaktionen sind POST-, CSRF- und Login-geschützt sowie auf den
+  Eigentümer und das zugehörige Elternobjekt eingeschränkt.
+
+UMGESETZTE FUNKTIONEN
+1. Fehlteile
+- Vorhandene Teilmenge kann direkt je Set-Zuordnung gespeichert werden.
+- Zulässiger Bereich: 0 bis benötigte Menge; ungültige Werte liefern HTTP 400.
+- 0 oder Teilmenge ergibt fachlich "Fehlt"; vollständige Menge ergibt "Gefunden".
+- Teilmengen werden zusätzlich sichtbar als "Teilweise gefunden" dargestellt.
+- Status kann direkt aus allen realen Part.Status-Werten ausgewählt werden.
+- "Gefunden", "Erhalten" und "Eingebaut" setzen die volle Menge; "Fehlt" setzt 0.
+- Sammelauswahl besitzt genau einen, formulargebundenen Auswahlzähler.
+- Bild-Lightbox, Lazy Loading und sichtbarer Fallback bei fehlenden/defekten Bildern.
+
+2. Set-Inventar
+- Arbeitsansicht mit Positionen, Soll-, Ist- und Fehlmenge sowie Fortschritt.
+- Suche nach Name, Teilenummer, Element-ID, Farbe.
+- Filter für normale Teile, Ersatzteile oder beide; Ersatzteile sind markiert.
+- Direkte Ist-Mengeneingabe je Zeile.
+- Aktionen "Alle vorhanden", "Alle fehlend" und "Alle fehlenden zur Fehlliste".
+- Set-/Teilebilder mit Lightbox/Fallback.
+- Rebrickable-Synchronisierung und alle Preisquellen bleiben erhalten.
+
+3. Minifiguren
+- Minifiguren und zugehörige Teile erscheinen auf der Set-Detailseite.
+- Detailansicht als responsive Karten mit Bild, Soll, Ist und Fehlstatus.
+- Direkte Ist-Mengeneingabe sowie "Alle vorhanden"/"Keine vorhanden".
+- Fremde Benutzer können Mengen weder sehen noch verändern.
+
+4. Auswahllabels und Formulare
+- Fachliche __str__-Darstellungen für Sets, Setexemplare, Inventarteile,
+  Lagerorte, Sammlungen, MOCs, Versionen, Wunschliste, Ausleihen, Notizen,
+  Etiketten, Minifiguren und deren Teile.
+- Damit erscheinen keine "LegoSet object (UUID)"-Werte in ModelChoice-Feldern.
+- Inventar- und Lagerortformulare besitzen deutsche Labels, klare Pflichtfelder,
+  responsive Feldgruppen und kompakte Zahlenfelder.
+- Theme/Unterthema verwenden statt datalist eine echte, freie ARIA-Combobox.
+- Tastatur: Pfeil hoch/runter, Enter und Escape; neue freie Werte bleiben möglich.
+
+5. UI, CSP UND CACHE
+- Kompakte Zahlenfelder, responsive Inventar-/Minifigurenkarten und Tabellen.
+- Keine javascript:-URL, kein Inline-Eventhandler und kein Inline-script in Templates.
+- Service Worker auf shell-v73 angehoben; statische Dateien werden network-first
+  aktualisiert und offline aus dem Cache gelesen.
+- app.css, app.js, Offline-Shell und Admin-CSS tragen Version 8.0-ui73.
+- Service-Worker-Registrierung nutzt updateViaCache: none.
+- Admin-Styles aus der bestehenden Phase-7-Anpassung bleiben erhalten; der konkrete
+  Production-Alt-CSS-Blocker wird durch die neue Asset-Version umgangen.
+
+GEÄNDERTE DATEIEN
+PHASE_7_3_ABSCHLUSSBERICHT.txt (neu)
+apps/catalog/forms.py
+apps/catalog/models.py
+apps/catalog/tests.py
+apps/catalog/urls.py
+apps/catalog/views.py
+apps/inventory/forms.py
+apps/inventory/models.py
+apps/inventory/views.py
+apps/organizer/models.py
+apps/organizer/admin.py (neu)
+apps/organizer/apps.py
+apps/organizer/forms.py (neu)
+apps/organizer/tests.py
+apps/organizer/urls.py
+apps/organizer/views.py
+static/css/app.css
+static/admin/css/brickmissing-admin.css
+static/js/app.js
+static/service-worker.js
+templates/admin/base_site.html
+templates/base.html
+templates/catalog/missing_parts.html
+templates/catalog/form.html
+templates/catalog/set_detail.html
+templates/catalog/set_form.html
+templates/inventory/form.html (neu)
+templates/organizer/detail.html
+templates/organizer/form.html (neu)
+templates/organizer/label_preview.html
+templates/organizer/list.html
+apps/backups/apps.py
+apps/core/apps.py
+apps/data_portability/apps.py
+apps/integrations/apps.py
+apps/media_library/apps.py
+apps/orders/apps.py
+
+DATENBANK UND MIGRATIONEN
+- Keine Modellfelder oder Datenbankinhalte geändert.
+- Neue __str__-Methoden und berechnete Properties erzeugen keine Migration.
+- makemigrations --check --dry-run: No changes detected.
+
+AUTOMATISCHE REGRESSIONSSUCHE
+- javascript:-URLs: 0 Treffer.
+- Inline-JavaScript-Eventhandler: 0 Treffer.
+- Inline-script-Blöcke in Templates: 0 Treffer.
+- datalist/list-Attribute in Django-Templates und -Forms: 0 Treffer.
+- "LegoSet object", "Model object" oder "object (" in Templates/App-Code: 0 Treffer.
+
+TESTS UND CHECKS
+- Gezielte Katalog-/Organizer-/Inventar-/Preisquellen-Tests: 35 Tests, OK.
+- Vollständige Suite nach Implementierung: 158 Tests; zunächst 157 erfolgreich,
+  1 Regression durch fehlende Preisquellen erkannt und behoben.
+- Abschließender Volltest nach Verifikationsaudit: 161 Tests in 152,787 s, OK; 161 passed,
+  0 failed, 0 skipped.
+- ruff check .: All checks passed.
+- manage.py check: 0 Probleme.
+- makemigrations --check --dry-run: No changes detected.
+- node --check static/js/app.js: erfolgreich.
+- node --check static/service-worker.js: erfolgreich.
+- collectstatic --noinput: 137 Dateien kopiert.
+
+DEPLOYMENT-AUSWIRKUNG
+- migrate: nicht erforderlich.
+- collectstatic: erforderlich (CSS, JavaScript, Service Worker, Admin-CSS-Version).
+- brickmissing.service neu starten: empfohlen, damit Python-Views/URLs sicher neu
+  geladen werden; danach Browser neu laden. Der Service Worker aktualisiert Assets.
+- Bestehendes deploy.sh verwenden; keine manuellen Daten- oder Importaktionen.
+
+BEKANNTE GRENZEN
+- Externe Bilder bleiben von der Erreichbarkeit der jeweiligen Quelle abhängig;
+  bei Fehlern wird ein lokaler Text-Fallback angezeigt.
+- "Nicht mehr benötigt" wurde nicht erfunden, weil es kein bestehender Part.Status
+  und kein fachlich definiertes Datenfeld ist.
+- Es wurde kein visueller Production-Browsertest ausgeführt, da Serveraktionen und
+  Production-Zugriffe ausdrücklich ausgeschlossen sind.
+
+FINAL CHECKLIST
+[x] Direkte Fehlteilmenge und Status
+[x] Teilmengen ohne widersprüchlichen Status
+[x] Set-Inventar-Arbeitsansicht und Ersatzteilfilter
+[x] Minifiguren-Mengensteuerung und Bilder
+[x] Fachliche ModelChoice-Labels
+[x] Kompakte Zahlenfelder
+[x] Echte freie ARIA-Combobox
+[x] Auswahlzähler isoliert
+[x] Inventar-/Lagerortformulare deutsch und responsive
+[x] CSP-Regressionssuche
+[x] Cache-/Service-Worker-Versionierung
+[x] Keine Migration und keine Production-Datenänderung
+
+ADMIN-AUDIT – FINALER VERIFIKATIONSCHECK
+Geprüfte Ansichten:
+- Admin-Index und App-Liste inklusive leerem Rechtezustand
+- Change List mit Suche, Filtern, Aktionen und Pagination
+- Change Form mit Fieldsets, Related-Widget-Icons und Submit-Zeile
+- Delete Confirmation, Object History und Breadcrumbs
+- Login, Filter-Sidebar und Recent Actions
+- Desktop 1280 × 720 sowie Mobile 375 × 667
+
+Festgestellte und behobene Probleme:
+- Login-Eingabefelder wurden durch später geladenes Django-Responsive-CSS auf
+  39 px reduziert. Sie sind jetzt ebenso wie Branding, Theme-Schalter und
+  Anmeldebutton mindestens 44 px hoch.
+- Related-Widget-Icons, Kalender-/Uhr-Popups und History-Tabelle hatten keine
+  explizite Midnight-Violet-Ausrichtung bzw. mobile Abstandsregeln.
+- Filtereinträge, Tabellenzeilen und Aktionslinks erhielten konsistente
+  Zeilenhöhen, Innenabstände und Touch-Ziele.
+- Die Organizer-App und zuvor englisch benannte eigene Apps erhielten deutsche
+  App-Bezeichnungen. Alle Organizer-Modelle erhielten deutsche Singular-/Pluralnamen.
+- Organizer-ModelAdmin-Formulare verwenden deutsche Feldlabels; Listen, Suche
+  und Filter wurden für die fachlich relevanten Modelle registriert.
+- Django-eigene Texte wurden mit LANGUAGE_CODE=de/I18N verifiziert; die
+  Loginseite zeigt unter anderem "Benutzername", "Passwort" und "Anmelden".
+- Visueller Browsercheck: kein horizontaler Überlauf bei 1280 px oder 375 px.
+- Admin-CSS-Version auf 8.0-ui73b erhöht.
+
+ORGANIZER-AUDIT – VOLLSTÄNDIG
+Geprüfte Templates und Ergebnis:
+- organizer/list.html: aktive Navigation, moderne Zeilen, deutsche Aktionen,
+  hilfreicher Empty State und responsive Struktur; korrigiert.
+- organizer/detail.html: Collections, MOCs, Versionen und Minifiguren geprüft;
+  fachliche __str__-Labels, Tabellen-Wrapper, Mengenaktionen und Empty States vorhanden.
+- organizer/form.html: neu als gemeinsames Formularsystem für Hinzufügen,
+  Bearbeiten, MOC-Versionen und Bestandteile.
+- organizer/label_preview.html: Ausrichtung auf Hoch-/Querformat übersetzt,
+  Startposition kompakt, "Teil" und "QR-Code" sprachlich vereinheitlicht.
+- Löschen: POST-/CSRF-Formular im Listentemplate mit zentralem Bestätigungsdialog;
+  keine GET-Löschung und keine separate alte Löschvorlage vorhanden.
+
+Formaudit:
+- Alle sieben Organizer-Bereiche rendern per automatisiertem GET-Test mit HTTP 200.
+- Fachliche Selects für Rolle, Priorität, Ausrichtung und Eintragstyp.
+- Bestehende unbekannte Legacy-Werte bleiben als "Bestehender Wert" auswählbar.
+- Foreign-Key-Querysets bleiben eigentümergebunden.
+- Zahlen-/Dezimalfelder sind kompakt, Textfelder mehrzeilig, Datumszeiten nutzen
+  einen geeigneten datetime-local-Editor.
+- Keine internen UUIDs und keine "object (...)"-Labels sichtbar.
+
+GLOBALER CRUD-RESTCHECK
+Suchbegriffe:
+- "object (", "Model object", "LegoSet object"
+- UUIDField, ForeignKey und ModelChoiceField
+- englische UI-Begriffe in eigenen Forms/Templates
+- catalog/form.html, form.as_p, form.as_table und alte Formular-CSS-Klassen
+
+Ergebnis und Bewertung:
+- Keine sichtbaren "object (...)"-Treffer im App-/Template-Code.
+- UUID-Felder sind interne Primärschlüssel; ModelChoice-Ausgaben verwenden die
+  fachlichen __str__-Darstellungen statt UUIDs.
+- Drei aktive Views nutzten noch catalog/form.html. Das Template war funktional,
+  aber visuell veraltet; es wurde auf panel + sectioned-form + form-grid umgestellt.
+- Keine form.as_p-/form.as_table-Reste.
+- Eigene sichtbare Organizer-Texte sind Deutsch; technische Eigennamen wie MOC,
+  LEGO, HERMA und QR bleiben erhalten.
+
+FINALER CHECKLAUF
+- python manage.py test: 161 Tests, 161 passed, 0 failed, 0 skipped.
+- ruff check .: All checks passed.
+- python manage.py check: 0 Probleme.
+- python manage.py makemigrations --check --dry-run: No changes detected.
+- python manage.py collectstatic --dry-run --noinput: 2 geänderte Dateien
+  würden kopiert, 135 unverändert; es wurde nichts geschrieben.
+- Keine Production-Aktion, kein Deployment und kein Push.

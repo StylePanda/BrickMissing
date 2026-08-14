@@ -67,6 +67,9 @@ class LegoSet(OwnedModel):
             kwargs["update_fields"] = set(update_fields) | {"active_set_number"}
         super().save(*args, **kwargs)
 
+    def __str__(self):
+        return f"{self.set_number} – {self.name}" if self.name else self.set_number
+
 
 class SetCopy(OwnedModel):
     legacy_id = models.PositiveBigIntegerField(null=True, blank=True)
@@ -83,6 +86,9 @@ class SetCopy(OwnedModel):
     notes = models.TextField(blank=True)
     image_url = models.URLField(max_length=1000, blank=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return self.inventory_number or f"Exemplar von {self.lego_set}"
 
 
 class SetInventoryItem(models.Model):
@@ -118,6 +124,9 @@ class SetInventoryItem(models.Model):
     @property
     def missing_quantity(self):
         return max(self.required_quantity - self.owned_quantity, 0)
+
+    def __str__(self):
+        return f"{self.part_number} – {self.name}"
 
 
 class Part(OwnedModel):
@@ -169,6 +178,9 @@ class Part(OwnedModel):
     @property
     def missing_quantity(self):
         return max(self.quantity - self.owned_quantity, 0)
+
+    def __str__(self):
+        return f"{self.part_number or self.element_id} – {self.name}"
 
 
 class PartHistory(models.Model):

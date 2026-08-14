@@ -17,8 +17,8 @@ class LegoSetForm(forms.ModelForm):
             "description": forms.Textarea(attrs={"rows": 3}),
             "notes": forms.Textarea(attrs={"rows": 3}),
             "purchase_date": forms.DateInput(attrs={"type": "date"}),
-            "theme": forms.TextInput(attrs={"list": "theme-suggestions", "autocomplete": "off"}),
-            "subtheme": forms.TextInput(attrs={"list": "subtheme-suggestions", "autocomplete": "off"}),
+            "theme": forms.TextInput(attrs={"autocomplete": "off"}),
+            "subtheme": forms.TextInput(attrs={"autocomplete": "off"}),
         }
         labels = {
             "set_number": "Setnummer", "name": "Name", "theme": "Themenwelt",

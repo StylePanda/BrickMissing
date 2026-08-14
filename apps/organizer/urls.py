@@ -7,6 +7,8 @@ urlpatterns = [
     path("organisation/labels/<int:pk>/preview/", views.label_preview, name="label_preview"),
     path("organisation/labels/<int:pk>/print.css", views.label_print_css, name="label_print_css"),
     path("organisation/labels/<int:pk>/qr/<int:item_pk>.svg", views.label_qr, name="label_qr"),
+    path("organisation/minifiguren/<int:figure_pk>/teile/<int:pk>/bestand/", views.minifigure_part_quantity, name="minifigure_part_quantity"),
+    path("organisation/minifiguren/<int:figure_pk>/bestand/<str:action>/", views.minifigure_inventory_action, name="minifigure_inventory_action"),
     path(
         "organisation/mocs/<int:moc_pk>/versionen/neu/",
         views.moc_version_edit,

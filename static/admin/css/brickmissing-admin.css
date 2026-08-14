@@ -83,16 +83,16 @@ body { font: 15px/1.55 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
 #header { min-height: 72px; padding: 12px 24px; gap: 24px; box-shadow: 0 1px 0 rgba(255,255,255,.06); }
 #branding { min-width: max-content; }
 #site-name { font-size: 16px; }
-#site-name a { display: flex; align-items: center; gap: 12px; color: var(--header-color); text-decoration: none; }
+#site-name a { display: flex; min-height: 44px; align-items: center; gap: 12px; color: var(--header-color); text-decoration: none; }
 #site-name strong, #site-name small { display: block; }
 #site-name strong { font-size: 17px; letter-spacing: -.01em; }
 #site-name small { margin-top: 1px; color: #bac3d1; font-size: 12px; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; }
 .brickmissing-admin-mark { display: grid; width: 44px; height: 36px; place-items: center; border-radius: 8px; background: #9b6cff; color: #fff; font-size: 13px; font-weight: 900; letter-spacing: .04em; }
 #user-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px 12px; margin: 0; line-height: 1.4; }
-#user-tools a, #user-tools button { min-height: 36px; border-radius: 6px; padding: 6px 8px; }
+#user-tools a, #user-tools button { display: inline-flex; min-height: 44px; align-items: center; border-radius: 6px; padding: 8px 10px; }
 #user-tools form { display: inline-flex; }
 #nav-global { margin-left: auto; }
-.brickmissing-site-link { display: inline-flex; min-height: 36px; align-items: center; border: 1px solid #465064; border-radius: 8px; padding: 7px 12px; color: #f7f8fb !important; font-weight: 650; text-decoration: none; }
+.brickmissing-site-link { display: inline-flex; min-height: 44px; align-items: center; border: 1px solid #465064; border-radius: 8px; padding: 9px 12px; color: #f7f8fb !important; font-weight: 650; text-decoration: none; }
 .brickmissing-site-link:hover, .brickmissing-site-link:focus-visible { border-color: #9b6cff; background: #302642; }
 div.breadcrumbs { padding: 12px 24px; line-height: 1.5; }
 .main > .content { padding: 24px; }
@@ -106,12 +106,12 @@ form .aligned, form .wide { max-width: 1100px; }
 .form-row { padding: 16px; border-bottom-color: var(--hairline-color); }
 .form-row > div { gap: 8px; }
 .aligned label { padding-top: 8px; color: var(--body-loud-color); font-weight: 650; }
-input, textarea, select, .vTextField { min-height: 40px; border-radius: 7px; padding: 8px 10px; }
+input, textarea, select, .vTextField { min-height: 44px; border-radius: 7px; padding: 9px 10px; }
 textarea { min-height: 110px; }
 input:focus, textarea:focus, select:focus, a:focus-visible, button:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 2px; }
 .submit-row { display: flex; flex-wrap: wrap; gap: 12px; margin: 24px 0 0; border: 1px solid var(--hairline-color); border-radius: 12px; padding: 16px; background: var(--darkened-bg); }
 .submit-row > * { margin: 0 !important; }
-.submit-row input, .button, input[type="submit"], input[type="button"], .object-tools a { min-height: 40px; border-radius: 8px; padding: 10px 16px; font-weight: 700; }
+.submit-row input, .button, input[type="submit"], input[type="button"], .object-tools a { min-height: 44px; border-radius: 8px; padding: 11px 16px; font-weight: 700; }
 .object-tools { display: flex; flex-wrap: wrap; gap: 8px; margin: -4px 0 16px; }
 .object-tools li { float: none; margin: 0; }
 .object-tools a { display: inline-flex; align-items: center; }
@@ -124,6 +124,7 @@ input:focus, textarea:focus, select:focus, a:focus-visible, button:focus-visible
 #changelist-filter h2 { border-radius: 11px 11px 0 0; }
 #changelist-filter h3 { margin: 16px 16px 8px; }
 #changelist-filter ul { margin: 0 16px 16px; }
+#changelist-filter li { min-height: 36px; padding: 6px 0; line-height: 1.5; }
 #toolbar { border-radius: 10px; padding: 12px; }
 #toolbar form { display: flex; flex-wrap: wrap; gap: 8px; }
 #toolbar form input[type="text"] { flex: 1 1 240px; }
@@ -139,7 +140,8 @@ input:focus, textarea:focus, select:focus, a:focus-visible, button:focus-visible
 .login #content { padding: 24px; }
 .login .form-row { padding: 0 0 16px; }
 .login .form-row label { padding-bottom: 6px; }
-.login .form-row input { width: 100%; }
+.login .form-row input { width: 100%; min-height: 44px !important; }
+.login .theme-toggle { min-width: 44px; min-height: 44px !important; }
 .login .submit-row { justify-content: flex-end; padding: 16px 0 0; border: 0; background: transparent; }
 .selector { max-width: 100%; }
 .help, p.help, form p.help, div.help, form div.help, div.help li { margin-top: 8px; color: var(--body-quiet-color); font-size: 13px; line-height: 1.5; }
@@ -161,7 +163,7 @@ input:focus, textarea:focus, select:focus, a:focus-visible, button:focus-visible
 .admin-model-row:hover { background: var(--darkened-bg); }
 .admin-model-name { min-width: 0; font-weight: 700; }
 .admin-model-actions { display: flex; flex: 0 0 auto; gap: 8px; }
-.admin-model-actions a { display: inline-flex; min-height: 38px; align-items: center; border: 1px solid var(--border-color); border-radius: 8px; padding: 7px 11px 7px 32px; background-position: 10px center; background-size: 16px 16px; white-space: nowrap; text-decoration: none; }
+.admin-model-actions a { display: inline-flex; min-height: 44px; align-items: center; border: 1px solid var(--border-color); border-radius: 8px; padding: 9px 12px 9px 34px; background-position: 11px center; background-size: 16px 16px; white-space: nowrap; text-decoration: none; }
 .admin-model-actions .changelink, .admin-model-actions .viewlink { border-color: var(--primary); background-color: var(--primary); color: #fff; }
 .admin-model-actions .changelink:hover, .admin-model-actions .viewlink:hover { background-color: var(--button-hover-bg); color: #fff; }
 .admin-model-actions .addlink { background-color: var(--darkened-bg); }
@@ -174,6 +176,14 @@ input:focus, textarea:focus, select:focus, a:focus-visible, button:focus-visible
 #recent-actions-module .actionlist li::before { align-self: start; margin-top: 4px; }
 #recent-actions-module .mini { display: block; }
 #recent-actions-module .admin-empty-state { margin: 0 16px 16px; }
+.change-history #change-history { overflow-x: auto; border: 1px solid var(--hairline-color); border-radius: 12px; }
+.change-history #change-history table { min-width: 620px; margin: 0; }
+.change-history #change-history th, .change-history #change-history td { padding: 12px 16px; vertical-align: top; line-height: 1.5; }
+.related-widget-wrapper { display: inline-flex; max-width: 100%; align-items: center; gap: 8px; }
+.related-widget-wrapper-link { display: inline-grid; width: 44px; height: 44px; flex: 0 0 44px; place-items: center; border-radius: 8px; }
+.related-widget-wrapper-link img { display: block; width: 18px; height: 18px; margin: 0; }
+.datetimeshortcuts { display: inline-flex; min-height: 44px; align-items: center; gap: 8px; margin-left: 8px; }
+.calendarbox, .clockbox { border: 1px solid var(--hairline-color); border-radius: 12px; padding: 8px; background: var(--body-bg); box-shadow: 0 16px 40px rgba(0,0,0,.32); }
 
 @media (max-width: 1024px) {
   #header { align-items: flex-start; flex-wrap: wrap; }
@@ -187,7 +197,7 @@ input:focus, textarea:focus, select:focus, a:focus-visible, button:focus-visible
   #branding { flex: 1 1 auto; }
   #user-tools { display: flex; }
   #nav-global { margin-left: 0; }
-  .brickmissing-site-link { min-height: 34px; padding: 6px 10px; }
+  .brickmissing-site-link { min-height: 44px; padding: 9px 10px; }
   div.breadcrumbs { overflow-x: auto; padding: 10px 16px; white-space: nowrap; }
   .main > .content { padding: 16px; }
   .admin-welcome { padding: 20px 16px; }
@@ -203,6 +213,8 @@ input:focus, textarea:focus, select:focus, a:focus-visible, button:focus-visible
   #changelist .results { overflow-x: auto; border: 1px solid var(--hairline-color); border-radius: 10px; }
   #changelist table { min-width: 680px; }
   #toolbar form input[type="submit"] { flex: 0 0 auto; }
+  #changelist-filter { width: 100%; margin-top: 4px; }
+  .related-widget-wrapper { display: flex; flex-wrap: wrap; }
 }
 
 @media (prefers-reduced-motion: reduce) {

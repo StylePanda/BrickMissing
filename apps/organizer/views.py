@@ -1,6 +1,5 @@
 from django.contrib.auth.decorators import login_required
 from django.db import models, transaction
-from django.forms import modelform_factory
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
@@ -11,6 +10,7 @@ from apps.catalog.models import LegoSet
 from apps.core.services import record_recent
 from apps.inventory.models import InventoryItem, WarehouseLocation
 
+from .forms import build_model_form
 from .models import (
     Collection,
     CollectionMember,
@@ -130,7 +130,7 @@ def area_list(request, area):
 def area_edit(request, area, pk=None):
     model, title, fields = _area(area)
     instance = get_object_or_404(model, pk=pk, owner=request.user) if pk else None
-    form_class = modelform_factory(model, fields=fields)
+    form_class = build_model_form(model, fields)
     form = form_class(request.POST or None, instance=instance)
     for name in ("collection",):
         if name in form.fields:
@@ -155,8 +155,8 @@ def area_edit(request, area, pk=None):
         return redirect("organizer:list", area=area)
     return render(
         request,
-        "catalog/form.html",
-        {"form": form, "title": f"{title}: {'Bearbeiten' if instance else 'Neu'}"},
+        "organizer/form.html",
+        {"form": form, "title": f"{title}: {'Bearbeiten' if instance else 'Neu'}", "area": area},
     )
 
 
@@ -235,6 +235,7 @@ def label_preview(request, pk):
     orientation = (
         template.orientation if template.orientation in {"portrait", "landscape"} else "portrait"
     )
+    orientation_label = "Querformat" if orientation == "landscape" else "Hochformat"
 
     def millimeters(name, default=0):
         try:
@@ -258,6 +259,7 @@ def label_preview(request, pk):
             "start": start,
             "leading_slots": range(start - 1),
             "orientation": orientation,
+            "orientation_label": orientation_label,
             "margin_top": millimeters("margin_top"),
             "margin_right": millimeters("margin_right"),
             "margin_bottom": millimeters("margin_bottom"),
@@ -322,7 +324,7 @@ def _moc_parts_snapshot(moc):
 def moc_version_edit(request, moc_pk, pk=None):
     moc = get_object_or_404(Moc, pk=moc_pk, owner=request.user)
     version = get_object_or_404(MocVersion, pk=pk, moc=moc) if pk else None
-    form_class = modelform_factory(MocVersion, fields=("version", "name", "description", "notes"))
+    form_class = build_model_form(MocVersion, ("version", "name", "description", "notes"))
     form = form_class(request.POST or None, instance=version)
     if request.method == "POST" and form.is_valid():
         saved = form.save(commit=False)
@@ -342,8 +344,8 @@ def moc_version_edit(request, moc_pk, pk=None):
         return redirect("organizer:detail", area="mocs", pk=moc.pk)
     return render(
         request,
-        "catalog/form.html",
-        {"form": form, "title": "MOC-Version bearbeiten" if version else "MOC-Version erstellen"},
+        "organizer/form.html",
+        {"form": form, "title": "MOC-Version bearbeiten" if version else "MOC-Version erstellen", "area": "mocs"},
     )
 
 
@@ -443,7 +445,7 @@ def child_edit(request, area, parent_pk, pk=None):
     else:
         raise Http404
     instance = get_object_or_404(model, pk=pk, **{relation: parent}) if pk else None
-    form_class = modelform_factory(model, fields=fields)
+    form_class = build_model_form(model, fields)
     form = form_class(request.POST or None, instance=instance)
     if "inventory_item" in form.fields:
         form.fields["inventory_item"].queryset = form.fields["inventory_item"].queryset.filter(
@@ -469,6 +471,41 @@ def child_edit(request, area, parent_pk, pk=None):
         return redirect("organizer:detail", area=area, pk=parent.pk)
     return render(
         request,
-        "catalog/form.html",
-        {"form": form, "title": "Bestandteil bearbeiten" if instance else "Bestandteil hinzufügen"},
+        "organizer/form.html",
+        {"form": form, "title": "Bestandteil bearbeiten" if instance else "Bestandteil hinzufügen", "area": area},
     )
+
+
+@login_required
+@require_POST
+@transaction.atomic
+def minifigure_part_quantity(request, figure_pk, pk):
+    figure = get_object_or_404(SetMinifigure, pk=figure_pk, owner=request.user)
+    part = get_object_or_404(MinifigurePart.objects.select_for_update(), pk=pk, minifigure=figure)
+    try:
+        quantity = int(request.POST.get("owned_quantity", ""))
+    except (TypeError, ValueError):
+        quantity = -1
+    if not 0 <= quantity <= part.quantity:
+        return HttpResponse("Der vorhandene Bestand ist ungültig.", status=400)
+    part.owned_quantity = quantity
+    part.full_clean()
+    part.save(update_fields=["owned_quantity"])
+    AuditEvent.objects.create(actor=request.user, target_user=request.user, action="minifigure_part.quantity_changed", entity_type="minifigure_part", entity_id=str(part.pk), details={"owned_quantity": quantity}, request_id=request.request_id)
+    return redirect("organizer:detail", area="minifigures", pk=figure.pk)
+
+
+@login_required
+@require_POST
+@transaction.atomic
+def minifigure_inventory_action(request, figure_pk, action):
+    figure = get_object_or_404(SetMinifigure, pk=figure_pk, owner=request.user)
+    parts = figure.parts.select_for_update()
+    if action == "complete":
+        parts.update(owned_quantity=models.F("quantity"))
+    elif action == "missing":
+        parts.update(owned_quantity=0)
+    else:
+        return HttpResponse("Die Aktion ist ungültig.", status=400)
+    AuditEvent.objects.create(actor=request.user, target_user=request.user, action=f"minifigure_inventory.{action}", entity_type="set_minifigure", entity_id=str(figure.pk), request_id=request.request_id)
+    return redirect("organizer:detail", area="minifigures", pk=figure.pk)

@@ -16,6 +16,9 @@ class Collection(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    def __str__(self):
+        return self.name
+
 
 class CollectionMember(models.Model):
     collection = models.ForeignKey(Collection, on_delete=models.CASCADE, related_name="members")
@@ -27,6 +30,9 @@ class CollectionMember(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["collection", "user"], name="unique_collection_member")
         ]
+
+    def __str__(self):
+        return f"{self.user.get_username()} – {self.role}"
 
 
 class Moc(models.Model):
@@ -49,6 +55,9 @@ class Moc(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    def __str__(self):
+        return f"{self.project_code} – {self.name}" if self.project_code else self.name
+
 
 class MocPart(models.Model):
     moc = models.ForeignKey(Moc, on_delete=models.CASCADE, related_name="parts")
@@ -62,6 +71,9 @@ class MocPart(models.Model):
     required_quantity = models.PositiveIntegerField(default=1)
     allocated_quantity = models.PositiveIntegerField(default=0)
     notes = models.TextField(blank=True)
+
+    def __str__(self):
+        return f"{self.part_number} – {self.name}"
 
 
 class MocVersion(models.Model):
@@ -79,6 +91,9 @@ class MocVersion(models.Model):
             models.UniqueConstraint(fields=["moc", "version"], name="unique_moc_version")
         ]
 
+    def __str__(self):
+        return f"{self.moc.name} – Version {self.version}"
+
 
 class WishlistItem(models.Model):
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
@@ -92,6 +107,9 @@ class WishlistItem(models.Model):
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    def __str__(self):
+        return self.name
+
 
 class Loan(models.Model):
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
@@ -104,6 +122,9 @@ class Loan(models.Model):
     returned_at = models.DateTimeField(null=True, blank=True)
     notes = models.TextField(blank=True)
 
+    def __str__(self):
+        return f"{self.borrower} – {self.entity_type} {self.entity_id}"
+
 
 class PersonalNote(models.Model):
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
@@ -113,11 +134,17 @@ class PersonalNote(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    def __str__(self):
+        return self.title
+
 
 class WorkshopDocument(models.Model):
     owner = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     payload = models.JSONField(default=dict)
     updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Werkstattdokument von {self.owner.get_username()}"
 
 
 class LabelTemplate(models.Model):
@@ -134,6 +161,9 @@ class LabelTemplate(models.Model):
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=["owner", "name"], name="unique_owner_label_template")]
+
+    def __str__(self):
+        return self.name
 
 
 class SetMinifigure(models.Model):
@@ -158,6 +188,9 @@ class SetMinifigure(models.Model):
             )
         ]
 
+    def __str__(self):
+        return f"{self.figure_number} – {self.name}"
+
 
 class MinifigurePart(models.Model):
     minifigure = models.ForeignKey(SetMinifigure, on_delete=models.CASCADE, related_name="parts")
@@ -171,3 +204,10 @@ class MinifigurePart(models.Model):
     owned_quantity = models.PositiveIntegerField(default=0)
     is_spare = models.BooleanField(default=False)
     image_url = models.URLField(max_length=1000, blank=True)
+
+    @property
+    def missing_quantity(self):
+        return max(self.quantity - self.owned_quantity, 0)
+
+    def __str__(self):
+        return f"{self.part_number} – {self.name}"

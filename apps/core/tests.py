@@ -68,6 +68,9 @@ class AdminInterfaceTests(TestCase):
             reverse("admin:catalog_legoset_change", args=[lego_set.pk]),
             reverse("admin:catalog_part_change", args=[part.pk]),
             reverse("admin:catalog_part_delete", args=[part.pk]),
+            reverse("admin:catalog_part_history", args=[part.pk]),
+            reverse("admin:app_list", args=["organizer"]),
+            reverse("admin:organizer_collection_changelist"),
         )
 
         for url in urls:
@@ -79,6 +82,17 @@ class AdminInterfaceTests(TestCase):
             {"q": "Stein", "status__exact": "missing", "p": 0},
         )
         self.assertContains(filtered, "Stein")
+
+    def test_admin_login_translation_and_layout_hooks(self):
+        self.client.logout()
+        response = self.client.get(reverse("admin:login"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Anmelden")
+        self.assertContains(response, "BrickMissing")
+        stylesheet = (settings.BASE_DIR / "static" / "admin" / "css" / "brickmissing-admin.css").read_text(encoding="utf-8")
+        for selector in ("#changelist-filter", "#toolbar", ".paginator", ".delete-confirmation", ".change-history", ".login", "#recent-actions-module"):
+            with self.subTest(selector=selector):
+                self.assertIn(selector, stylesheet)
 
     def test_staff_permissions_are_not_broadened(self):
         staff = User.objects.create_user(

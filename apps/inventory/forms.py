@@ -7,6 +7,8 @@ class WarehouseLocationForm(forms.ModelForm):
     class Meta:
         model = WarehouseLocation
         exclude = ("owner", "legacy_id", "archived_at")
+        labels = {"parent": "Übergeordneter Lagerort", "name": "Name", "location_type": "Art des Lagerorts", "short_code": "Kurzcode", "description": "Beschreibung", "room": "Raum", "color": "Farbkennzeichnung", "capacity": "Kapazität", "photo_url": "Foto-URL", "notes": "Notizen", "active": "Aktiv", "locked": "Gesperrt"}
+        widgets = {"capacity": forms.NumberInput(attrs={"class": "compact-number", "min": 0}), "description": forms.Textarea(attrs={"rows": 3}), "notes": forms.Textarea(attrs={"rows": 3})}
 
     def __init__(self, *args, owner=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -16,14 +18,16 @@ class WarehouseLocationForm(forms.ModelForm):
 
 
 class InventoryItemForm(forms.ModelForm):
-    quantity = forms.IntegerField(min_value=0)
-    reserved_quantity = forms.IntegerField(min_value=0)
+    quantity = forms.IntegerField(min_value=0, label="Bestand", widget=forms.NumberInput(attrs={"class": "compact-number"}))
+    reserved_quantity = forms.IntegerField(min_value=0, label="Reserviert", widget=forms.NumberInput(attrs={"class": "compact-number"}))
 
     class Meta:
         model = InventoryItem
         exclude = (
             "owner", "legacy_id", "archived_at", "quantity", "reserved_quantity"
         )
+        labels = {"part_number": "Teilenummer", "design_id": "Design-ID", "element_id": "Element-ID", "name": "Bezeichnung", "color": "Farbe", "category": "Kategorie", "subcategory": "Unterkategorie", "condition": "Zustand", "location": "Lagerort", "image_url": "Bild-URL", "source": "Quelle", "purchase_price": "Einkaufspreis", "unit_price": "Stückpreis", "notes": "Notizen"}
+        widgets = {"purchase_price": forms.NumberInput(attrs={"class": "compact-number", "step": "0.01", "min": 0}), "unit_price": forms.NumberInput(attrs={"class": "compact-number", "step": "0.01", "min": 0}), "notes": forms.Textarea(attrs={"rows": 3})}
 
     def __init__(self, *args, owner=None, **kwargs):
         super().__init__(*args, **kwargs)

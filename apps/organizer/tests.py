@@ -10,6 +10,7 @@ from .models import (
     Collection,
     LabelTemplate,
     Loan,
+    MinifigurePart,
     Moc,
     MocPart,
     MocVersion,
@@ -220,6 +221,26 @@ class OrganizerListRenderingTests(TestCase):
                 self.assertEqual(response.status_code, 200)
                 self.assertContains(response, "Noch keine Einträge vorhanden.")
 
+    def test_every_create_form_uses_shared_german_form_system(self):
+        LegoSet.objects.create(owner=self.user, set_number="FORM-1", name="Formularset")
+        for area in self.areas:
+            with self.subTest(area=area):
+                response = self.client.get(reverse("organizer:create", args=[area]))
+                self.assertEqual(response.status_code, 200)
+                self.assertTemplateUsed(response, "organizer/form.html")
+                self.assertContains(response, "Organisation")
+                self.assertContains(response, "Speichern")
+                self.assertContains(response, "Abbrechen")
+                self.assertNotContains(response, " object (")
+
+    def test_organizer_navigation_marks_current_area_and_number_fields_are_compact(self):
+        response = self.client.get(reverse("organizer:list", args=["collections"]))
+        self.assertContains(response, 'aria-current="page">Sammlungen</a>')
+        form = self.client.get(reverse("organizer:create", args=["labels"]))
+        self.assertContains(form, 'class="compact-number"')
+        self.assertContains(form, "Querformat")
+        self.assertContains(form, "Hochformat")
+
     def test_every_populated_organizer_list_uses_its_explicit_display_fields(self):
         lego_set = LegoSet.objects.create(owner=self.user, set_number="10300", name="Zeitmaschine")
         expected = {
@@ -265,3 +286,30 @@ class OrganizerListRenderingTests(TestCase):
                 self.assertEqual(response.status_code, 200)
                 self.assertContains(response, label)
                 self.assertNotContains(response, "Collection object")
+
+
+class MinifigureInventoryInteractionTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user("figure-owner", "figure@example.test", "A-very-long-password-123")
+        self.other = get_user_model().objects.create_user("figure-other", "other-figure@example.test", "A-very-long-password-123")
+        lego_set = LegoSet.objects.create(owner=self.user, set_number="75010", name="B-wing")
+        self.figure = SetMinifigure.objects.create(owner=self.user, lego_set=lego_set, figure_number="fig-1", name="Pilot")
+        self.part = MinifigurePart.objects.create(minifigure=self.figure, part_number="head", name="Kopf", quantity=2)
+        self.client.force_login(self.user)
+
+    def test_quantity_and_all_none_actions(self):
+        quantity_url = reverse("organizer:minifigure_part_quantity", args=[self.figure.pk, self.part.pk])
+        self.assertRedirects(self.client.post(quantity_url, {"owned_quantity": 1}), reverse("organizer:detail", args=["minifigures", self.figure.pk]))
+        self.part.refresh_from_db()
+        self.assertEqual(self.part.owned_quantity, 1)
+        self.client.post(reverse("organizer:minifigure_inventory_action", args=[self.figure.pk, "complete"]))
+        self.part.refresh_from_db()
+        self.assertEqual(self.part.owned_quantity, 2)
+        self.client.post(reverse("organizer:minifigure_inventory_action", args=[self.figure.pk, "missing"]))
+        self.part.refresh_from_db()
+        self.assertEqual(self.part.owned_quantity, 0)
+
+    def test_foreign_user_cannot_change_minifigure_part(self):
+        self.client.force_login(self.other)
+        response = self.client.post(reverse("organizer:minifigure_part_quantity", args=[self.figure.pk, self.part.pk]), {"owned_quantity": 2})
+        self.assertEqual(response.status_code, 404)

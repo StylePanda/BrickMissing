@@ -32,6 +32,9 @@ class WarehouseLocation(models.Model):
         ]
         indexes = [models.Index(fields=["owner", "active"])]
 
+    def __str__(self):
+        return f"{self.parent.name} / {self.name}" if self.parent_id else self.name
+
 
 class InventoryItem(models.Model):
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
@@ -77,6 +80,10 @@ class InventoryItem(models.Model):
     @property
     def available_quantity(self):
         return self.quantity - self.reserved_quantity
+
+    def __str__(self):
+        detail = f" ({self.color})" if self.color else ""
+        return f"{self.part_number} – {self.name}{detail}"
 
 
 class InventoryMovement(models.Model):

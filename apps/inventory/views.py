@@ -62,7 +62,7 @@ def inventory_edit(request, pk=None):
                 **metadata,
             )
         return redirect("inventory:list")
-    return render(request, "catalog/form.html", {"form": form, "title": "Inventarteil bearbeiten" if item else "Inventarteil hinzufügen"})
+    return render(request, "inventory/form.html", {"form": form, "title": "Inventarteil bearbeiten" if item else "Inventarteil hinzufügen", "kind": "item"})
 
 
 @login_required
@@ -84,7 +84,7 @@ def location_edit(request, pk=None):
         saved.save()
         AuditEvent.objects.create(actor=request.user, target_user=request.user, action="location.saved", entity_type="warehouse_location", entity_id=str(saved.pk), request_id=request.request_id)
         return redirect("inventory:locations")
-    return render(request, "catalog/form.html", {"form": form, "title": "Lagerort bearbeiten" if item else "Lagerort hinzufügen"})
+    return render(request, "inventory/form.html", {"form": form, "title": "Lagerort bearbeiten" if item else "Lagerort hinzufügen", "kind": "location"})
 
 
 @login_required

@@ -28,6 +28,14 @@ class OwnershipTests(TestCase):
         self.bob_set.refresh_from_db()
         self.assertIsNone(self.bob_set.deleted_at)
 
+    def test_foreign_inventory_quantities_cannot_be_changed(self):
+        item = SetInventoryItem.objects.create(lego_set=self.bob_set, part_number="3001", name="Stein", required_quantity=4)
+        self.client.force_login(self.alice)
+        response = self.client.post(reverse("catalog:set_inventory_quantity", args=[self.bob_set.pk, item.pk]), {"owned_quantity": 4})
+        self.assertEqual(response.status_code, 404)
+        item.refresh_from_db()
+        self.assertEqual(item.owned_quantity, 0)
+
     def test_foreign_part_is_not_visible_or_mutable(self):
         self.client.force_login(self.alice)
         self.assertEqual(
@@ -87,8 +95,10 @@ class CatalogFlowTests(TestCase):
         other = get_user_model().objects.create_user("theme-other", "theme-other@example.test", "Strong-password-123")
         LegoSet.objects.create(owner=other, set_number="3", name="Other", theme="Secret Theme")
         response = self.client.get(reverse("catalog:set_create"))
-        self.assertContains(response, 'list="theme-suggestions"')
-        self.assertContains(response, 'value="Space"')
+        self.assertContains(response, 'data-combobox')
+        self.assertContains(response, 'role="listbox"')
+        self.assertNotContains(response, "<datalist")
+        self.assertContains(response, 'data-combobox-option="Space"')
         self.assertNotContains(response, "Secret Theme")
         response = self.client.post(reverse("catalog:set_create"), {"set_number": "4", "name": "New", "theme": "Brand New Theme", "condition": "neu", "completeness": "vollständig", "build_status": "gebaut", "purchase_price": "0", "current_value": "0"})
         self.assertEqual(response.status_code, 302)
@@ -206,3 +216,36 @@ class CatalogFlowTests(TestCase):
         self.assertTrue(Part.objects.filter(pk=foreign.pk).exists())
         self.assertRedirects(self.client.post(own_url), reverse("catalog:trash"))
         self.assertFalse(Part.objects.filter(pk=own.pk).exists())
+
+    def test_direct_missing_quantity_derives_status_and_rejects_invalid_values(self):
+        part = Part.objects.create(owner=self.user, element_id="direct", name="Direkt", quantity=5)
+        url = reverse("catalog:missing_part_quantity", args=[part.pk])
+        self.assertRedirects(self.client.post(url, {"owned_quantity": 2}), reverse("catalog:missing_parts"))
+        part.refresh_from_db()
+        self.assertEqual((part.owned_quantity, part.status, part.missing_quantity), (2, Part.Status.MISSING, 3))
+        self.assertEqual(self.client.post(url, {"owned_quantity": 6}).status_code, 400)
+        self.client.post(url, {"owned_quantity": 5})
+        part.refresh_from_db()
+        self.assertEqual((part.owned_quantity, part.status), (5, Part.Status.FOUND))
+
+    def test_direct_status_keeps_quantity_consistent(self):
+        part = Part.objects.create(owner=self.user, element_id="status", name="Status", quantity=3, owned_quantity=1)
+        url = reverse("catalog:missing_part_status", args=[part.pk])
+        self.client.post(url, {"status": Part.Status.FOUND})
+        part.refresh_from_db()
+        self.assertEqual(part.owned_quantity, 3)
+        self.client.post(url, {"status": Part.Status.MISSING})
+        part.refresh_from_db()
+        self.assertEqual(part.owned_quantity, 0)
+
+    def test_set_detail_inventory_workbench_and_direct_quantity(self):
+        lego_set = LegoSet.objects.create(owner=self.user, set_number="75010", name="B-wing")
+        item = SetInventoryItem.objects.create(lego_set=lego_set, part_number="3001", name="Stein", required_quantity=4, owned_quantity=1, is_spare=True)
+        response = self.client.get(reverse("catalog:set_detail", args=[lego_set.pk]), {"art": "spare"})
+        self.assertContains(response, "Set-Inventar")
+        self.assertContains(response, "Ersatzteil")
+        self.assertContains(response, "3")
+        update = reverse("catalog:set_inventory_quantity", args=[lego_set.pk, item.pk])
+        self.assertRedirects(self.client.post(update, {"owned_quantity": 3}), reverse("catalog:set_detail", args=[lego_set.pk]))
+        item.refresh_from_db()
+        self.assertEqual(item.owned_quantity, 3)

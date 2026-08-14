@@ -44,6 +44,54 @@ document.querySelectorAll("a[data-history-back]").forEach((link) => {
   });
 });
 
+document.querySelectorAll("[data-selection-scope]").forEach((scope) => {
+  const count = scope.querySelector("[data-selection-count]");
+  const items = document.querySelectorAll(`[form="${scope.id}"][data-selection-item]`);
+  const update = () => { if (count) count.textContent = String([...items].filter((item) => item.checked).length); };
+  items.forEach((item) => item.addEventListener("change", update));
+  update();
+});
+
+document.querySelectorAll("img[data-image-fallback]").forEach((image) => {
+  image.addEventListener("error", () => {
+    image.hidden = true;
+    image.closest("button")?.classList.add("image-unavailable");
+  }, {once: true});
+});
+
+document.querySelectorAll("[data-combobox]").forEach((box) => {
+  const input = box.querySelector("input");
+  const list = box.querySelector("[role=listbox]");
+  const options = [...box.querySelectorAll("[data-combobox-option]")];
+  let visible = options;
+  let active = -1;
+  const render = () => {
+    const query = input.value.trim().toLocaleLowerCase("de");
+    visible = options.filter((option) => option.dataset.comboboxOption.toLocaleLowerCase("de").includes(query));
+    options.forEach((option) => { option.hidden = !visible.includes(option); option.setAttribute("aria-selected", "false"); });
+    active = Math.min(active, visible.length - 1);
+    if (active >= 0) visible[active].setAttribute("aria-selected", "true");
+    list.hidden = visible.length === 0;
+  };
+  const choose = (option) => { input.value = option.dataset.comboboxOption; list.hidden = true; input.dispatchEvent(new Event("change", {bubbles: true})); input.focus(); };
+  input.setAttribute("role", "combobox");
+  input.setAttribute("aria-autocomplete", "list");
+  input.addEventListener("focus", render);
+  input.addEventListener("input", render);
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") { list.hidden = true; return; }
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      if (list.hidden) render();
+      if (!visible.length) return;
+      active = event.key === "ArrowDown" ? (active + 1) % visible.length : (active - 1 + visible.length) % visible.length;
+      render();
+    } else if (event.key === "Enter" && !list.hidden && active >= 0) { event.preventDefault(); choose(visible[active]); }
+  });
+  options.forEach((option) => option.addEventListener("click", () => choose(option)));
+  document.addEventListener("click", (event) => { if (!box.contains(event.target)) list.hidden = true; });
+});
+
 const setForm = document.querySelector("form[data-set-lookup-url]");
 if (setForm) {
   const numberField = setForm.querySelector('[name="set_number"]');
@@ -127,4 +175,4 @@ document.querySelectorAll("form").forEach((form) => {
     window.setTimeout(() => { button.disabled = true; }, 0);
   });
 });
-if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("/service-worker.js"));
+if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("/service-worker.js", {updateViaCache: "none"}));
