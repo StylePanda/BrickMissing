@@ -60,3 +60,22 @@ class SecurityHeadersMiddleware:
             "Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()"
         )
         return response
+
+
+class AccountSessionMiddleware:
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        response = self.get_response(request)
+        if request.user.is_authenticated and request.session.session_key:
+            from apps.accounts.models import AccountSession
+
+            AccountSession.objects.update_or_create(
+                session_key=request.session.session_key,
+                defaults={
+                    "user": request.user,
+                    "user_agent": request.META.get("HTTP_USER_AGENT", "")[:255],
+                },
+            )
+        return response

@@ -7,6 +7,7 @@ import uuid
 from django.contrib.auth.models import AbstractUser
 from django.contrib.auth.models import UserManager as DjangoUserManager
 from django.db import models
+from django.utils import timezone
 
 
 class UserManager(DjangoUserManager):
@@ -35,6 +36,39 @@ class User(AbstractUser):
     def save(self, *args, **kwargs):
         self.email = self.__class__.objects.normalize_email(self.email).casefold()
         super().save(*args, **kwargs)
+
+    @property
+    def has_placeholder_email(self) -> bool:
+        return self.email.casefold().endswith("@invalid.local")
+
+
+class PendingEmailChange(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="pending_email_changes")
+    email = models.EmailField()
+    token_digest = models.CharField(max_length=64)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["user", "used_at"])]
+
+    @property
+    def is_valid(self) -> bool:
+        return self.used_at is None and self.expires_at > timezone.now()
+
+
+class AccountSession(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="account_sessions")
+    session_key = models.CharField(max_length=40, unique=True)
+    user_agent = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_seen_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-last_seen_at"]
 
 
 class RecoveryCode(models.Model):

@@ -122,6 +122,11 @@ button:hover, .button:hover { border-color: var(--muted); background: var(--soft
 .form-actions, .actions, .table-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
 .form-actions { justify-content: flex-end; padding-top: var(--space-2); }
 .danger-zone { border-color: color-mix(in srgb, var(--danger) 60%, var(--line)); }
+.inline-form { display: inline-flex; margin: var(--space-3) 0 0 var(--space-2); }
+.session-list { display: grid; gap: var(--space-4); }
+.session-card { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); border-bottom: 1px solid var(--line); padding-bottom: var(--space-4); }
+.session-card:last-child { border-bottom: 0; padding-bottom: 0; }
+.session-card h2 { margin-bottom: var(--space-2); font-size: 1.05rem; }
 details { margin: var(--space-4) 0; border: 1px solid var(--line); border-radius: var(--radius); padding: var(--space-3) var(--space-4); }
 summary { min-height: 36px; cursor: pointer; color: var(--text); font-weight: 700; }
 details[open] summary { margin-bottom: var(--space-4); }
@@ -170,6 +175,7 @@ dd { margin: 0; }
   .form-grid { grid-template-columns: 1fr; }
   .form-grid > * { grid-column: 1 !important; }
   .form-actions, .actions { align-items: stretch; flex-direction: column; }
+  .session-card { align-items: stretch; flex-direction: column; }
   .form-actions > *, .actions > * { width: 100%; }
   .filters { align-items: stretch; flex-direction: column; }
   .filters > * { width: 100%; flex-basis: auto !important; }

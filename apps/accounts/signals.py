@@ -16,6 +16,9 @@ def _request_fields(request):
 
 @receiver(user_logged_in)
 def audit_login(sender, request, user, **kwargs):
+    from .services import track_session
+
+    track_session(request, user)
     AuditEvent.objects.create(
         actor=user, target_user=user, action="account.login_success", **_request_fields(request)
     )
@@ -31,3 +34,7 @@ def audit_logout(sender, request, user, **kwargs):
     AuditEvent.objects.create(
         actor=user, target_user=user, action="account.logout", **_request_fields(request)
     )
+    if request and request.session.session_key:
+        from .models import AccountSession
+
+        AccountSession.objects.filter(session_key=request.session.session_key).delete()

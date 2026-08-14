@@ -1,3 +1,7 @@
+import hashlib
+import hmac
+import uuid
+
 from django.contrib import messages
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
@@ -8,6 +12,7 @@ from django.contrib.auth.views import (
     PasswordResetView,
 )
 from django.core.cache import cache
+from django.db import transaction
 from django.http import Http404, HttpResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse_lazy
@@ -20,9 +25,15 @@ from apps.audit.models import AuditEvent
 from apps.core.client_ip import client_ip
 from apps.core.rate_limit import limited
 
-from .forms import EmailChangeForm, RegistrationForm, VerifiedAuthenticationForm
-from .models import RecoveryCode, User
-from .services import send_verification_email
+from .forms import (
+    AccountDeleteForm,
+    DeliverablePasswordResetForm,
+    EmailChangeForm,
+    RegistrationForm,
+    VerifiedAuthenticationForm,
+)
+from .models import PendingEmailChange, RecoveryCode, User
+from .services import create_email_change, revoke_session, send_verification_email
 from .tokens import email_verification_token
 from .totp import (
     decrypt_secret,
@@ -102,7 +113,11 @@ def resend_verification(request):
     if _limited(request, "verify", 3, 3600):
         return HttpResponse("Zu viele Anfragen. Bitte später erneut versuchen.", status=429)
     email = request.POST.get("email", "").strip().casefold()
-    user = request.user if request.user.is_authenticated else User.objects.filter(email__iexact=email, is_active=True).first()
+    user = (
+        request.user
+        if request.user.is_authenticated
+        else User.objects.filter(email__iexact=email, is_active=True).first()
+    )
     result = "not_required_or_unknown"
     if user and not user.email_verified:
         send_verification_email(request, user)
@@ -137,8 +152,10 @@ def profile(request):
             request.user.save(update_fields=["email", "email_verified", "updated_at"])
             send_verification_email(request, request.user)
             AuditEvent.objects.create(
-                actor=request.user, target_user=request.user,
-                action="account.email_changed", request_id=request.request_id,
+                actor=request.user,
+                target_user=request.user,
+                action="account.email_changed",
+                request_id=request.request_id,
             )
             messages.success(request, "E-Mail geändert. Bitte erneut bestätigen.")
             return redirect("accounts:profile")
@@ -223,7 +240,9 @@ def two_factor_challenge(request):
                 recovery.used_at = timezone.now()
                 recovery.save(update_fields=["used_at"])
                 AuditEvent.objects.create(
-                    actor=user, target_user=user, action="account.recovery_code_used",
+                    actor=user,
+                    target_user=user,
+                    action="account.recovery_code_used",
                     request_id=request.request_id,
                 )
                 valid = True
@@ -270,6 +289,7 @@ class AuditedPasswordResetView(PasswordResetView):
     template_name = "accounts/password_reset_form.html"
     email_template_name = "accounts/password_reset_email.txt"
     success_url = reverse_lazy("accounts:password_reset_done")
+    form_class = DeliverablePasswordResetForm
 
     def dispatch(self, request, *args, **kwargs):
         if request.method == "POST" and limited(request, "password-reset", 5, 3600):
@@ -279,7 +299,8 @@ class AuditedPasswordResetView(PasswordResetView):
     def form_valid(self, form):
         AuditEvent.objects.create(
             action="account.password_reset_requested",
-            remote_address=client_ip(self.request), request_id=self.request.request_id,
+            remote_address=client_ip(self.request),
+            request_id=self.request.request_id,
         )
         return super().form_valid(form)
 
@@ -291,8 +312,10 @@ class AuditedPasswordResetConfirmView(PasswordResetConfirmView):
     def form_valid(self, form):
         response = super().form_valid(form)
         AuditEvent.objects.create(
-            target_user=self.user, action="account.password_reset_completed",
-            remote_address=client_ip(self.request), request_id=self.request.request_id,
+            target_user=self.user,
+            action="account.password_reset_completed",
+            remote_address=client_ip(self.request),
+            request_id=self.request.request_id,
         )
         return response
 
@@ -304,7 +327,176 @@ class AuditedPasswordChangeView(PasswordChangeView):
     def form_valid(self, form):
         response = super().form_valid(form)
         AuditEvent.objects.create(
-            actor=self.request.user, target_user=self.request.user,
-            action="account.password_changed", request_id=self.request.request_id,
+            actor=self.request.user,
+            target_user=self.request.user,
+            action="account.password_changed",
+            request_id=self.request.request_id,
         )
+        messages.success(self.request, "Passwort erfolgreich geändert.")
         return response
+
+
+# Account-management views are defined together so their security invariants stay explicit.
+@login_required
+def account_profile(request):
+    pending = (
+        request.user.pending_email_changes.filter(used_at__isnull=True)
+        .order_by("-created_at")
+        .first()
+    )
+    return render(request, "accounts/profile.html", {"pending_email_change": pending})
+
+
+@login_required
+def change_email(request):
+    form = EmailChangeForm(request.POST or None)
+    if request.method == "POST" and _limited(request, "email-change", 5, 3600):
+        return HttpResponse("Zu viele Anfragen. Bitte später erneut versuchen.", status=429)
+    if request.method == "POST" and form.is_valid():
+        email = form.cleaned_data["email"]
+        if not request.user.check_password(form.cleaned_data["password"]):
+            form.add_error("password", "Das Passwort ist nicht korrekt.")
+        elif email == request.user.email:
+            form.add_error("email", "Das ist bereits deine aktuelle E-Mail-Adresse.")
+        elif User.objects.filter(email__iexact=email).exclude(pk=request.user.pk).exists():
+            form.add_error("email", "Diese E-Mail-Adresse wird bereits verwendet.")
+        else:
+            pending = create_email_change(request, request.user, email)
+            AuditEvent.objects.create(
+                actor=request.user,
+                target_user=request.user,
+                action="account.email_change_started",
+                entity_type="pending_email_change",
+                entity_id=str(pending.pk),
+                request_id=request.request_id,
+            )
+            messages.success(request, "Bestätigungs-E-Mail an die neue Adresse gesendet.")
+            return redirect("accounts:profile")
+    return render(request, "accounts/change_email.html", {"form": form})
+
+
+def confirm_email_change(request, pk, token):
+    try:
+        pending_id = uuid.UUID(str(pk))
+    except ValueError:
+        raise Http404 from None
+    with transaction.atomic():
+        pending = (
+            PendingEmailChange.objects.select_for_update()
+            .select_related("user")
+            .filter(pk=pending_id)
+            .first()
+        )
+        digest = hashlib.sha256(token.encode()).hexdigest()
+        if (
+            not pending
+            or not pending.is_valid
+            or not hmac.compare_digest(pending.token_digest, digest)
+        ):
+            return render(request, "accounts/verification_invalid.html", status=400)
+        if User.objects.filter(email__iexact=pending.email).exclude(pk=pending.user_id).exists():
+            pending.used_at = timezone.now()
+            pending.save(update_fields=["used_at"])
+            return render(request, "accounts/verification_invalid.html", status=400)
+        user = pending.user
+        user.email = pending.email
+        user.email_verified = True
+        user.save(update_fields=["email", "email_verified", "updated_at"])
+        pending.used_at = timezone.now()
+        pending.save(update_fields=["used_at"])
+        AuditEvent.objects.create(
+            actor=user if request.user.is_authenticated and request.user.pk == user.pk else None,
+            target_user=user,
+            action="account.email_change_confirmed",
+            entity_type="pending_email_change",
+            entity_id=str(pending.pk),
+            request_id=request.request_id,
+        )
+    messages.success(request, "Deine neue E-Mail-Adresse wurde bestätigt.")
+    return redirect("accounts:profile" if request.user.is_authenticated else "accounts:login")
+
+
+@login_required
+def delete_account(request):
+    return render(request, "accounts/delete_account.html", {"form": AccountDeleteForm()})
+
+
+@login_required
+@require_POST
+def anonymize_account(request):
+    form = AccountDeleteForm(request.POST)
+    if not form.is_valid() or not request.user.check_password(
+        form.cleaned_data.get("password", "")
+    ):
+        if form.is_valid():
+            form.add_error("password", "Das Passwort ist nicht korrekt.")
+        return render(request, "accounts/delete_account.html", {"form": form}, status=400)
+    user = request.user
+    with transaction.atomic():
+        AuditEvent.objects.create(
+            actor=user, target_user=user, action="account.anonymized", request_id=request.request_id
+        )
+        marker = user.pk.hex
+        user.username = f"deleted-{marker}"
+        user.email = f"deleted-{marker}@invalid.local"
+        user.first_name = user.last_name = ""
+        user.is_active = user.is_staff = user.is_superuser = user.email_verified = False
+        user.deactivated_at = timezone.now()
+        user.totp_enabled = False
+        user.totp_secret_encrypted = ""
+        user.set_unusable_password()
+        user.groups.clear()
+        user.user_permissions.clear()
+        user.save()
+        for account_session in list(user.account_sessions.all()):
+            revoke_session(account_session)
+    logout(request)
+    return redirect("accounts:login")
+
+
+@login_required
+def sessions(request):
+    current = request.session.session_key
+    records = list(request.user.account_sessions.all())
+    for record in records:
+        record.is_current = record.session_key == current
+    return render(request, "accounts/sessions.html", {"sessions": records})
+
+
+@login_required
+@require_POST
+def revoke_session_view(request, pk):
+    record = request.user.account_sessions.filter(pk=pk).first()
+    if not record:
+        raise Http404
+    if record.session_key == request.session.session_key:
+        messages.error(request, "Die aktuelle Sitzung kann hier nicht beendet werden.")
+    else:
+        revoke_session(record)
+        AuditEvent.objects.create(
+            actor=request.user,
+            target_user=request.user,
+            action="account.session_revoked",
+            request_id=request.request_id,
+        )
+        messages.success(request, "Sitzung beendet.")
+    return redirect("accounts:sessions")
+
+
+@login_required
+@require_POST
+def revoke_other_sessions(request):
+    if not request.user.check_password(request.POST.get("password", "")):
+        messages.error(request, "Das Passwort ist nicht korrekt.")
+        return redirect("accounts:sessions")
+    current = request.session.session_key
+    for record in list(request.user.account_sessions.exclude(session_key=current)):
+        revoke_session(record)
+    AuditEvent.objects.create(
+        actor=request.user,
+        target_user=request.user,
+        action="account.other_sessions_revoked",
+        request_id=request.request_id,
+    )
+    messages.success(request, "Alle anderen Sitzungen wurden beendet.")
+    return redirect("accounts:sessions")

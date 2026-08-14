@@ -1,5 +1,5 @@
 from django import forms
-from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
+from django.contrib.auth.forms import AuthenticationForm, PasswordResetForm, UserCreationForm
 from django.contrib.auth.password_validation import validate_password
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
@@ -35,6 +35,27 @@ class RegistrationForm(UserCreationForm):
 class EmailChangeForm(forms.Form):
     email = forms.EmailField(label="Neue E-Mail-Adresse")
     password = forms.CharField(label="Aktuelles Passwort", widget=forms.PasswordInput)
+
+    def clean_email(self):
+        return User.objects.normalize_email(self.cleaned_data["email"]).casefold()
+
+
+class AccountDeleteForm(forms.Form):
+    password = forms.CharField(label="Aktuelles Passwort", widget=forms.PasswordInput)
+    confirmation = forms.CharField(label="Zur Bestätigung „LÖSCHEN“ eingeben")
+
+    def clean_confirmation(self):
+        value = self.cleaned_data["confirmation"].strip().upper()
+        if value != "LÖSCHEN":
+            raise ValidationError("Bitte gib zur Bestätigung „LÖSCHEN“ ein.")
+        return value
+
+
+class DeliverablePasswordResetForm(PasswordResetForm):
+    def get_users(self, email):
+        for user in super().get_users(email):
+            if not user.has_placeholder_email and user.email_verified:
+                yield user
 
 
 class VerifiedAuthenticationForm(AuthenticationForm):

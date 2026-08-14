@@ -180,17 +180,24 @@ class Command(BaseCommand):
         for row in legacy.execute("SELECT * FROM users ORDER BY id"):
             username = (row["name"] or f"legacy-{row['id']}").strip()
             email = (row["email"] or f"legacy-{row['id']}@invalid.local").strip().casefold()
-            user, _ = User.objects.update_or_create(
-                legacy_id=row["id"],
-                defaults={
-                    "username": username,
-                    "email": email,
-                    "email_verified": bool(row["email_verified_at"]),
-                    "is_active": not bool(row["disabled"] or row["deleted_at"]),
-                    "is_staff": row["role"] == "admin",
-                    "is_superuser": False,
-                },
-            )
+            user = User.objects.filter(legacy_id=row["id"]).first()
+            manually_verified = bool(user and user.email_verified)
+            if user and not user.has_placeholder_email and email.endswith("@invalid.local"):
+                email = user.email
+            defaults = {
+                "username": username,
+                "email": email,
+                "email_verified": manually_verified or bool(row["email_verified_at"]),
+                "is_active": bool(user and user.deactivated_at is None or not user) and not bool(row["disabled"] or row["deleted_at"]),
+                "is_staff": row["role"] == "admin",
+                "is_superuser": False,
+            }
+            if user:
+                for field, value in defaults.items():
+                    setattr(user, field, value)
+                user.save()
+            else:
+                user = User.objects.create(legacy_id=row["id"], **defaults)
             encoded = legacy_password(row["password_hash"])
             if encoded:
                 user.password = encoded

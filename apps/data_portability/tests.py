@@ -148,6 +148,19 @@ class LegacyActualMigrationTests(TestCase):
             first,
         )
 
+    def test_repeated_import_preserves_manual_legacy_verification_and_real_email(self):
+        source = Path(__file__).resolve().parents[2] / "data" / "brickmissing.db"
+        call_command("migrate_legacy_brickmissing", source=source, stdout=io.StringIO())
+        user = get_user_model().objects.filter(legacy_id__isnull=False, email__endswith="@invalid.local").first()
+        self.assertIsNotNone(user)
+        user.email = "onboarded@example.test"
+        user.email_verified = True
+        user.save(update_fields=["email", "email_verified", "updated_at"])
+        call_command("migrate_legacy_brickmissing", source=source, stdout=io.StringIO())
+        user.refresh_from_db()
+        self.assertTrue(user.email_verified)
+        self.assertEqual(user.email, "onboarded@example.test")
+
     def test_import_failure_rolls_back_partial_target_state(self):
         source = Path(__file__).resolve().parents[2] / "data" / "brickmissing.db"
 
