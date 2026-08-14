@@ -44,33 +44,23 @@ class OrganizerOwnershipTests(TestCase):
 
     def test_moc_version_crud_activate_and_ownership(self):
         moc = Moc.objects.create(owner=self.first, name="Build")
-        MocPart.objects.create(
-            moc=moc, part_number="3001", name="Brick", required_quantity=2
-        )
+        MocPart.objects.create(moc=moc, part_number="3001", name="Brick", required_quantity=2)
         self.client.force_login(self.first)
         response = self.client.post(
             reverse("organizer:moc_version_create", args=[moc.pk]),
             {"version": "1.0", "name": "Initial", "description": "First", "notes": "Keep"},
         )
-        self.assertRedirects(
-            response, reverse("organizer:detail", args=["mocs", moc.pk])
-        )
+        self.assertRedirects(response, reverse("organizer:detail", args=["mocs", moc.pk]))
         version = MocVersion.objects.get(moc=moc)
         self.assertEqual(version.parts_snapshot[0]["part_number"], "3001")
         moc.parts.all().delete()
         MocPart.objects.create(moc=moc, part_number="9999", name="Changed")
-        self.client.post(
-            reverse("organizer:moc_version_activate", args=[moc.pk, version.pk])
-        )
+        self.client.post(reverse("organizer:moc_version_activate", args=[moc.pk, version.pk]))
         self.assertEqual(list(moc.parts.values_list("part_number", flat=True)), ["3001"])
-        response = self.client.get(
-            reverse("organizer:moc_version_edit", args=[moc.pk, version.pk])
-        )
+        response = self.client.get(reverse("organizer:moc_version_edit", args=[moc.pk, version.pk]))
         self.assertEqual(response.status_code, 200)
         foreign_moc = Moc.objects.create(owner=self.second, name="Foreign MOC")
-        foreign_version = MocVersion.objects.create(
-            moc=foreign_moc, version="1", parts_snapshot=[]
-        )
+        foreign_version = MocVersion.objects.create(moc=foreign_moc, version="1", parts_snapshot=[])
         self.assertEqual(
             self.client.post(
                 reverse(
@@ -80,19 +70,24 @@ class OrganizerOwnershipTests(TestCase):
             ).status_code,
             404,
         )
-        self.client.post(
-            reverse("organizer:moc_version_delete", args=[moc.pk, version.pk])
-        )
+        self.client.post(reverse("organizer:moc_version_delete", args=[moc.pk, version.pk]))
         self.assertFalse(MocVersion.objects.filter(pk=version.pk).exists())
 
     def test_label_preview_print_layout_qr_and_ownership(self):
         label = LabelTemplate.objects.create(
-            owner=self.first, name="Shelf", width_mm=50, height_mm=30,
+            owner=self.first,
+            name="Shelf",
+            width_mm=50,
+            height_mm=30,
             configuration={"qr_code": True, "text": "Bin A"},
         )
         item = InventoryItem.objects.create(
-            owner=self.first, part_number="3001", element_id="300101",
-            name="Brick", color="Red", quantity=4,
+            owner=self.first,
+            part_number="3001",
+            element_id="300101",
+            name="Brick",
+            color="Red",
+            quantity=4,
         )
         self.client.force_login(self.first)
         response = self.client.get(reverse("organizer:label_preview", args=[label.pk]))
@@ -115,7 +110,10 @@ class OrganizerOwnershipTests(TestCase):
 
     def test_label_capacity_start_orientation_margins_and_modes(self):
         label = LabelTemplate.objects.create(
-            owner=self.first, name="HERMA", width_mm=50, height_mm=30,
+            owner=self.first,
+            name="HERMA",
+            width_mm=50,
+            height_mm=30,
             orientation="landscape",
             configuration={"rows": 2, "columns": 2, "margin_top": 5, "margin_left": 7},
         )
@@ -133,11 +131,10 @@ class OrganizerOwnershipTests(TestCase):
         )
         self.assertEqual(len(response.context["leading_slots"]), 2)
         self.assertEqual(len(response.context["items"]), 2)
-        self.assertContains(response, "A4 landscape")
-        self.assertContains(response, "margin:5.00mm")
-        last = self.client.get(
-            reverse("organizer:label_preview", args=[label.pk]), {"start": 999}
-        )
+        css = self.client.get(reverse("organizer:label_print_css", args=[label.pk]))
+        self.assertContains(css, "A4 landscape")
+        self.assertContains(css, "margin:5.00mm")
+        last = self.client.get(reverse("organizer:label_preview", args=[label.pk]), {"start": 999})
         self.assertEqual(last.context["start"], 4)
         self.assertEqual(len(last.context["items"]), 1)
         self.assertContains(
@@ -145,7 +142,9 @@ class OrganizerOwnershipTests(TestCase):
             "Mode Set",
         )
         self.assertContains(
-            self.client.get(reverse("organizer:label_preview", args=[label.pk]), {"mode": "minifigure"}),
+            self.client.get(
+                reverse("organizer:label_preview", args=[label.pk]), {"mode": "minifigure"}
+            ),
             "Mode Figure",
         )
 
@@ -160,7 +159,10 @@ class OrganizerOwnershipTests(TestCase):
                 owner=self.second, reference="x", name="Foreign Wish"
             ),
             "loans": Loan.objects.create(
-                owner=self.second, entity_type="set", entity_id="x", borrower="Foreign",
+                owner=self.second,
+                entity_type="set",
+                entity_id="x",
+                borrower="Foreign",
                 loaned_at=timezone.now(),
             ),
             "notes": PersonalNote.objects.create(
@@ -168,7 +170,10 @@ class OrganizerOwnershipTests(TestCase):
             ),
             "labels": LabelTemplate.objects.create(owner=self.second, name="Foreign Label matrix"),
             "minifigures": SetMinifigure.objects.create(
-                owner=self.second, lego_set=foreign_set, figure_number="foreign-fig", name="Foreign Figure"
+                owner=self.second,
+                lego_set=foreign_set,
+                figure_number="foreign-fig",
+                name="Foreign Figure",
             ),
         }
         self.client.force_login(self.first)
@@ -184,7 +189,14 @@ class OrganizerOwnershipTests(TestCase):
         own_collection = Collection.objects.create(owner=self.first, name="Own")
         response = self.client.post(
             reverse("organizer:create", args=["mocs"]),
-            {"name": "Injected", "collection": records["collections"].pk, "location": "", "status": "Planung", "version": "1.0", "progress": 0},
+            {
+                "name": "Injected",
+                "collection": records["collections"].pk,
+                "location": "",
+                "status": "Planung",
+                "version": "1.0",
+                "progress": 0,
+            },
         )
         self.assertEqual(response.status_code, 200)
         self.assertFalse(Moc.objects.filter(owner=self.first, name="Injected").exists())
@@ -209,9 +221,7 @@ class OrganizerListRenderingTests(TestCase):
                 self.assertContains(response, "Noch keine Einträge vorhanden.")
 
     def test_every_populated_organizer_list_uses_its_explicit_display_fields(self):
-        lego_set = LegoSet.objects.create(
-            owner=self.user, set_number="10300", name="Zeitmaschine"
-        )
+        lego_set = LegoSet.objects.create(owner=self.user, set_number="10300", name="Zeitmaschine")
         expected = {
             "collections": "V7 Hauptsammlung",
             "mocs": "V7 Bahnhof",
@@ -240,9 +250,7 @@ class OrganizerListRenderingTests(TestCase):
         PersonalNote.objects.create(
             owner=self.user, legacy_id=9, title=expected["notes"], content="Migriert"
         )
-        LabelTemplate.objects.create(
-            owner=self.user, legacy_id=10, name=expected["labels"]
-        )
+        LabelTemplate.objects.create(owner=self.user, legacy_id=10, name=expected["labels"])
         SetMinifigure.objects.create(
             owner=self.user,
             lego_set=lego_set,

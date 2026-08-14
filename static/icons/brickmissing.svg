@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="BrickMissing">
+  <rect width="64" height="64" rx="14" fill="#0d0b14"/>
+  <path d="M12 25h40v27H12z" fill="#9b6cff"/>
+  <path d="M18 18h11v9H18zm17 0h11v9H35z" fill="#b18cff"/>
+  <path d="M23 34h18v6H23zm0 10h12v4H23z" fill="#fff" opacity=".94"/>
+</svg>

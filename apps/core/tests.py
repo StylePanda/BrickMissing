@@ -1,3 +1,7 @@
+import re
+from pathlib import Path
+
+from django.conf import settings
 from django.template.loader import render_to_string
 from django.test import TestCase
 from django.test.client import RequestFactory
@@ -67,7 +71,8 @@ class AdminInterfaceTests(TestCase):
                 self.assertEqual(self.client.get(url).status_code, 200)
 
         filtered = self.client.get(
-            reverse("admin:catalog_part_changelist"), {"q": "Stein", "status__exact": "missing", "p": 0}
+            reverse("admin:catalog_part_changelist"),
+            {"q": "Stein", "status__exact": "missing", "p": 0},
         )
         self.assertContains(filtered, "Stein")
 
@@ -97,17 +102,39 @@ class InterfaceQualityTests(TestCase):
         self.assertContains(response, 'aria-current="page">Sets</a>')
         self.assertContains(response, "Import und Export")
         self.assertContains(response, "Lagerorte")
+        self.assertContains(response, 'class="nav-toggle ghost"')
+        self.assertContains(response, "icons/brickmissing.svg")
 
     def test_custom_error_pages_render(self):
         for template_name, expected in (
             ("400.html", "Die Anfrage konnte nicht verarbeitet werden."),
             ("403.html", "Du hast keinen Zugriff"),
-            ("404.html", "Diese Seite wurde nicht gefunden."),
-            ("500.html", "Etwas ist schiefgegangen."),
+            ("404.html", "Seite nicht gefunden"),
+            ("500.html", "Etwas ist schiefgegangen"),
         ):
             with self.subTest(template=template_name):
                 rendered = render_to_string(template_name)
                 self.assertIn(expected, rendered)
+
+    def test_all_templates_keep_csp_safe_ui_contract(self):
+        forbidden = re.compile(
+            r"javascript:|\son(?:click|change|submit|input|keydown|keyup|load)\s*=|<script(?![^>]*\bsrc=)|<style\b|\sstyle\s*=",
+            re.IGNORECASE,
+        )
+        templates = sorted((Path(settings.BASE_DIR) / "templates").rglob("*.html"))
+        self.assertTrue(templates)
+        for template in templates:
+            with self.subTest(template=template.relative_to(settings.BASE_DIR)):
+                self.assertIsNone(forbidden.search(template.read_text(encoding="utf-8")))
+
+    def test_midnight_violet_assets_and_wide_layout_exist(self):
+        static_root = Path(settings.BASE_DIR) / "static"
+        css = (static_root / "css" / "app.css").read_text(encoding="utf-8")
+        manifest = (static_root / "manifest.webmanifest").read_text(encoding="utf-8")
+        self.assertIn("--color-primary: #9b6cff", css)
+        self.assertIn("--container-wide: 1760px", css)
+        self.assertIn("icons/brickmissing.svg", manifest)
+        self.assertTrue((static_root / "icons" / "brickmissing.svg").is_file())
 
 
 class ClientIPTests(TestCase):
@@ -133,27 +160,51 @@ class ClientIPTests(TestCase):
 
 class SavedViewAndQualityTests(TestCase):
     def setUp(self):
-        self.user = User.objects.create_user("owner", "owner@example.test", "A-long-safe-password-123", email_verified=True)
-        self.other = User.objects.create_user("other", "other@example.test", "A-long-safe-password-123", email_verified=True)
+        self.user = User.objects.create_user(
+            "owner", "owner@example.test", "A-long-safe-password-123", email_verified=True
+        )
+        self.other = User.objects.create_user(
+            "other", "other@example.test", "A-long-safe-password-123", email_verified=True
+        )
         self.client.force_login(self.user)
 
     def test_saved_view_save_load_rename_delete_and_ownership(self):
-        self.client.post(reverse("saved_views"), {"name": "Red", "area": "parts", "path": "/fehlteile/", "query": "color=Red&sort=name"})
+        self.client.post(
+            reverse("saved_views"),
+            {"name": "Red", "area": "parts", "path": "/fehlteile/", "query": "color=Red&sort=name"},
+        )
         item = SavedView.objects.get(owner=self.user)
         self.assertContains(self.client.get(reverse("saved_views")), "color=Red")
-        self.client.post(reverse("saved_views"), {"pk": item.pk, "name": "Renamed", "area": "parts", "path": "/fehlteile/", "query": "color=Red"})
+        self.client.post(
+            reverse("saved_views"),
+            {
+                "pk": item.pk,
+                "name": "Renamed",
+                "area": "parts",
+                "path": "/fehlteile/",
+                "query": "color=Red",
+            },
+        )
         item.refresh_from_db()
         self.assertEqual(item.name, "Renamed")
-        foreign = SavedView.objects.create(owner=self.other, name="Foreign", area="parts", path="/", configuration={})
-        self.assertEqual(self.client.post(reverse("saved_view_delete", args=[foreign.pk])).status_code, 404)
+        foreign = SavedView.objects.create(
+            owner=self.other, name="Foreign", area="parts", path="/", configuration={}
+        )
+        self.assertEqual(
+            self.client.post(reverse("saved_view_delete", args=[foreign.pk])).status_code, 404
+        )
         self.client.post(reverse("saved_view_delete", args=[item.pk]))
         self.assertFalse(SavedView.objects.filter(pk=item.pk).exists())
 
     def test_quality_scan_finds_duplicates_and_invalid_identifiers(self):
         lego_set = LegoSet.objects.create(owner=self.user, set_number="100-1", name="One")
         Part.objects.create(owner=self.user, lego_set=lego_set, element_id="bad id", name="Part")
-        Part.objects.create(owner=self.user, lego_set=lego_set, element_id="bad id", name="Duplicate")
+        Part.objects.create(
+            owner=self.user, lego_set=lego_set, element_id="bad id", name="Duplicate"
+        )
         self.client.post(reverse("quality_scan"))
-        keys = set(DataQualityIssue.objects.filter(owner=self.user).values_list("issue_key", flat=True))
+        keys = set(
+            DataQualityIssue.objects.filter(owner=self.user).values_list("issue_key", flat=True)
+        )
         self.assertIn("duplicate_part", keys)
         self.assertIn("invalid_element_id", keys)

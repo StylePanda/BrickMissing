@@ -1,6 +1,15 @@
 "use strict";
-const CACHE = "brickmissing-shell-v1";
-const SHELL = ["/static/css/app.css", "/static/js/app.js", "/static/manifest.webmanifest", "/static/offline.html"];
+const CACHE = "brickmissing-shell-v2";
+const SHELL = [
+  "/static/css/app.css",
+  "/static/css/offline.css",
+  "/static/js/app.js",
+  "/static/manifest.webmanifest",
+  "/static/offline.html",
+  "/static/icons/brickmissing.svg",
+  "/static/icons/favicon.ico",
+  "/static/icons/apple-touch-icon.png",
+];
 self.addEventListener("install", (event) => event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL))));
 self.addEventListener("activate", (event) => event.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key))))));
 self.addEventListener("fetch", (event) => {

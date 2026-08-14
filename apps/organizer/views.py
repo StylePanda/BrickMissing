@@ -55,7 +55,11 @@ AREAS = {
         ("entity_type", "entity_id", "borrower", "loaned_at", "due_at", "returned_at", "notes"),
     ),
     "notes": (PersonalNote, "Notizen", ("title", "content")),
-    "labels": (LabelTemplate, "Etikettenvorlagen", ("name", "width_mm", "height_mm", "orientation", "configuration", "is_default")),
+    "labels": (
+        LabelTemplate,
+        "Etikettenvorlagen",
+        ("name", "width_mm", "height_mm", "orientation", "configuration", "is_default"),
+    ),
     "minifigures": (
         SetMinifigure,
         "Minifiguren",
@@ -119,9 +123,7 @@ def area_list(request, area):
     for record in records:
         label, secondary = display(record)
         rows.append({"record": record, "label": label, "secondary": secondary})
-    return render(
-        request, "organizer/list.html", {"rows": rows, "title": title, "area": area}
-    )
+    return render(request, "organizer/list.html", {"rows": rows, "title": title, "area": area})
 
 
 @login_required
@@ -183,7 +185,9 @@ def area_detail(request, area, pk):
         raise Http404
     instance = get_object_or_404(model, pk=pk, owner=request.user)
     record_recent(request.user, area, instance.pk, instance.name, request.path)
-    return render(request, "organizer/detail.html", {"item": instance, "title": title, "area": area})
+    return render(
+        request, "organizer/detail.html", {"item": instance, "title": title, "area": area}
+    )
 
 
 @login_required
@@ -191,12 +195,20 @@ def label_preview(request, pk):
     template = get_object_or_404(LabelTemplate, pk=pk, owner=request.user)
     mode = request.GET.get("mode", "part")
     if mode == "set":
-        items = LegoSet.objects.filter(owner=request.user, deleted_at__isnull=True).order_by("set_number")
+        items = LegoSet.objects.filter(owner=request.user, deleted_at__isnull=True).order_by(
+            "set_number"
+        )
     elif mode == "minifigure":
-        items = SetMinifigure.objects.filter(owner=request.user).select_related("lego_set").order_by("lego_set__set_number", "figure_number")
+        items = (
+            SetMinifigure.objects.filter(owner=request.user)
+            .select_related("lego_set")
+            .order_by("lego_set__set_number", "figure_number")
+        )
     else:
         mode = "part"
-        items = InventoryItem.objects.filter(owner=request.user, archived_at__isnull=True).order_by("name", "part_number")
+        items = InventoryItem.objects.filter(owner=request.user, archived_at__isnull=True).order_by(
+            "name", "part_number"
+        )
     selected = [value for value in request.GET.getlist("item") if value.isdigit()]
     if selected:
         items = items.filter(pk__in=selected)
@@ -208,15 +220,21 @@ def label_preview(request, pk):
             | models.Q(name__icontains=query)
         )
     elif query and mode == "set":
-        items = items.filter(models.Q(set_number__icontains=query) | models.Q(name__icontains=query))
+        items = items.filter(
+            models.Q(set_number__icontains=query) | models.Q(name__icontains=query)
+        )
     elif query:
-        items = items.filter(models.Q(figure_number__icontains=query) | models.Q(name__icontains=query))
+        items = items.filter(
+            models.Q(figure_number__icontains=query) | models.Q(name__icontains=query)
+        )
     configuration = template.configuration or {}
     rows = min(max(int(configuration.get("rows", 4)), 1), 20)
     columns = min(max(int(configuration.get("columns", 2)), 1), 10)
     capacity = rows * columns
     start = min(max(int(request.GET.get("start", 1) or 1), 1), capacity)
-    orientation = template.orientation if template.orientation in {"portrait", "landscape"} else "portrait"
+    orientation = (
+        template.orientation if template.orientation in {"portrait", "landscape"} else "portrait"
+    )
 
     def millimeters(name, default=0):
         try:
@@ -227,15 +245,53 @@ def label_preview(request, pk):
 
     remaining = capacity - start + 1
     return render(
-        request, "organizer/label_preview.html",
-        {"label_template": template, "items": items[:remaining], "query": query, "mode": mode,
-         "rows": rows, "columns": columns, "capacity": capacity, "start": start,
-         "leading_slots": range(start - 1), "orientation": orientation,
-         "margin_top": millimeters("margin_top"),
-         "margin_right": millimeters("margin_right"),
-         "margin_bottom": millimeters("margin_bottom"),
-         "margin_left": millimeters("margin_left")},
+        request,
+        "organizer/label_preview.html",
+        {
+            "label_template": template,
+            "items": items[:remaining],
+            "query": query,
+            "mode": mode,
+            "rows": rows,
+            "columns": columns,
+            "capacity": capacity,
+            "start": start,
+            "leading_slots": range(start - 1),
+            "orientation": orientation,
+            "margin_top": millimeters("margin_top"),
+            "margin_right": millimeters("margin_right"),
+            "margin_bottom": millimeters("margin_bottom"),
+            "margin_left": millimeters("margin_left"),
+        },
     )
+
+
+@login_required
+def label_print_css(request, pk):
+    template = get_object_or_404(LabelTemplate, pk=pk, owner=request.user)
+    configuration = template.configuration or {}
+
+    def number(name, default, minimum, maximum):
+        try:
+            return min(max(float(configuration.get(name, default)), minimum), maximum)
+        except (TypeError, ValueError):
+            return float(default)
+
+    rows = int(number("rows", 4, 1, 20))
+    columns = int(number("columns", 2, 1, 10))
+    orientation = (
+        template.orientation if template.orientation in {"portrait", "landscape"} else "portrait"
+    )
+    margins = [
+        number(name, 0, 0, 50)
+        for name in ("margin_top", "margin_right", "margin_bottom", "margin_left")
+    ]
+    css = (
+        f"@page{{size:A4 {orientation};margin:{margins[0]:.2f}mm {margins[1]:.2f}mm {margins[2]:.2f}mm {margins[3]:.2f}mm}}"
+        f".label-sheet{{grid-template-columns:repeat({columns},{float(template.width_mm):.2f}mm);grid-template-rows:repeat({rows},{float(template.height_mm):.2f}mm)}}"
+        f".print-label{{width:{float(template.width_mm):.2f}mm;height:{float(template.height_mm):.2f}mm}}"
+    )
+    return HttpResponse(css, content_type="text/css; charset=utf-8")
 
 
 @login_required
@@ -251,8 +307,13 @@ def label_qr(request, pk, item_pk):
 def _moc_parts_snapshot(moc):
     return list(
         moc.parts.order_by("pk").values(
-            "part_number", "name", "color", "required_quantity",
-            "allocated_quantity", "notes", "inventory_item_id",
+            "part_number",
+            "name",
+            "color",
+            "required_quantity",
+            "allocated_quantity",
+            "notes",
+            "inventory_item_id",
         )
     )
 
@@ -261,9 +322,7 @@ def _moc_parts_snapshot(moc):
 def moc_version_edit(request, moc_pk, pk=None):
     moc = get_object_or_404(Moc, pk=moc_pk, owner=request.user)
     version = get_object_or_404(MocVersion, pk=pk, moc=moc) if pk else None
-    form_class = modelform_factory(
-        MocVersion, fields=("version", "name", "description", "notes")
-    )
+    form_class = modelform_factory(MocVersion, fields=("version", "name", "description", "notes"))
     form = form_class(request.POST or None, instance=version)
     if request.method == "POST" and form.is_valid():
         saved = form.save(commit=False)
@@ -273,13 +332,17 @@ def moc_version_edit(request, moc_pk, pk=None):
         saved.full_clean()
         saved.save()
         AuditEvent.objects.create(
-            actor=request.user, target_user=request.user,
-            action="moc.version_saved", entity_type="moc_version",
-            entity_id=str(saved.pk), request_id=request.request_id,
+            actor=request.user,
+            target_user=request.user,
+            action="moc.version_saved",
+            entity_type="moc_version",
+            entity_id=str(saved.pk),
+            request_id=request.request_id,
         )
         return redirect("organizer:detail", area="mocs", pk=moc.pk)
     return render(
-        request, "catalog/form.html",
+        request,
+        "catalog/form.html",
         {"form": form, "title": "MOC-Version bearbeiten" if version else "MOC-Version erstellen"},
     )
 
@@ -292,9 +355,12 @@ def moc_version_delete(request, moc_pk, pk):
     identifier = str(version.pk)
     version.delete()
     AuditEvent.objects.create(
-        actor=request.user, target_user=request.user,
-        action="moc.version_deleted", entity_type="moc_version",
-        entity_id=identifier, request_id=request.request_id,
+        actor=request.user,
+        target_user=request.user,
+        action="moc.version_deleted",
+        entity_type="moc_version",
+        entity_id=identifier,
+        request_id=request.request_id,
     )
     return redirect("organizer:detail", area="mocs", pk=moc.pk)
 
@@ -303,9 +369,7 @@ def moc_version_delete(request, moc_pk, pk):
 @require_POST
 @transaction.atomic
 def moc_version_activate(request, moc_pk, pk):
-    moc = get_object_or_404(
-        Moc.objects.select_for_update(), pk=moc_pk, owner=request.user
-    )
+    moc = get_object_or_404(Moc.objects.select_for_update(), pk=moc_pk, owner=request.user)
     version = get_object_or_404(MocVersion, pk=pk, moc=moc)
     replacements = []
     for raw in version.parts_snapshot:
@@ -314,7 +378,8 @@ def moc_version_activate(request, moc_pk, pk):
             inventory_id = None
         replacements.append(
             MocPart(
-                moc=moc, inventory_item_id=inventory_id,
+                moc=moc,
+                inventory_item_id=inventory_id,
                 part_number=str(raw.get("part_number", ""))[:100],
                 name=str(raw.get("name", ""))[:255],
                 color=str(raw.get("color", ""))[:150],
@@ -328,9 +393,12 @@ def moc_version_activate(request, moc_pk, pk):
     moc.version = version.version
     moc.save(update_fields=["version", "updated_at"])
     AuditEvent.objects.create(
-        actor=request.user, target_user=request.user,
-        action="moc.version_activated", entity_type="moc_version",
-        entity_id=str(version.pk), request_id=request.request_id,
+        actor=request.user,
+        target_user=request.user,
+        action="moc.version_activated",
+        entity_type="moc_version",
+        entity_id=str(version.pk),
+        request_id=request.request_id,
     )
     return redirect("organizer:detail", area="mocs", pk=moc.pk)
 
@@ -339,10 +407,36 @@ def moc_version_activate(request, moc_pk, pk):
 def child_edit(request, area, parent_pk, pk=None):
     if area == "mocs":
         parent = get_object_or_404(Moc, pk=parent_pk, owner=request.user)
-        model, relation, fields = MocPart, "moc", ("inventory_item", "part_number", "name", "color", "required_quantity", "allocated_quantity", "notes")
+        model, relation, fields = (
+            MocPart,
+            "moc",
+            (
+                "inventory_item",
+                "part_number",
+                "name",
+                "color",
+                "required_quantity",
+                "allocated_quantity",
+                "notes",
+            ),
+        )
     elif area == "minifigures":
         parent = get_object_or_404(SetMinifigure, pk=parent_pk, owner=request.user)
-        model, relation, fields = MinifigurePart, "minifigure", ("part_number", "element_id", "name", "color_id", "color_name", "quantity", "owned_quantity", "is_spare", "image_url")
+        model, relation, fields = (
+            MinifigurePart,
+            "minifigure",
+            (
+                "part_number",
+                "element_id",
+                "name",
+                "color_id",
+                "color_name",
+                "quantity",
+                "owned_quantity",
+                "is_spare",
+                "image_url",
+            ),
+        )
     elif area == "collections":
         parent = get_object_or_404(Collection, pk=parent_pk, owner=request.user)
         model, relation, fields = CollectionMember, "collection", ("user", "role")
@@ -352,14 +446,29 @@ def child_edit(request, area, parent_pk, pk=None):
     form_class = modelform_factory(model, fields=fields)
     form = form_class(request.POST or None, instance=instance)
     if "inventory_item" in form.fields:
-        form.fields["inventory_item"].queryset = form.fields["inventory_item"].queryset.filter(owner=request.user)
+        form.fields["inventory_item"].queryset = form.fields["inventory_item"].queryset.filter(
+            owner=request.user
+        )
     if "user" in form.fields:
-        form.fields["user"].queryset = form.fields["user"].queryset.filter(is_active=True).order_by("username")
+        form.fields["user"].queryset = (
+            form.fields["user"].queryset.filter(is_active=True).order_by("username")
+        )
     if request.method == "POST" and form.is_valid():
         saved = form.save(commit=False)
         setattr(saved, relation, parent)
         saved.full_clean()
         saved.save()
-        AuditEvent.objects.create(actor=request.user, target_user=request.user, action=f"{area}.child_saved", entity_type=model._meta.model_name, entity_id=str(saved.pk), request_id=request.request_id)
+        AuditEvent.objects.create(
+            actor=request.user,
+            target_user=request.user,
+            action=f"{area}.child_saved",
+            entity_type=model._meta.model_name,
+            entity_id=str(saved.pk),
+            request_id=request.request_id,
+        )
         return redirect("organizer:detail", area=area, pk=parent.pk)
-    return render(request, "catalog/form.html", {"form": form, "title": "Bestandteil bearbeiten" if instance else "Bestandteil hinzufügen"})
+    return render(
+        request,
+        "catalog/form.html",
+        {"form": form, "title": "Bestandteil bearbeiten" if instance else "Bestandteil hinzufügen"},
+    )
