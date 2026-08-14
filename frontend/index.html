@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BrickMissing Pro 7.0</title>
+<meta name="theme-color" content="#090b12">
+<meta name="description" content="Lokale LEGO-Sammlungs-, Inventar- und Lagerverwaltung">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="stylesheet" href="/app.css?v=remove-row-edit-23">
+<link rel="stylesheet" href="/advanced-features.css?v=1">
+</head>
+<body>
+<a class="skip-link" href="#mainContent">Direkt zum Inhalt</a>
+<div class="loading-bar" id="loadingBar" aria-hidden="true"></div>
+<section class="auth-page" id="authPage">
+  <div class="auth-shell">
+    <div class="auth-intro"><div class="brand-icon"></div><p class="eyebrow">LEGO® COLLECTION MANAGER</p><h1>BrickMissing Pro</h1><p>Verwalte Sets, Fehlteile, Lager und Bestellungen in deiner persönlichen Sammlung.</p></div>
+    <div class="auth-area">
+      <div class="auth-tabs"><button class="btn primary" data-auth-tab="login">Anmelden</button><button class="btn" data-auth-tab="register">Registrieren</button></div>
+      <form class="auth-form" id="authForm">
+        <h2 id="authTitle">Willkommen zurück</h2><p id="authSubtitle">Melde dich bei deinem Konto an.</p>
+        <label id="authNameWrap"><span id="authNameLabel">Benutzername oder E-Mail-Adresse</span><input id="authName" autocomplete="username" required maxlength="254"></label>
+        <label id="authEmailWrap" class="hidden">E-Mail-Adresse<input id="authEmail" type="email" autocomplete="email" maxlength="254"></label>
+        <label>Passwort<input id="authPassword" type="password" autocomplete="current-password" required minlength="8"></label>
+        <label id="authConfirmWrap" class="hidden">Passwort wiederholen<input id="authConfirm" type="password" autocomplete="new-password" minlength="8"></label>
+        <div class="auth-error" id="authError" role="alert" aria-live="assertive"></div>
+        <button class="btn primary" id="authSubmit">Anmelden</button>
+        <div class="auth-note" id="authNote">Dein Passwort wird niemals im Klartext gespeichert.</div>
+      </form>
+    </div>
+  </div>
+</section>
+<div class="app hidden" id="app">
+<aside class="sidebar">
+  <div class="brand"><div class="brand-icon" aria-hidden="true"></div><div><strong>BrickMissing</strong><small>PRO 7.0</small></div></div>
+  <nav class="nav" id="mainNav" aria-label="Hauptnavigation">
+    <p class="nav-group">Übersicht</p>
+    <button type="button" class="active" data-view="dashboard" title="Dashboard"><svg viewBox="0 0 24 24"><path d="M4 13h6V4H4v9Zm0 7h6v-5H4v5Zm10 0h6v-9h-6v9Zm0-16v5h6V4h-6Z"/></svg><span>Dashboard</span></button>
+    <p class="nav-group">Sammlung</p>
+    <button type="button" data-view="sets" title="Sets"><svg viewBox="0 0 24 24"><path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm2 4v4h4V7H7Zm6 0v4h4V7h-4ZM7 13v4h4v-4H7Zm6 0v4h4v-4h-4Z"/></svg><span>Sets</span></button>
+    <button type="button" data-view="copies" title="Set-Exemplare"><span class="nav-symbol">⧉</span><span>Set-Exemplare</span></button>
+    <button type="button" data-view="mocs" title="Eigene Modelle"><span class="nav-symbol">◇</span><span>MOCs</span></button>
+    <button type="button" data-view="inventory" title="Teileinventar"><span class="nav-symbol">▦</span><span>Teileinventar</span></button>
+    <button type="button" data-view="minifigures" title="Minifiguren"><span class="nav-symbol">♟</span><span>Minifiguren</span></button>
+    <button type="button" data-view="parts" title="Fehlteile"><svg viewBox="0 0 24 24"><path d="M7 3h10v4h4v10h-4v4H7v-4H3V7h4V3Zm2 4H7v8h2v4h6v-4h2V9h-2V5H9v2Z"/></svg><span>Fehlteile</span></button>
+    <button type="button" data-view="warehouse" title="Lager"><svg viewBox="0 0 24 24"><path d="m3 9 9-6 9 6v11H3V9Zm4 2v5h3v-5H7Zm7 0v5h3v-5h-3Z"/></svg><span>Lager</span></button>
+    <p class="nav-group">Organisation</p>
+    <button type="button" data-view="shopping" title="Einkaufsliste"><svg viewBox="0 0 24 24"><path d="M7 18a2 2 0 1 0 0 4 2 2 0 0 0 0-4ZM17 18a2 2 0 1 0 0 4 2 2 0 0 0 0-4ZM6.2 6l.8 7h10l2-7H6.2ZM2 2h3l.4 2H22l-3 11H6L4.6 4H2V2Z"/></svg><span>Einkaufsliste</span></button>
+    <button type="button" data-view="orders" title="Bestellungen"><svg viewBox="0 0 24 24"><path d="M4 3h16v18l-3-2-3 2-3-2-3 2-4-2V3Zm4 5h8V6H8v2Zm0 4h8v-2H8v2Zm0 4h6v-2H8v2Z"/></svg><span>Bestellungen</span></button>
+    <button type="button" data-view="notes" title="Notizen"><span class="nav-symbol">✎</span><span>Notizen</span></button>
+    <button type="button" data-view="goods-receipt" title="Wareneingang"><span class="nav-symbol">⇩</span><span>Wareneingang</span></button>
+    <button type="button" data-view="labels" title="Etiketten"><span class="nav-symbol">▣</span><span>Etiketten & QR</span></button>
+    <button type="button" data-view="stats" title="Statistiken"><svg viewBox="0 0 24 24"><path d="M4 20V10h4v10H4Zm6 0V4h4v16h-4Zm6 0v-7h4v7h-4Z"/></svg><span>Statistiken</span></button>
+    <p class="nav-group">Verwaltung</p>
+    <button type="button" data-view="workshop" title="Sammlungswerkstatt"><svg viewBox="0 0 24 24"><path d="M4 4h7v7H4V4Zm9 0h7v7h-7V4ZM4 13h7v7H4v-7Zm9 0h7v7h-7v-7Z"/></svg><span>Werkstatt</span></button>
+    <button type="button" data-view="trash" title="Papierkorb"><svg viewBox="0 0 24 24"><path d="M7 21 6 7h12l-1 14H7Zm2-3h2V10H9v8Zm4 0h2V10h-2v8ZM5 4h4l1-2h4l1 2h4v2H5V4Z"/></svg><span>Papierkorb</span></button>
+    <button type="button" data-view="quality" title="Datenqualität"><span class="nav-symbol">✓</span><span>Datenqualität</span></button>
+    <button type="button" data-view="system" title="Systemstatus" id="systemNavButton"><span class="nav-symbol">◉</span><span>Systemstatus</span></button>
+    <button type="button" data-view="settings" title="Einstellungen"><svg viewBox="0 0 24 24"><path d="m19.4 13 .1-1-.1-1 2.1-1.6-2-3.4-2.6 1A8 8 0 0 0 15 5l-.4-2.8h-4L10 5a8 8 0 0 0-1.8 1L5.5 5 3.5 8.4 5.6 10l-.1 1 .1 1-2.1 1.6 2 3.4 2.6-1A8 8 0 0 0 10 17l.4 2.8h4L15 17a8 8 0 0 0 1.8-1l2.7 1 2-3.4-2.1-1.6ZM12.5 14a3 3 0 1 1 0-6 3 3 0 0 1 0 6Z"/></svg><span>Einstellungen</span></button>
+    <button type="button" id="adminNavButton" class="hidden" data-view="admin" title="Administration"><svg viewBox="0 0 24 24"><path d="M12 2a5 5 0 1 1 0 10 5 5 0 0 1 0-10ZM4 22v-3c0-4 3.6-6 8-6s8 2 8 6v3H4Zm12-6v2h-2v2h-2v-2h-2v-2h2v-2h2v2h2Z"/></svg><span>Admin</span></button>
+  </nav>
+  <div class="user-card hidden" id="adminUserSwitcher">
+    <label>Aktiver Benutzer</label>
+    <select id="userSelect"></select>
+    <button type="button" class="btn" data-action="open-user">＋ Neuer Benutzer</button>
+  </div>
+  <div class="status-card"><span class="dot"></span><div><strong id="serverState">Server aktiv</strong><small>Verbindung hergestellt</small></div></div>
+  <button type="button" class="sidebar-action" data-action="toggle-theme">◐ <span>Midnight Violet wechseln</span></button>
+  <button type="button" class="sidebar-action quit" data-action="quit">⏻ <span>Programm beenden</span></button>
+  <button type="button" class="sidebar-action" data-action="logout">↪ <span>Abmelden</span></button>
+  <button type="button" class="sidebar-action sidebar-collapse" data-action="toggle-sidebar" title="Seitenleiste einklappen" aria-label="Seitenleiste einklappen" aria-expanded="true"><svg viewBox="0 0 24 24"><path d="m15 5-7 7 7 7 1.5-1.5L11 12l5.5-5.5L15 5Z"/></svg><span>Seitenleiste einklappen</span></button>
+</aside>
+
+<main class="content" id="mainContent" tabindex="-1">
+<header class="topbar">
+  <div><p class="eyebrow">LEGO® COLLECTION MANAGER</p><h1 id="pageTitle">Dashboard</h1></div>
+  <div class="topbar-tools"><button type="button" class="global-search-trigger" data-action="open-command" aria-label="Suche und Schnellaktionen öffnen"><svg viewBox="0 0 24 24"><path d="M10.5 3a7.5 7.5 0 1 1-4.7 13.3L2 20l2 2 3.8-3.8A7.5 7.5 0 0 1 10.5 3Zm0 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11Z"/></svg><span>Alles durchsuchen</span><kbd>Strg K</kbd></button><div class="actions"><button type="button" class="btn purchased-set-button" data-action="open-purchased-set">＋ Neu gekauft</button><button type="button" class="btn success" data-action="open-complete-set">✓ Vollständiges Set</button><button type="button" class="btn" data-action="open-set">Set hinzufügen</button><button type="button" class="btn primary" data-action="open-part">Fehlteil hinzufügen</button></div></div>
+</header>
+
+<section id="view-dashboard" class="view active">
+  <div class="stats">
+    <article class="stat"><span>Sets</span><strong id="statSets">0</strong><small>Sammlung</small></article>
+    <article class="stat"><span>Fehlende Teile</span><strong id="statMissing">0</strong><small>offen</small></article>
+    <article class="stat"><span>Bestellt</span><strong id="statOrdered">0</strong><small>unterwegs</small></article>
+    <article class="stat"><span>Kosten</span><strong id="statCost">0,00 €</strong><small>geschätzt</small></article>
+    <article class="stat"><span>Erledigt</span><strong id="statDone">0%</strong><small>Positionen</small></article>
+  <article class="stat"><span>Sammlungswert</span><strong id="statValue">0,00 €</strong><small>aktueller Wert</small></article></div>
+  <div class="grid2">
+    <section class="panel"><div class="panel-head"><h2>Status</h2></div><div class="panel-body"><div id="statusBars" class="bars"></div></div></section>
+    <section class="panel"><div class="panel-head"><h2>Farben</h2></div><div class="panel-body"><div id="colorBars" class="bars"></div></div></section>
+  </div>
+</section>
+
+<section id="view-parts" class="view">
+  <section class="panel">
+    <div class="toolbar">
+      <input id="searchInput" placeholder="Teil, Element-ID, Farbe, Set oder Händler suchen">
+      <select id="statusFilter"><option value="all">Alle Status</option><option value="missing">Fehlt</option><option value="found">Gefunden</option><option value="ordered">Bestellt</option><option value="shipped">Versendet</option><option value="received">Erhalten</option><option value="installed">Eingebaut</option></select>
+      <details id="colorFilter" class="parts-color-filter"><summary id="partsColorSummary">Alle Farben</summary><div class="parts-color-menu"><div id="partsColorOptions"></div><button type="button" class="btn" data-action="parts-colors-clear">Alle Farben anzeigen</button></div></details>
+      <input id="shapeFilter" placeholder="Form / Teilebezeichnung">
+      <select id="partSetFilter"><option value="all">Alle Sets</option></select>
+      <select id="partTypeFilter"><option value="all">Alle Teilearten</option><option value="minifigure">Nur Minifigurenteile</option><option value="regular">Ohne Minifigurenteile</option></select>
+      <select id="rarityFilter"><option value="all">Alle Seltenheiten</option><option value="rare">Selten (1 Eintrag)</option><option value="uncommon">Ungewöhnlich (2–3)</option><option value="common">Häufig (4+)</option></select>
+      <select id="sortSelect"><option value="newest">Neueste</option><option value="name">Name</option><option value="set">Set</option><option value="quantity">Menge</option><option value="size-desc">Größe: größte zuerst</option><option value="size-asc">Größe: kleinste zuerst</option><option value="cost-asc">Kosten: aufsteigend</option><option value="cost-desc">Kosten: absteigend</option></select>
+      <button type="button" class="btn refresh-data-btn" data-action="refresh-parts">↻ Aktualisieren</button>
+    </div>
+    <div id="bulkBar" class="panel-head hidden"><strong id="bulkCount">0 ausgewählt</strong><div class="actions"><button class="btn" data-action="bulk-status" data-status="found">Gefunden</button><button class="btn" data-action="bulk-status" data-status="ordered">Bestellt</button><button class="btn" data-action="bulk-status" data-status="received">Erhalten</button><button class="btn" data-action="bulk-trash">Papierkorb</button></div></div><div id="partsTable" class="table-wrap"></div>
+  </section>
+</section>
+
+<section id="view-sets" class="view"><div class="toolbar"><input id="setSearch" placeholder="Setnummer, Name oder Theme suchen"><select id="setYearFilter"><option value="all">Alle Jahre</option></select><select id="setFilter"><option value="all">Alle Sets</option><option value="favorite">Favoriten</option><option value="incomplete">Unvollständig</option><option value="complete">Vollständig</option></select><select id="setSort"><option value="newest">Neueste zuerst</option><option value="oldest">Älteste zuerst</option><option value="complete-first">Vollständige zuerst</option><option value="incomplete-first">Unvollständige zuerst</option><option value="number-asc">Setnummer aufsteigend</option><option value="number-desc">Setnummer absteigend</option></select><button type="button" class="btn primary bulk-set-refresh" data-action="refresh-all-set-inventories">Alle Teilelisten aktualisieren &amp; Fehlteile übernehmen</button></div><div id="setGrid" class="set-grid"></div></section>
+
+<section id="view-shopping" class="view">
+  <section class="panel">
+    <div class="panel-head"><h2>Einkaufsliste</h2><div class="actions"><button type="button" class="btn success" data-action="export-csv">LEGO-CSV</button><button type="button" class="btn" data-action="export-json">JSON</button></div></div>
+    <div id="shoppingTable" class="table-wrap"></div>
+  </section>
+</section>
+
+<section id="view-stats" class="view">
+  <div class="grid2">
+    <section class="panel"><div class="panel-head"><h2>Statusverteilung</h2></div><div class="panel-body"><div id="statsStatus" class="bars"></div></div></section>
+    <section class="panel"><div class="panel-head"><h2>Farben</h2></div><div class="panel-body"><div id="statsColors" class="bars"></div></div></section>
+  </div>
+</section>
+
+<section id="view-warehouse" class="view"><div class="toolbar"><input id="warehouseSearch" placeholder="Teil, Farbe oder Lagerort suchen"><button class="btn primary" data-action="open-location">＋ Lagerort</button><button class="btn" data-action="open-warehouse">＋ Lagerteil</button><button class="btn" data-action="scan-location">▣ QR scannen</button></div><div id="warehouseLocations" class="location-grid"></div><section class="panel"><div class="panel-head"><div><p class="eyebrow">BESTAND</p><h2>Teile und Lagerorte</h2></div></div><div id="warehouseTable" class="table-wrap"></div></section></section>
+<section id="view-orders" class="view"><section class="panel"><div class="panel-head"><h2>Bestellungen</h2><button class="btn primary" data-action="open-order">＋ Bestellung</button></div><div id="ordersTable" class="table-wrap"></div></section></section>
+<section id="view-notes" class="view notes-page"><section class="panel notes-editor"><div class="panel-head"><div><p class="eyebrow">PERSÖNLICHER NOTIZBLOCK</p><h2 id="noteEditorHeading">Neue Notiz</h2></div><button type="button" class="btn" data-action="reset-note">＋ Neue Notiz</button></div><form id="noteForm"><input type="hidden" id="noteId"><label>Titel<input id="noteTitle" maxlength="120" required placeholder="Worum geht es?"></label><label>Notiz<textarea id="noteContent" maxlength="20000" rows="9" required placeholder="Schreibe hier deine Notiz …"></textarea></label><div class="dialog-actions"><span class="sub" id="noteSaveState">Noch nicht gespeichert</span><button class="btn primary" type="submit">Notiz speichern</button></div></form></section><section class="panel"><div class="panel-head"><div><p class="eyebrow">GESPEICHERT</p><h2>Meine Notizen</h2></div><input id="noteSearch" class="notes-search" placeholder="Notizen durchsuchen"></div><div id="notesList" class="notes-grid"></div></section></section>
+<section id="view-trash" class="view"><section class="panel"><div class="panel-head"><div><p class="eyebrow">ENDGÜLTIGES LÖSCHEN</p><h2>Papierkorb</h2></div><button type="button" class="btn danger-btn" id="emptyTrashButton" data-action="empty-trash">Papierkorb leeren</button></div><div id="trashContent" class="panel-body"></div></section></section>
+<section id="view-workshop" class="view"><div id="collectionWorkshop"></div></section>
+<section id="view-copies" class="view pro7-view"><div id="pro7Copies"></div></section>
+<section id="view-mocs" class="view pro7-view"><div id="pro7Mocs"></div></section>
+<section id="view-inventory" class="view pro7-view"><div id="pro7Inventory"></div></section>
+<section id="view-minifigures" class="view pro7-view"><div id="pro7Minifigures"></div></section>
+<section id="view-goods-receipt" class="view pro7-view"><div id="pro7GoodsReceipt"></div></section>
+<section id="view-labels" class="view pro7-view"><div id="pro7Labels"></div></section>
+<section id="view-quality" class="view pro7-view"><div id="pro7Quality"></div></section>
+<section id="view-system" class="view pro7-view"><div id="pro7System"></div></section>
+<section id="view-settings" class="view">
+  <div class="settings-grid">
+    <section class="panel settings-card"><p class="eyebrow">DATENBANK</p><h2>Backups & Daten</h2><p>Die SQLite-Datenbank wird automatisch gespeichert. Hochgeladene Sicherungen werden vor dem Speichern entschlüsselt und vollständig geprüft.</p><div class="button-stack"><button type="button" class="btn primary" data-action="backup">Backup jetzt erstellen</button><label class="btn file-btn">Backup hochladen<input type="file" id="backupUploadInput" accept=".db.enc"></label><button type="button" class="btn" data-action="export-json">JSON exportieren</button><label class="btn file-btn">JSON importieren<input type="file" id="importInput" accept=".json"></label></div></section>
+    <section class="panel settings-card"><p class="eyebrow">REBRICKABLE</p><h2>Eigener API-Key</h2><p id="apiKeyStatus">Kein API-Key gespeichert.</p><div class="api-row"><input id="rebrickableKey" type="password" autocomplete="off" placeholder="Neuen eigenen API-Key eingeben"><button type="button" class="btn" data-action="save-api-key">Speichern</button></div><div class="button-stack"><button type="button" class="btn" data-action="test-api-key">API-Key testen</button><button type="button" class="btn danger-btn" data-action="remove-api-key">Eigenen API-Key entfernen</button></div></section>
+    <section class="panel settings-card"><p class="eyebrow">MIDNIGHT VIOLET</p><h2>Oberfläche</h2><div class="form-stack"><label>Modus<select id="themePreference"><option value="dark">Dunkel</option><option value="light">Hell</option></select></label><label>Schriftgröße<select id="fontSizePreference"><option value="small">Klein</option><option value="normal">Normal</option><option value="large">Groß</option></select></label><label>Darstellungsdichte<select id="densityPreference"><option value="compact">Kompakt</option><option value="comfortable">Komfortabel</option></select></label><label><input id="dashboardRecentPreference" type="checkbox" style="width:auto;min-height:auto"> Zuletzt bearbeitete Elemente anzeigen</label></div><div class="button-stack"><button type="button" class="btn primary" data-action="save-appearance">Darstellung speichern</button><button type="button" class="btn" data-action="clear-cache">Bildcache löschen</button></div></section>
+    <section class="panel settings-card"><p class="eyebrow">SICHERHEIT</p><h2>Eigenes Passwort ändern</h2><p>Die Änderung betrifft ausschließlich dein angemeldetes Konto.</p><form id="passwordForm" class="button-stack"><label>Aktuelles Passwort<input id="currentPassword" type="password" autocomplete="current-password" required></label><label>Neues Passwort<input id="newPassword" type="password" autocomplete="new-password" minlength="8" required aria-describedby="passwordRules"></label><div class="password-meter"><i id="passwordMeter"></i></div><ul id="passwordRules" class="password-rules"><li data-rule="length">Mindestens 8 Zeichen</li><li data-rule="upper">Großbuchstabe</li><li data-rule="lower">Kleinbuchstabe</li><li data-rule="number">Zahl</li></ul><label>Neues Passwort wiederholen<input id="confirmNewPassword" type="password" autocomplete="new-password" minlength="8" required></label><button class="btn primary" disabled>Passwort ändern</button></form></section>
+    <section class="panel settings-card"><p class="eyebrow">DIAGNOSE</p><h2>Funktionsstatus</h2><div class="diagnostic"><div><span>JavaScript</span><strong id="diagJs">Aktiv</strong></div><div><span>Server</span><strong id="diagServer">Prüfung …</strong></div><div><span>Letzte Aktion</span><strong id="diagAction">Start</strong></div></div></section>
+  </div>
+</section>
+<section id="view-admin" class="view">
+  <section class="panel" style="margin-bottom:15px">
+    <div class="panel-head"><div><p class="eyebrow">DATENBANKSYSTEM</p><h2>Speicherung verwalten</h2></div><strong id="mariaStatus">SQLite aktiv</strong></div>
+    <form id="mariaForm" class="panel-body"><div class="form-grid"><label class="span2">Datenbanksystem<select id="databaseEngine"><option value="sqlite">SQLite – lokal auf dem Server</option><option value="mariadb">MariaDB / MySQL – zentraler Datenbankserver</option></select></label><div id="mariaFields" class="span2 form-grid"><label>Host *<input id="mariaHost" placeholder="db-server.local"></label><label>Port<input id="mariaPort" type="number" value="3306"></label><label>Datenbank *<input id="mariaDatabase" placeholder="brickmissing"></label><label>Benutzer *<input id="mariaUser"></label><label class="span2">Passwort<input id="mariaPassword" type="password" autocomplete="new-password" placeholder="Leer lassen, um gespeichertes Passwort beizubehalten"></label><label class="span2"><input id="mariaSsl" type="checkbox" checked style="width:auto;min-height:auto"> TLS/SSL für die Datenbankverbindung verwenden</label></div></div><p class="sub" id="databaseEngineHint">SQLite speichert zentral auf diesem Server. Die Speicherart wird normalen Benutzern nicht angezeigt.</p><div class="dialog-actions"><button type="button" class="btn" data-action="sync-mariadb">Jetzt synchronisieren</button><button type="button" class="btn" data-action="test-mariadb">MariaDB-Verbindung testen</button><button class="btn primary">Auswahl und Konfiguration speichern</button></div></form>
+    <div id="mariaTables" class="table-wrap"></div>
+  </section>
+  <section class="panel" style="margin-bottom:15px">
+    <div class="panel-head"><div><p class="eyebrow">KOSTENLOSE PREISQUELLEN</p><h2>LEGO Pick a Brick & Brickset</h2></div><strong id="pricingStatus">LEGO Pick a Brick</strong></div>
+    <form id="pricingForm" class="panel-body">
+      <p class="sub">Teilepreise werden ohne API-Schlüssel direkt aus dem öffentlichen österreichischen LEGO-Pick-a-Brick-Angebot geladen. Für ursprüngliche Set-Verkaufspreise kann optional der kostenlose Brickset-Zugang verwendet werden.</p>
+      <div class="form-grid">
+        <label class="span2">Kostenloser Brickset API-Key (nur für Setpreise)<input id="bricksetApiKey" type="password" autocomplete="new-password" placeholder="Optional – Teilepreise benötigen keinen Schlüssel"></label>
+      </div>
+      <div class="dialog-actions"><button type="button" class="btn" data-action="test-pricing">Verbindung testen</button><button type="button" class="btn success" data-action="sync-prices">Marktpreise jetzt aktualisieren</button><button class="btn primary">Preisquellen speichern</button></div>
+      <div id="pricingResult" class="sub" aria-live="polite"></div>
+      <p class="sub">BrickLink ist eine Marke der LEGO Gruppe. Diese Anwendung nutzt die BrickLink API, wird aber nicht von LEGO BrickLink unterstützt oder zertifiziert.</p>
+    </form>
+  </section>
+  <section class="panel" style="margin-bottom:15px">
+    <div class="panel-head"><div><p class="eyebrow">E-MAIL-VERSAND</p><h2>E-Mail-Konfiguration</h2></div><strong id="smtpStatus">Nicht konfiguriert</strong></div>
+    <form id="smtpForm" class="panel-body">
+      <div class="form-grid">
+        <label class="span2">Versandart<select id="emailMode"><option value="smtp">SMTP</option><option value="resend">Resend API</option><option value="disabled">E-Mail-Versand deaktiviert</option></select></label>
+        <div id="emailConfigFields" class="span2 form-grid">
+          <label id="emailSenderField">Absenderadresse *<input id="smtpSender" type="email" required placeholder="mail@example.com"></label>
+          <label id="resendNameField" hidden>Absendername<input id="resendSenderName" maxlength="80" placeholder="BrickMissing"></label>
+          <div id="resendFields" class="span2 form-grid" hidden>
+            <label>Resend-API-Schlüssel *<input id="resendApiKey" type="password" autocomplete="new-password" placeholder="Leer lassen, um gespeicherten Schlüssel beizubehalten"></label>
+            <label>Schlüsselstatus<input id="resendKeyStatus" value="Noch nicht gespeichert" readonly></label>
+            <p class="sub span2">Erstelle den API-Schlüssel im Resend-Dashboard und verifiziere dort die Domain der Absenderadresse. Der geheime Schlüssel wird verschlüsselt gespeichert und später nicht mehr angezeigt.</p>
+          </div>
+          <div id="smtpFields" class="span2 form-grid"><label>SMTP-Host *<input id="smtpHost" required placeholder="smtp.example.com"></label><label>Port<input id="smtpPort" type="number" value="587" required></label><label>SMTP-Benutzer<input id="smtpUsername"></label><label>Verbindungsschutz<select id="smtpSecurity"><option value="starttls">STARTTLS</option><option value="ssl">SSL/TLS</option><option value="none">Keine Verschlüsselung</option></select></label><label class="span2">SMTP-Passwort<input id="smtpPassword" type="password" autocomplete="new-password" placeholder="Leer lassen, um es beizubehalten"></label></div>
+          <label id="emailEnabledField" class="span2"><input id="smtpEnabled" type="checkbox" checked style="width:auto;min-height:auto"> Bestätigungsmails automatisch versenden</label>
+          <label id="smtpTestField" class="span2">Empfänger für Testmail<input id="smtpTestRecipient" type="email" placeholder="test@example.com"></label>
+        </div>
+      </div>
+      <p class="sub" id="emailModeHint">Die Nachricht bestätigt ausschließlich die Kontoerstellung. Passwörter werden niemals per E-Mail versendet.</p>
+      <div class="dialog-actions"><button id="smtpAutoButton" type="button" class="btn" data-action="auto-configure-smtp">SMTP automatisch erkennen</button><button id="emailTestButton" type="button" class="btn" data-action="test-smtp">Testmail senden</button><button class="btn primary">E-Mail-Konfiguration speichern</button></div>
+    </form>
+  </section>
+  <section class="panel">
+    <div class="panel-head"><div><p class="eyebrow">ADMINISTRATION</p><h2>Benutzerverwaltung</h2></div><button type="button" class="btn primary" data-action="open-user">＋ Benutzer anlegen</button></div>
+    <div class="toolbar"><input id="adminUserSearch" placeholder="Benutzer suchen"><select id="adminUserFilter"><option value="all">Alle Konten</option><option value="active">Aktiv</option><option value="disabled">Deaktiviert</option><option value="deleted">Gelöscht</option></select></div><div class="panel-body"><p class="sub" id="adminUserSummary">Benutzerkonten verwalten. Passwörter und API-Keys werden niemals angezeigt.</p><div id="adminUsers" class="admin-users"></div></div>
+  </section>
+  <section class="panel" style="margin-top:15px"><div class="panel-head"><h2>Admin-Protokoll</h2><button class="btn" data-action="refresh-audit">Aktualisieren</button></div><div id="auditTable" class="table-wrap"></div></section>
+</section>
+</main>
+</div>
+
+<div class="modal hidden" id="partModal"><div class="backdrop" data-action="close-modal" data-modal="partModal"></div><div class="dialog"><header><h2 id="partModalTitle">Fehlteil hinzufügen</h2><button type="button" class="close" data-action="close-modal" data-modal="partModal">×</button></header><form id="partForm"><input type="hidden" id="partId"><div class="form-grid"><label>Set<select id="partSet"></select></label><label>Element-ID *<input id="elementId" required></label><label>Designnummer<input id="designId"></label><label class="span2">Bezeichnung *<input id="partName" required></label><label>Farbe<input id="partColor"></label><label>Menge *<input id="partQuantity" type="number" min="1" value="1"></label><label>Status<select id="partStatus"><option value="missing">Fehlt</option><option value="found">Gefunden</option><option value="ordered">Bestellt</option><option value="shipped">Versendet</option><option value="received">Erhalten</option><option value="installed">Eingebaut</option></select></label><label>Priorität<select id="partPriority"><option value="normal">Normal</option><option value="high">Hoch</option><option value="low">Niedrig</option></select></label><label>Preis/Stück €<input id="partPrice" type="number" min="0" step="0.01"></label><label>Händler<input id="partSupplier"></label><label class="span2">Notiz<textarea id="partNotes" rows="3"></textarea></label><label class="span2">Verlaufsnotiz<input id="historyNote"></label></div><div class="dialog-actions"><button type="button" class="btn" data-action="close-modal" data-modal="partModal">Abbrechen</button><button type="submit" class="btn primary">Speichern</button></div></form></div></div>
+
+<div class="modal hidden" id="setModal"><div class="backdrop" data-action="close-modal" data-modal="setModal"></div><div class="dialog"><header><h2 id="setModalTitle">Set hinzufügen</h2><button type="button" class="close" data-action="close-modal" data-modal="setModal">×</button></header><form id="setForm"><input type="hidden" id="setId"><div class="form-grid"><label>Setnummer *<div class="actions"><input id="setNumber" required><button type="button" class="btn" data-action="lookup-set">Automatisch laden</button></div></label><label class="span2">Setname *<input id="setName" required></label><label>Theme<input id="setTheme"></label><label>Jahr<input id="setYear" type="number"></label><label>Teileanzahl<input id="setTotalParts" type="number" min="0"></label><label>Bild-URL<input id="setImage"></label><label>Kaufpreis €<input id="setPurchase" type="number" min="0" step="0.01"></label><label>Aktueller Wert €<input id="setValue" type="number" min="0" step="0.01"></label><label><input id="setFavorite" type="checkbox" style="width:auto;min-height:auto"> Favorit</label></div><div class="dialog-actions"><button type="button" class="btn" data-action="close-modal" data-modal="setModal">Abbrechen</button><button type="submit" class="btn primary">Set speichern</button></div></form></div></div>
+
+<div class="modal hidden" id="completeSetModal"><div class="backdrop" data-action="close-modal" data-modal="completeSetModal"></div><div class="dialog"><header><div><p class="eyebrow">VOLLSTÄNDIGE SAMMLUNG</p><h2>Vollständiges Set hinzufügen</h2></div><button type="button" class="close" data-action="close-modal" data-modal="completeSetModal">×</button></header><form id="completeSetForm"><div class="form-grid"><label>Setnummer *<div class="actions"><input id="completeSetNumber" required><button type="button" class="btn" data-action="lookup-complete-set">Automatisch laden</button></div></label><label class="span2">Setname *<input id="completeSetName" required></label><label>Theme<input id="completeSetTheme"></label><label>Jahr<input id="completeSetYear" type="number"></label><label>Teileanzahl<input id="completeSetTotalParts" type="number" min="0"></label><label>Bild-URL<input id="completeSetImage"></label><label>Bauzustand *<select id="completeSetBuildStatus" required><option value="zerlegt vollständig">Zerlegt</option><option value="aufgebaut vollständig">Aufgebaut</option></select></label><label>Zustand<select id="completeSetCondition"><option value="gebraucht">Gebraucht</option><option value="neu">Neu</option><option value="versiegelt">Versiegelt</option></select></label><label>Kaufpreis €<input id="completeSetPurchase" type="number" min="0" step="0.01"></label><label>Aktueller Wert €<input id="completeSetValue" type="number" min="0" step="0.01"></label><label><input id="completeSetFavorite" type="checkbox" style="width:auto;min-height:auto"> Favorit</label></div><div class="complete-set-notice">✓ Das Set-Exemplar wird automatisch als <strong>vollständig</strong> angelegt.</div><div class="dialog-actions"><button type="button" class="btn" data-action="close-modal" data-modal="completeSetModal">Abbrechen</button><button type="submit" class="btn success">Vollständiges Set speichern</button></div></form></div></div>
+
+<div class="modal hidden" id="purchasedSetModal"><div class="backdrop" data-action="close-modal" data-modal="purchasedSetModal"></div><div class="dialog"><header><div><p class="eyebrow">NEUZUGANG</p><h2>Neu gekauftes Set hinzufügen</h2></div><button type="button" class="close" data-action="close-modal" data-modal="purchasedSetModal">×</button></header><form id="purchasedSetForm"><div class="form-grid"><label>Setnummer *<div class="actions"><input id="purchasedSetNumber" required><button type="button" class="btn" data-action="lookup-purchased-set">Automatisch laden</button></div></label><label class="span2">Setname *<input id="purchasedSetName" required></label><label>Theme<input id="purchasedSetTheme"></label><label>Jahr<input id="purchasedSetYear" type="number"></label><label>Teileanzahl<input id="purchasedSetTotalParts" type="number" min="0"></label><label>Bild-URL<input id="purchasedSetImage"></label><label>Bauzustand<select id="purchasedSetBuildStatus"><option value="ungeöffnet">Ungeöffnet</option><option value="zerlegt vollständig">Geöffnet und zerlegt</option><option value="aufgebaut vollständig">Aufgebaut</option></select></label><label>Zustand<select id="purchasedSetCondition"><option value="neu">Neu</option><option value="versiegelt">Versiegelt</option></select></label><label>Kaufdatum<input id="purchasedSetDate" type="date"></label><label>Kaufpreis €<input id="purchasedSetPurchase" type="number" min="0" step="0.01"></label><label>Aktueller Wert €<input id="purchasedSetValue" type="number" min="0" step="0.01"></label><label><input id="purchasedSetFavorite" type="checkbox" style="width:auto;min-height:auto"> Favorit</label></div><div class="purchased-set-notice"><strong>Automatischer Ablauf</strong><span>Set und Exemplar anlegen → Teileliste laden → Set als vollständig markieren → alle Ersatzteile ins Teileinventar buchen.</span></div><div class="dialog-actions"><button type="button" class="btn" data-action="close-modal" data-modal="purchasedSetModal">Abbrechen</button><button type="submit" class="btn purchased-set-button">Set und Ersatzteile übernehmen</button></div></form></div></div>
+
+
+<div class="modal hidden" id="inventoryModal">
+  <div class="backdrop" data-action="close-modal" data-modal="inventoryModal"></div>
+  <div class="dialog inventory-dialog">
+    <header>
+      <div><p class="eyebrow">SET-INVENTAR</p><h2 id="inventoryTitle">Teileliste</h2></div>
+      <button type="button" class="close" data-action="close-modal" data-modal="inventoryModal">×</button>
+    </header>
+    <div class="inventory-summary">
+      <article><span>Positionen</span><strong id="invPositions">0</strong></article>
+      <article><span>Teile gesamt</span><strong id="invRequired">0</strong></article>
+      <article><span>Vorhanden</span><strong id="invOwned">0</strong></article>
+      <article><span>Fehlend</span><strong id="invMissing">0</strong></article>
+    </div>
+    <div style="padding:0 16px 13px">
+      <div class="inventory-progress"><i id="inventoryProgress" style="width:0%"></i></div>
+    </div>
+    <div class="inventory-filter-row">
+      <input id="inventorySearch" placeholder="Teil, Nummer, Element-ID oder Farbe suchen">
+      <select id="inventoryStateFilter">
+        <option value="all">Alle Bestände</option>
+        <option value="missing">Nur fehlende</option>
+        <option value="complete">Nur vollständig vorhandene</option>
+        <option value="partial">Nur teilweise vorhandene</option>
+        <option value="none">Noch nichts vorhanden</option>
+      </select>
+      <select id="inventorySpareFilter">
+        <option value="all">Normale + Ersatzteile</option>
+        <option value="regular">Nur normale Teile</option>
+        <option value="spare">Nur Ersatzteile</option>
+      </select>
+      <details id="inventoryColorFilter" class="inventory-color-filter">
+        <summary id="inventoryColorSummary">Alle Farben</summary>
+        <div class="inventory-color-menu">
+          <div id="inventoryColorOptions"></div>
+          <button type="button" class="btn" data-action="inventory-colors-clear">Alle Farben anzeigen</button>
+        </div>
+      </details>
+      <select id="inventorySort">
+        <option value="name-asc">Name A–Z</option>
+        <option value="name-desc">Name Z–A</option>
+        <option value="part-asc">Teilenummer aufsteigend</option>
+        <option value="part-desc">Teilenummer absteigend</option>
+        <option value="color-asc">Farbe A–Z</option>
+        <option value="required-desc">Benötigte Menge absteigend</option>
+        <option value="required-asc">Benötigte Menge aufsteigend</option>
+        <option value="missing-desc">Fehlmenge absteigend</option>
+        <option value="missing-asc">Fehlmenge aufsteigend</option>
+        <option value="owned-desc">Vorhandene Menge absteigend</option>
+      </select>
+    </div>
+    <div class="inventory-filter-info" id="inventoryFilterInfo">0 von 0 Positionen sichtbar</div>
+    <div class="inventory-toolbar">
+      <button type="button" class="btn primary" data-action="fetch-inventory">Teileliste laden/aktualisieren</button>
+      <button type="button" class="btn success" data-action="inventory-add-all-missing">Alle fehlenden zur Fehlliste</button>
+      <button type="button" class="btn" data-action="inventory-all-owned">Alle vorhanden</button>
+      <button type="button" class="btn danger-lite" data-action="inventory-all-missing">Alle fehlend</button>
+    </div>
+    <div id="inventoryTable" class="inventory-table"></div>
+    <section class="inventory-minifigure-section">
+      <div class="panel-head">
+        <div><p class="eyebrow">MINIFIGUREN</p><h3>Figuren und benötigte Teile</h3></div>
+        <span id="inventoryMinifigureCount">0 Figuren</span>
+      </div>
+      <div id="inventoryMinifigures" class="inventory-minifigures"></div>
+    </section>
+  </div>
+</div>
+<div class="modal hidden" id="userModal"><div class="backdrop" data-action="close-modal" data-modal="userModal"></div><div class="dialog" style="width:min(460px,100%)"><header><h2>Neuen Benutzer erstellen</h2><button type="button" class="close" data-action="close-modal" data-modal="userModal">×</button></header><form id="userForm"><div class="form-grid"><label class="span2">Name *<input id="userName" required maxlength="80"></label><label class="span2">E-Mail-Adresse *<input id="userEmail" type="email" required maxlength="254" autocomplete="email"></label><label class="span2">Temporäres Startpasswort *<input id="userStartPassword" type="password" required minlength="8" autocomplete="new-password"></label></div><p class="sub">Der Benutzer muss dieses Passwort bei der ersten Anmeldung ändern.</p><div class="dialog-actions"><button type="button" class="btn" data-action="close-modal" data-modal="userModal">Abbrechen</button><button type="submit" class="btn primary">Erstellen</button></div></form></div></div>
+
+<div class="modal hidden" id="historyModal"><div class="backdrop" data-action="close-modal" data-modal="historyModal"></div><div class="dialog" style="width:min(500px,100%)"><header><h2>Statusverlauf</h2><button type="button" class="close" data-action="close-modal" data-modal="historyModal">×</button></header><div class="panel-body" id="historyList"></div></div></div>
+
+<div class="modal hidden" id="warehouseModal"><div class="backdrop" data-action="close-modal" data-modal="warehouseModal"></div><div class="dialog" style="width:min(620px,100%)"><header><h2>Lagerteil</h2><button class="close" data-action="close-modal" data-modal="warehouseModal">×</button></header><form id="warehouseForm"><div class="form-grid"><label>Element-ID *<input id="whElement" required></label><label>Designnummer<input id="whDesign"></label><label class="span2">Name *<input id="whName" required></label><label>Farbe<input id="whColor"></label><label>Menge<input id="whQuantity" type="number" min="0" value="0"></label><label>Lagerort<select id="whLocation"><option value="">Nicht zugeordnet</option></select></label><label>Benötigte Plätze<input id="whSlotUsage" type="number" min="1" value="1"></label><label class="span2">Bild-URL<input id="whImage" type="url" placeholder="https://…"></label></div><div class="dialog-actions"><button class="btn" type="button" data-action="close-modal" data-modal="warehouseModal">Abbrechen</button><button class="btn primary">Speichern</button></div></form></div></div>
+<div class="modal hidden" id="locationModal"><div class="backdrop" data-action="close-modal" data-modal="locationModal"></div><div class="dialog"><header><h2 id="locationModalTitle">Lagerort</h2><button class="close" data-action="close-modal" data-modal="locationModal">×</button></header><form id="locationForm"><input type="hidden" id="locationId"><div class="form-grid"><label>Name *<input id="locationName" required placeholder="z. B. Regal A"></label><label>Typ<select id="locationType"><option>Regal</option><option>Schublade</option><option>Box</option><option>Fach</option><option>Raum</option></select></label><label>Übergeordneter Ort<select id="locationParent"><option value="">Keiner</option></select></label><label>Kapazität (Plätze)<input id="locationCapacity" type="number" min="0" value="0"></label><label class="span2">Foto-URL<input id="locationPhoto" type="url" placeholder="https://…"></label><label class="span2">Notizen<textarea id="locationNotes"></textarea></label></div><div class="dialog-actions"><button class="btn" type="button" data-action="close-modal" data-modal="locationModal">Abbrechen</button><button class="btn primary">Speichern</button></div></form></div></div>
+<div class="modal hidden" id="instructionModal"><div class="backdrop" data-action="close-modal" data-modal="instructionModal"></div><div class="dialog instruction-dialog"><header><div><p class="eyebrow">BAUANLEITUNG</p><h2 id="instructionTitle">Bauanleitung</h2></div><button class="close" data-action="close-modal" data-modal="instructionModal">×</button></header><div id="instructionBody" class="instruction-body"></div></div></div>
+<div class="modal hidden" id="orderModal"><div class="backdrop" data-action="close-modal" data-modal="orderModal"></div><div class="dialog" style="width:min(540px,100%)"><header><h2>Bestellung</h2><button class="close" data-action="close-modal" data-modal="orderModal">×</button></header><form id="orderForm"><input type="hidden" id="orderId"><div class="form-grid"><label>Händler *<input id="orderSupplier" required></label><label>Bestellnummer<input id="orderNumber"></label><label>Status<select id="orderStatus"><option value="ordered">Bestellt</option><option value="shipped">Versendet</option><option value="received">Erhalten</option></select></label><label>Gesamt €<input id="orderTotal" type="number" step="0.01" min="0"></label><label class="span2">Notizen<textarea id="orderNotes"></textarea></label></div><div class="dialog-actions"><button class="btn" type="button" data-action="close-modal" data-modal="orderModal">Abbrechen</button><button class="btn primary">Speichern</button></div></form></div></div>
+<div class="modal hidden" id="imageModal"><div class="backdrop" data-action="close-modal" data-modal="imageModal"></div><div class="dialog" style="width:min(800px,95vw)"><header><h2>Bildvorschau</h2><button class="close" data-action="close-modal" data-modal="imageModal">×</button></header><div class="panel-body" style="display:grid;place-items:center;background:white"><img id="zoomImage" style="max-width:100%;max-height:70vh;object-fit:contain"></div></div></div>
+<div class="modal hidden" id="commandModal"><div class="backdrop" data-action="close-modal" data-modal="commandModal"></div><div class="dialog command-dialog"><header><div><p class="eyebrow">SUCHE & SCHNELLAKTIONEN</p><h2>Befehlssuche</h2></div><button type="button" class="close" data-action="close-modal" data-modal="commandModal">×</button></header><div class="command-search"><svg viewBox="0 0 24 24"><path d="M10.5 3a7.5 7.5 0 1 1-4.7 13.3L2 20l2 2 3.8-3.8A7.5 7.5 0 0 1 10.5 3Zm0 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11Z"/></svg><input id="commandInput" placeholder="Sets, Teile, Lager, Bestellungen oder Aktionen suchen" autocomplete="off"></div><div id="commandResults" class="command-results"></div></div></div>
+<div class="modal hidden" id="confirmModal"><div class="backdrop" data-action="confirm-cancel"></div><div class="dialog confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmMessage"><header><h2 id="confirmTitle">Aktion bestätigen</h2><button type="button" class="close" data-action="confirm-cancel">×</button></header><div class="panel-body"><p id="confirmMessage"></p><label id="confirmPasswordWrap" class="hidden">Administratorpasswort<input id="confirmPassword" type="password" autocomplete="current-password"></label><div class="dialog-actions"><button type="button" class="btn" data-action="confirm-cancel">Abbrechen</button><button type="button" class="btn danger-btn" id="confirmAccept" data-action="confirm-accept">Bestätigen</button></div></div></div></div>
+<div class="modal hidden" id="copyModal"><div class="backdrop" data-action="close-modal" data-modal="copyModal"></div><div class="dialog"><header><div><p class="eyebrow">SET-EXEMPLAR</p><h2 id="copyModalTitle">Exemplar anlegen</h2></div><button class="close" data-action="close-modal" data-modal="copyModal">×</button></header><form id="copyForm"><input type="hidden" id="copyId"><div class="form-grid">
+  <label>Set *<select id="copySetId" required></select></label><label>Inventarnummer<input id="copyInventoryNumber" maxlength="191"></label>
+  <label>Seriennummer<input id="copySerialNumber" maxlength="191"></label><label>Kaufdatum<input id="copyPurchaseDate" type="date"></label>
+  <label>Kaufpreis €<input id="copyPurchasePrice" type="number" min="0" step="0.01"></label><label>Lagerort<select id="copyLocationId"></select></label>
+  <label>Zustand<select id="copyCondition"><option>neu</option><option selected>gebraucht</option><option>ungeöffnet</option><option>beschädigt</option><option>verkauft</option><option>verliehen</option><option>archiviert</option></select></label>
+  <label>Vollständigkeit<select id="copyCompleteness"><option>unbekannt</option><option>vollständig</option><option>unvollständig</option><option>in Prüfung</option></select></label>
+  <label class="span2">Bauzustand<select id="copyBuildStatus"><option>ungeöffnet</option><option>vollständig aufgebaut</option><option>teilweise aufgebaut</option><option selected>zerlegt vollständig</option><option>zerlegt unvollständig</option><option>in Prüfung</option><option>in Reparatur</option></select></label>
+  <label class="span2">Notizen<textarea id="copyNotes" rows="3"></textarea></label>
+</div><div class="dialog-actions"><button type="button" class="btn" data-action="close-modal" data-modal="copyModal">Abbrechen</button><button class="btn primary">Exemplar speichern</button></div></form></div></div>
+<div class="modal hidden" id="centralInventoryModal"><div class="backdrop" data-action="close-modal" data-modal="centralInventoryModal"></div><div class="dialog"><header><div><p class="eyebrow">ZENTRALES TEILEINVENTAR</p><h2 id="centralInventoryTitle">Teil anlegen</h2></div><button class="close" data-action="close-modal" data-modal="centralInventoryModal">×</button></header><form id="centralInventoryForm"><input type="hidden" id="centralInventoryId"><div class="form-grid">
+  <label>Teilenummer *<input id="centralPartNumber" required maxlength="191"></label><label>Element-ID<input id="centralElementId" maxlength="191"></label>
+  <label>Design-ID<input id="centralDesignId" maxlength="191"></label><label>Name *<input id="centralPartName" required maxlength="191"></label>
+  <label>Farbe<input id="centralPartColor" list="legoColors" role="combobox" autocomplete="off" placeholder="Search LEGO color…"><datalist id="legoColors"></datalist></label>
+  <label>Kategorie<select id="centralPartCategory"><option>Stein</option><option>Platte</option><option>Fliese</option><option>Technic</option><option>Minifigur</option><option>Rad & Reifen</option><option>Fenster & Tür</option><option>Bedrucktes Teil</option><option>Sonstiges</option></select></label>
+  <label>Zustand<select id="centralPartCondition"><option>neu</option><option selected>gebraucht</option><option>leicht beschädigt</option><option>stark beschädigt</option><option>vergilbt</option><option>zerkratzt</option><option>bedruckt</option></select></label>
+  <label>Lagerort<select id="centralPartLocation"></select></label><label>Gesamtmenge<input id="centralPartQuantity" type="number" min="0" value="0" required></label>
+  <label>Reserviert<input id="centralPartReserved" type="number" min="0" value="0" required></label><label>Kaufpreis €<input id="centralPartPurchasePrice" type="number" min="0" step="0.01"></label>
+  <label>Stückpreis €<input id="centralPartUnitPrice" type="number" min="0" step="0.01"></label><label>Herkunft<input id="centralPartSource"></label>
+  <label class="span2">Bild-URL<input id="centralPartImage" type="url"></label><label class="span2">Notizen<textarea id="centralPartNotes" rows="3"></textarea></label>
+</div><div class="dialog-actions"><button type="button" class="btn" data-action="close-modal" data-modal="centralInventoryModal">Abbrechen</button><button class="btn primary">Inventarteil speichern</button></div></form></div></div>
+<div class="modal hidden" id="minifigureModal"><div class="backdrop" data-action="close-modal" data-modal="minifigureModal"></div><div class="dialog"><header><div><p class="eyebrow">MINIFIGUREN-INVENTAR</p><h2 id="minifigureModalTitle">Minifigur hinzufügen</h2></div><button class="close" data-action="close-modal" data-modal="minifigureModal">×</button></header><form id="minifigureForm"><input type="hidden" id="minifigureId"><div class="form-grid"><label>Set *<select id="minifigureSet" required></select></label><label>Figurennummer *<input id="minifigureNumber" required maxlength="100" placeholder="z. B. sw0001"></label><label class="span2">Name *<input id="minifigureName" required maxlength="191"></label><label>Enthaltene Menge<input id="minifigureQuantity" type="number" min="1" value="1" required></label><label>Vorhandene Menge<input id="minifigureOwned" type="number" min="0" value="0" required></label><label class="span2">Bild-URL<input id="minifigureImage" type="url"></label><label class="span2">Notizen<textarea id="minifigureNotes" rows="3"></textarea></label></div><div class="dialog-actions"><button type="button" class="btn" data-action="close-modal" data-modal="minifigureModal">Abbrechen</button><button class="btn primary">Minifigur speichern</button></div></form></div></div>
+<div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+<footer class="app-footer">BrickMissing Pro 7.0 · lokal & privat</footer>
+
+<script src="/core.js?v=1" defer></script>
+<script src="/app.js?v=architecture-23" defer></script>
+<script src="/advanced-features.js" defer></script>
+<script src="/pro7.js?v=checked-bag-labels-9" defer></script>
+</body>
+</html>

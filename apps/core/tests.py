@@ -1,0 +1,159 @@
+from django.template.loader import render_to_string
+from django.test import TestCase
+from django.test.client import RequestFactory
+from django.urls import reverse
+
+from apps.accounts.models import User
+from apps.catalog.models import LegoSet, Part
+
+from .client_ip import client_ip
+from .models import DataQualityIssue, SavedView
+
+
+class HealthAndHeadersTests(TestCase):
+    def test_health_and_security_headers(self):
+        response = self.client.get(reverse("health"))
+        self.assertEqual(response.json()["database"], "ok")
+        self.assertIn("default-src 'self'", response["Content-Security-Policy"])
+        self.assertEqual(response["X-Frame-Options"], "DENY")
+        self.assertTrue(response["X-Request-ID"])
+
+    def test_csp_keeps_strict_script_policy(self):
+        response = self.client.get(reverse("health"))
+        policy = response["Content-Security-Policy"]
+
+        self.assertIn("script-src 'self'", policy)
+        self.assertNotIn("'unsafe-inline'", policy)
+        self.assertNotIn("'unsafe-eval'", policy)
+
+
+class AdminInterfaceTests(TestCase):
+    def setUp(self):
+        self.admin_user = User.objects.create_superuser(
+            "administrator", "admin@example.test", "A-long-safe-password-123"
+        )
+        self.client.force_login(self.admin_user)
+
+    def test_dashboard_has_branding_navigation_and_empty_state(self):
+        response = self.client.get(reverse("admin:index"))
+
+        self.assertContains(response, "BrickMissing")
+        self.assertContains(response, "Systemverwaltung")
+        self.assertContains(response, "Letzte Änderungen")
+        self.assertContains(response, "Noch keine Aktivitäten vorhanden.")
+        self.assertContains(response, 'href="/"')
+        self.assertContains(response, "admin/css/brickmissing-admin.css")
+        self.assertNotContains(response, "java" + "script:")
+
+    def test_primary_admin_lists_and_forms_remain_available(self):
+        lego_set = LegoSet.objects.create(
+            owner=self.admin_user, set_number="10300", name="Zeitmaschine"
+        )
+        part = Part.objects.create(
+            owner=self.admin_user, lego_set=lego_set, element_id="3001", name="Stein"
+        )
+        urls = (
+            reverse("admin:accounts_user_changelist"),
+            reverse("admin:catalog_legoset_changelist"),
+            reverse("admin:catalog_part_changelist"),
+            reverse("admin:inventory_inventoryitem_changelist"),
+            reverse("admin:catalog_legoset_change", args=[lego_set.pk]),
+            reverse("admin:catalog_part_change", args=[part.pk]),
+            reverse("admin:catalog_part_delete", args=[part.pk]),
+        )
+
+        for url in urls:
+            with self.subTest(url=url):
+                self.assertEqual(self.client.get(url).status_code, 200)
+
+        filtered = self.client.get(
+            reverse("admin:catalog_part_changelist"), {"q": "Stein", "status__exact": "missing", "p": 0}
+        )
+        self.assertContains(filtered, "Stein")
+
+    def test_staff_permissions_are_not_broadened(self):
+        staff = User.objects.create_user(
+            "mitarbeiter", "staff@example.test", "A-long-safe-password-456", is_staff=True
+        )
+        self.client.force_login(staff)
+
+        dashboard = self.client.get(reverse("admin:index"))
+        self.assertContains(dashboard, "keine Administrationsrechte")
+        self.assertEqual(
+            self.client.get(reverse("admin:accounts_user_changelist")).status_code, 403
+        )
+
+
+class InterfaceQualityTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            "interface", "interface@example.test", "A-long-safe-password-123"
+        )
+        self.client.force_login(self.user)
+
+    def test_primary_navigation_marks_current_area(self):
+        response = self.client.get(reverse("catalog:set_list"))
+
+        self.assertContains(response, 'aria-current="page">Sets</a>')
+        self.assertContains(response, "Import und Export")
+        self.assertContains(response, "Lagerorte")
+
+    def test_custom_error_pages_render(self):
+        for template_name, expected in (
+            ("400.html", "Die Anfrage konnte nicht verarbeitet werden."),
+            ("403.html", "Du hast keinen Zugriff"),
+            ("404.html", "Diese Seite wurde nicht gefunden."),
+            ("500.html", "Etwas ist schiefgegangen."),
+        ):
+            with self.subTest(template=template_name):
+                rendered = render_to_string(template_name)
+                self.assertIn(expected, rendered)
+
+
+class ClientIPTests(TestCase):
+    def setUp(self):
+        self.factory = RequestFactory()
+
+    def test_direct_client_cannot_spoof_forwarded_header(self):
+        request = self.factory.get(
+            "/", REMOTE_ADDR="198.51.100.10", HTTP_X_FORWARDED_FOR="203.0.113.8"
+        )
+        self.assertEqual(client_ip(request), "198.51.100.10")
+
+    def test_loopback_proxy_header_is_accepted(self):
+        request = self.factory.get("/", REMOTE_ADDR="127.0.0.1", HTTP_X_FORWARDED_FOR="203.0.113.8")
+        self.assertEqual(client_ip(request), "203.0.113.8")
+
+    def test_forwarded_chain_is_rejected(self):
+        request = self.factory.get(
+            "/", REMOTE_ADDR="127.0.0.1", HTTP_X_FORWARDED_FOR="203.0.113.8, 10.0.0.2"
+        )
+        self.assertEqual(client_ip(request), "127.0.0.1")
+
+
+class SavedViewAndQualityTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user("owner", "owner@example.test", "A-long-safe-password-123", email_verified=True)
+        self.other = User.objects.create_user("other", "other@example.test", "A-long-safe-password-123", email_verified=True)
+        self.client.force_login(self.user)
+
+    def test_saved_view_save_load_rename_delete_and_ownership(self):
+        self.client.post(reverse("saved_views"), {"name": "Red", "area": "parts", "path": "/fehlteile/", "query": "color=Red&sort=name"})
+        item = SavedView.objects.get(owner=self.user)
+        self.assertContains(self.client.get(reverse("saved_views")), "color=Red")
+        self.client.post(reverse("saved_views"), {"pk": item.pk, "name": "Renamed", "area": "parts", "path": "/fehlteile/", "query": "color=Red"})
+        item.refresh_from_db()
+        self.assertEqual(item.name, "Renamed")
+        foreign = SavedView.objects.create(owner=self.other, name="Foreign", area="parts", path="/", configuration={})
+        self.assertEqual(self.client.post(reverse("saved_view_delete", args=[foreign.pk])).status_code, 404)
+        self.client.post(reverse("saved_view_delete", args=[item.pk]))
+        self.assertFalse(SavedView.objects.filter(pk=item.pk).exists())
+
+    def test_quality_scan_finds_duplicates_and_invalid_identifiers(self):
+        lego_set = LegoSet.objects.create(owner=self.user, set_number="100-1", name="One")
+        Part.objects.create(owner=self.user, lego_set=lego_set, element_id="bad id", name="Part")
+        Part.objects.create(owner=self.user, lego_set=lego_set, element_id="bad id", name="Duplicate")
+        self.client.post(reverse("quality_scan"))
+        keys = set(DataQualityIssue.objects.filter(owner=self.user).values_list("issue_key", flat=True))
+        self.assertIn("duplicate_part", keys)
+        self.assertIn("invalid_element_id", keys)

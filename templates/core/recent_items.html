@@ -1,0 +1,1 @@
+{% extends "base.html" %}{% block title %}Zuletzt angesehen{% endblock %}{% block content %}<h1>Zuletzt angesehen</h1><section class="panel"><ul>{% for item in recent_items %}<li><a href="{{ item.path }}">{{ item.label }}</a> · {{ item.entity_type }}</li>{% empty %}<li>Noch keine Einträge.</li>{% endfor %}</ul></section>{% endblock %}

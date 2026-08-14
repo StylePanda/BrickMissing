@@ -1,0 +1,4 @@
+{% extends "base.html" %}{% block title %}Registrieren{% endblock %}{% block content %}
+<section class="auth-card"><h1>Konto erstellen</h1><form method="post" class="stack">{% csrf_token %}{{ form.as_div }}<button class="primary">Registrieren</button></form><p><a href="{% url 'accounts:login' %}">Zur Anmeldung</a></p></section>
+{% endblock %}
+

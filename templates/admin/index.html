@@ -1,0 +1,45 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static log %}
+
+{% block extrastyle %}{{ block.super }}<link rel="stylesheet" href="{% static 'admin/css/dashboard.css' %}">{% endblock %}
+{% block coltype %}colMS{% endblock %}
+{% block bodyclass %}{{ block.super }} dashboard brickmissing-dashboard{% endblock %}
+{% block nav-breadcrumbs %}{% endblock %}
+{% block nav-sidebar %}{% endblock %}
+{% block content_title %}{% endblock %}
+
+{% block content %}
+<div id="content-main">
+  <header class="admin-welcome">
+    <p class="admin-eyebrow">Systemverwaltung</p>
+    <h1>Administration</h1>
+    <p>Benutzerkonten, Sammlung und Systemdaten sicher verwalten.</p>
+  </header>
+  <div class="admin-module-grid">
+    {% include "admin/app_list.html" with app_list=app_list show_changelinks=True %}
+  </div>
+</div>
+{% endblock %}
+
+{% block sidebar %}
+<aside id="content-related" aria-label="Letzte Änderungen">
+  <div class="module" id="recent-actions-module">
+    <h2>Letzte Änderungen</h2>
+    <h3>Meine Aktivitäten</h3>
+    {% get_admin_log 10 as admin_log for_user user %}
+    {% if not admin_log %}
+      <p class="admin-empty-state">Noch keine Aktivitäten vorhanden.</p>
+    {% else %}
+      <ul class="actionlist">
+      {% for entry in admin_log %}
+        <li class="{% if entry.is_addition %}addlink{% endif %}{% if entry.is_change %}changelink{% endif %}{% if entry.is_deletion %}deletelink{% endif %}">
+          <span class="visually-hidden">{% if entry.is_addition %}Hinzugefügt:{% elif entry.is_change %}Geändert:{% else %}Gelöscht:{% endif %}</span>
+          {% if entry.is_deletion or not entry.get_admin_url %}{{ entry.object_repr }}{% else %}<a href="{{ entry.get_admin_url }}">{{ entry.object_repr }}</a>{% endif %}
+          <span class="mini quiet">{% if entry.content_type %}{{ entry.content_type.name|capfirst }}{% else %}Unbekannter Inhalt{% endif %}</span>
+        </li>
+      {% endfor %}
+      </ul>
+    {% endif %}
+  </div>
+</aside>
+{% endblock %}

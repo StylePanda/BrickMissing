@@ -1,0 +1,21 @@
+[project]
+name = "brickmissing"
+version = "8.0.0"
+requires-python = ">=3.12,<3.15"
+dependencies = [
+    "Django==5.2.16",
+    "argon2-cffi==25.1.0",
+    "cryptography==46.0.3",
+    "PyMySQL==1.1.2",
+    "qrcode==8.2",
+    "Pillow==12.1.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+exclude = [".vendor", ".venv", "cache", "backups", "data", "var", "brickmissing", "**/migrations/*.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "S", "B"]
+ignore = ["S101", "E501"]

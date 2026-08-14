@@ -1,0 +1,21 @@
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | BrickMissing Administration{% endblock %}
+
+{% block extrastyle %}{{ block.super }}<link rel="stylesheet" href="{% static 'admin/css/brickmissing-admin.css' %}?v=8.0-ui4">{% endblock %}
+
+{% block branding %}
+<div id="site-name">
+  <a href="{% url 'admin:index' %}" aria-label="BrickMissing Administration – Startseite">
+    <span class="brickmissing-admin-mark" aria-hidden="true">BM</span>
+    <span><strong>BrickMissing</strong><small>Administration</small></span>
+  </a>
+</div>
+{% if user.is_anonymous %}{% include "admin/color_theme_toggle.html" %}{% endif %}
+{% endblock %}
+
+{% block welcome-msg %}Angemeldet als <strong>{% firstof user.get_short_name user.get_username %}</strong>{% endblock %}
+{% block userlinks %}{% if user.has_usable_password %}<a href="{% url 'admin:password_change' %}">Passwort ändern</a>{% endif %}<form id="logout-form" method="post" action="{% url 'admin:logout' %}">{% csrf_token %}<button type="submit">Abmelden</button></form>{% include "admin/color_theme_toggle.html" %}{% endblock %}
+
+{% block nav-global %}<a class="brickmissing-site-link" href="{% url 'dashboard' %}">Zur Anwendung</a>{% endblock %}

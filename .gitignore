@@ -1,0 +1,68 @@
+data/*
+!data/.gitkeep
+backups/*
+!backups/.gitkeep
+cache/*
+!cache/.gitkeep
+.vendor/
+__pycache__/
+brickmissing/**/__pycache__/
+tests/__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+.env
+.venv/
+var/*
+!var/.gitkeep
+!var/media/
+!var/media/.gitkeep
+!var/private/
+!var/private/.gitkeep
+!var/static/
+!var/static/.gitkeep
+.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+
+# Environment / Secrets
+.env
+*.env
+.env.*
+!/\.env.example
+
+# Django runtime
+*.sqlite3
+db.sqlite3
+media/
+staticfiles/
+
+# Local/runtime data
+var/
+logs/
+*.log
+
+# Backups
+*.sql
+*.sql.gz
+*.dump
+backups/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Build / release output
+dist/
+build/
+*.egg-info/

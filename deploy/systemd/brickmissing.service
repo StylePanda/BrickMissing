@@ -1,0 +1,26 @@
+[Unit]
+Description=BrickMissing 8.0 Django application
+After=network.target mariadb.service
+Requires=mariadb.service
+
+[Service]
+Type=notify
+User=brickmissing
+Group=brickmissing
+WorkingDirectory=/var/www/brickmissing/current
+EnvironmentFile=/etc/brickmissing/brickmissing.env
+ExecStart=/var/www/brickmissing/current/.venv/bin/gunicorn --config deploy/gunicorn.conf.py config.wsgi:application
+ExecReload=/bin/kill -s HUP $MAINPID
+KillSignal=SIGQUIT
+TimeoutStopSec=30
+Restart=on-failure
+RestartSec=5
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+NoNewPrivileges=true
+ReadWritePaths=/var/www/brickmissing/shared/var /var/backups/brickmissing
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

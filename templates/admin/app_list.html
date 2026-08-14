@@ -1,0 +1,24 @@
+{% if app_list %}
+  {% for app in app_list %}
+    <section class="app-{{ app.app_label }} module{% if app.app_url in request.path|urlencode %} current-app{% endif %}">
+      <h2><a href="{{ app.app_url }}" class="section">{{ app.name }}</a></h2>
+      <div class="admin-model-list">
+      {% for model in app.models %}
+        {% with model_name=model.object_name|lower %}
+        <article class="model-{{ model_name }} admin-model-row{% if model.admin_url in request.path|urlencode %} current-model{% endif %}">
+          <div class="admin-model-name" id="{{ app.app_label }}-{{ model_name }}">
+            {% if model.admin_url %}<a href="{{ model.admin_url }}"{% if model.admin_url in request.path|urlencode %} aria-current="page"{% endif %}>{{ model.name }}</a>{% else %}{{ model.name }}{% endif %}
+          </div>
+          <div class="admin-model-actions">
+            {% if model.add_url %}<a href="{{ model.add_url }}" class="addlink" aria-describedby="{{ app.app_label }}-{{ model_name }}">Hinzufügen</a>{% endif %}
+            {% if model.admin_url and show_changelinks %}<a href="{{ model.admin_url }}" class="{% if model.view_only %}viewlink{% else %}changelink{% endif %}" aria-describedby="{{ app.app_label }}-{{ model_name }}">{% if model.view_only %}Anzeigen{% else %}Verwalten{% endif %}</a>{% endif %}
+          </div>
+        </article>
+        {% endwith %}
+      {% endfor %}
+      </div>
+    </section>
+  {% endfor %}
+{% else %}
+  <div class="admin-empty-state"><strong>Keine Verwaltungsbereiche verfügbar</strong><span>Für dieses Konto sind keine Administrationsrechte eingerichtet.</span></div>
+{% endif %}

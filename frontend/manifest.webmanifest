@@ -1,0 +1,11 @@
+{
+  "name": "BrickMissing Pro 7.0",
+  "short_name": "BrickMissing",
+  "description": "Lokale LEGO-Sammlungs-, Inventar- und Lagerverwaltung",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#090b12",
+  "theme_color": "#8b5cf6",
+  "lang": "de",
+  "icons": []
+}

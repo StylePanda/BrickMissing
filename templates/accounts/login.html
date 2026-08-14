@@ -1,0 +1,6 @@
+{% extends "base.html" %}{% block title %}Anmelden{% endblock %}{% block content %}
+<section class="auth-card"><h1>Anmelden</h1><p class="muted">Willkommen zurück bei BrickMissing 8.0.</p>
+<form method="post" class="stack">{% csrf_token %}{{ form.as_div }}<button class="primary">Anmelden</button></form>
+<details><summary>Bestätigungs-E-Mail erneut senden</summary><form method="post" action="{% url 'accounts:resend_verification' %}" class="stack">{% csrf_token %}<label>E-Mail-Adresse <input type="email" name="email" required autocomplete="email"></label><button>Bestätigungs-E-Mail anfordern</button></form></details>
+<p><a href="{% url 'accounts:password_reset' %}">Passwort vergessen?</a></p><p>Noch kein Konto? <a href="{% url 'accounts:register' %}">Registrieren</a></p></section>
+{% endblock %}
