@@ -1,0 +1,987 @@
+BRICKMISSING FULL APPLICATION DIAGNOSTIC
+============================================
+
+TOP 20 PROBLEME
+1. [WARNING] FORM AUDIT: Formular nicht parameterlos instanziierbar: AdminPasswordChangeForm
+   Ursache/Detail: SetPasswordForm.__init__() missing 1 required positional argument: 'user'
+   Empfehlung: prüfen
+2. [WARNING] FORM AUDIT: Formular nicht parameterlos instanziierbar: AdminPasswordChangeForm
+   Ursache/Detail: AdminPasswordChangeForm.__init__() missing 1 required positional argument: 'user'
+   Empfehlung: prüfen
+3. [WARNING] FORM AUDIT: Formular nicht parameterlos instanziierbar: PasswordChangeForm
+   Ursache/Detail: SetPasswordForm.__init__() missing 1 required positional argument: 'user'
+   Empfehlung: prüfen
+4. [WARNING] FORM AUDIT: Formular nicht parameterlos instanziierbar: SetPasswordForm
+   Ursache/Detail: SetPasswordForm.__init__() missing 1 required positional argument: 'user'
+   Empfehlung: prüfen
+5. [WARNING] FORM AUDIT: NumberInput ohne sichtbares min: LegoSetForm.purchase_price
+   Ursache/Detail: nicht näher bestimmt
+   Empfehlung: prüfen
+6. [WARNING] FORM AUDIT: NumberInput ohne sichtbares min: LegoSetForm.current_value
+   Ursache/Detail: nicht näher bestimmt
+   Empfehlung: prüfen
+7. [WARNING] FORM AUDIT: NumberInput ohne sichtbares min: PartForm.unit_price
+   Ursache/Detail: nicht näher bestimmt
+   Empfehlung: prüfen
+8. [WARNING] FORM AUDIT: NumberInput ohne sichtbares min: SetCopyForm.purchase_price
+   Ursache/Detail: nicht näher bestimmt
+   Empfehlung: prüfen
+9. [WARNING] FORM AUDIT: NumberInput ohne sichtbares min: SetInventoryItemForm.color_id
+   Ursache/Detail: nicht näher bestimmt
+   Empfehlung: prüfen
+10. [WARNING] FORM AUDIT: NumberInput ohne sichtbares min: OrderForm.goods_total
+   Ursache/Detail: nicht näher bestimmt
+   Empfehlung: prüfen
+11. [WARNING] FORM AUDIT: NumberInput ohne sichtbares min: OrderForm.shipping_cost
+   Ursache/Detail: nicht näher bestimmt
+   Empfehlung: prüfen
+12. [WARNING] FORM AUDIT: NumberInput ohne sichtbares min: OrderForm.total
+   Ursache/Detail: nicht näher bestimmt
+   Empfehlung: prüfen
+13. [WARNING] FORM AUDIT: NumberInput ohne sichtbares min: OrderItemForm.unit_price
+   Ursache/Detail: nicht näher bestimmt
+   Empfehlung: prüfen
+14. [WARNING] MODEL STRING AUDIT: Kein eigener __str__: sessions.Session
+   Ursache/Detail: nicht näher bestimmt
+   Empfehlung: Sichtbare ModelChoice-Darstellung prüfen.
+15. [WARNING] MODEL STRING AUDIT: Kein eigener __str__: accounts.User
+   Ursache/Detail: nicht näher bestimmt
+   Empfehlung: Sichtbare ModelChoice-Darstellung prüfen.
+16. [WARNING] MODEL STRING AUDIT: Kein eigener __str__: accounts.PendingEmailChange
+   Ursache/Detail: nicht näher bestimmt
+   Empfehlung: Sichtbare ModelChoice-Darstellung prüfen.
+17. [WARNING] MODEL STRING AUDIT: Kein eigener __str__: accounts.AccountSession
+   Ursache/Detail: nicht näher bestimmt
+   Empfehlung: Sichtbare ModelChoice-Darstellung prüfen.
+18. [WARNING] MODEL STRING AUDIT: Kein eigener __str__: accounts.RecoveryCode
+   Ursache/Detail: nicht näher bestimmt
+   Empfehlung: Sichtbare ModelChoice-Darstellung prüfen.
+19. [WARNING] MODEL STRING AUDIT: Kein eigener __str__: audit.AuditEvent
+   Ursache/Detail: nicht näher bestimmt
+   Empfehlung: Sichtbare ModelChoice-Darstellung prüfen.
+20. [WARNING] MODEL STRING AUDIT: Kein eigener __str__: core.Notification
+   Ursache/Detail: nicht näher bestimmt
+   Empfehlung: Sichtbare ModelChoice-Darstellung prüfen.
+
+================================================================================
+REPORT HEADER
+================================================================================
+Datum/Uhrzeit UTC: 2026-08-15T11:14:42.793741+00:00
+Hostname: StylePanda
+Python: 3.12.13
+Django: 5.2.16
+Git Commit: c5bc974d76e99bfb500a98208b1c22d4e3f312ab
+Branch: main
+Working Tree Status:
+?? BRICKMISSING_FULL_DEBUG.txt
+?? apps/core/test_full_debug.py
+?? scripts/full_debug.py
+Settings: config.settings.development
+Production-Modus: False
+DEBUG: True
+Datenbank-Backend: sqlite3
+Secrets=[MASKED] (Werte werden grundsätzlich nicht ausgegeben)
+
+================================================================================
+DJANGO SYSTEM CHECK
+================================================================================
+Befehl: D:\Video\BrickMissing-8-Django\.venv\Scripts\python.exe manage.py check
+Exit-Code: 0
+Laufzeit: 1.006 s
+System check identified no issues (0 silenced).
+
+================================================================================
+DJANGO DEPLOY CHECK
+================================================================================
+Befehl: D:\Video\BrickMissing-8-Django\.venv\Scripts\python.exe manage.py check --deploy
+Exit-Code: 0
+Laufzeit: 1.031 s
+System check identified some issues:
+
+WARNINGS:
+?: (security.W004) You have not set a value for the SECURE_HSTS_SECONDS setting. If your entire site is served only over SSL, you may want to consider setting a value and enabling HTTP Strict Transport Security. Be sure to read the documentation first; enabling HSTS carelessly can cause serious, irreversible problems.
+?: (security.W008) Your SECURE_SSL_REDIRECT setting is not set to True. Unless your site should be available over both SSL and non-SSL connections, you may want to either set this setting True or configure a load balancer or reverse-proxy server to redirect all connections to HTTPS.
+?: (security.W009) Your SECRET_KEY has less than 50 characters, less than 5 unique characters, or it's prefixed with 'django-insecure-' indicating that it was generated automatically by Django. Please generate a long and random value, otherwise many of Django's security-critical features will be vulnerable to attack.
+?: (security.W012) SESSION_COOKIE_SECURE is not set to True. Using a secure-only session cookie makes it more difficult for network traffic sniffers to hijack user sessions.
+?: (security.W016) You have 'django.middleware.csrf.CsrfViewMiddleware' in your MIDDLEWARE, but you have not set CSRF_COOKIE_SECURE to True. Using a secure-only CSRF cookie makes it more difficult for network traffic sniffers to steal the CSRF token.
+?: (security.W018) You should not have DEBUG set to True in deployment.
+
+System check identified 6 issues (0 silenced).
+
+================================================================================
+MIGRATION DRIFT
+================================================================================
+Befehl: D:\Video\BrickMissing-8-Django\.venv\Scripts\python.exe manage.py makemigrations --check --dry-run
+Exit-Code: 0
+Laufzeit: 1.147 s
+No changes detected
+
+================================================================================
+RUFF
+================================================================================
+Befehl: D:\Video\BrickMissing-8-Django\.venv\Scripts\python.exe -m ruff check --no-cache .
+Exit-Code: 0
+Laufzeit: 0.196 s
+All checks passed!
+
+================================================================================
+PYTHON SYNTAX (read-only AST)
+================================================================================
+Dateien: 158
+
+================================================================================
+COLLECTSTATIC DRY RUN
+================================================================================
+Befehl: D:\Video\BrickMissing-8-Django\.venv\Scripts\python.exe manage.py collectstatic --dry-run --noinput
+Exit-Code: 0
+Laufzeit: 0.859 s
+Pretending to copy 'D:\Video\BrickMissing-8-Django\static\admin\css\brickmissing-admin.css'
+Pretending to copy 'D:\Video\BrickMissing-8-Django\static\css\app.css'
+Pretending to copy 'D:\Video\BrickMissing-8-Django\static\css\labels.css'
+Pretending to copy 'D:\Video\BrickMissing-8-Django\static\js\app.js'
+Pretending to copy 'D:\Video\BrickMissing-8-Django\static\js\labels.js'
+Pretending to copy 'D:\Video\BrickMissing-8-Django\static\js\minifigure-inventory.js'
+
+6 static files copied to 'D:\Video\BrickMissing-8-Django\var\static', 134 unmodified.
+
+================================================================================
+TEST SUITE
+================================================================================
+Befehl: D:\Video\BrickMissing-8-Django\.venv\Scripts\python.exe manage.py test
+Exit-Code: 0
+Laufzeit: 156.940 s
+Found 187 test(s).
+System check identified no issues (0 silenced).
+
+Creating test database for alias 'default'...
+
+2026-08-15 13:14:50,253 WARNING django.security.csrf request_id=09fd389f-e058-4bd8-a4bf-9dcf341c3cc6 Forbidden (CSRF cookie not set.): /konto/profil/deaktivieren/
+.2026-08-15 13:14:50,311 WARNING django.request request_id=d9edcaa5-8e6a-44bf-983a-6a39623db45e Method Not Allowed (GET): /konto/profil/deaktivieren/
+2026-08-15 13:14:50,382 WARNING django.request request_id=- Bad Request: /konto/profil/deaktivieren/
+.2026-08-15 13:14:50,662 WARNING django.request request_id=- Too Many Requests: /konto/passwort-vergessen/
+...2026-08-15 13:14:51,052 WARNING django.request request_id=- Bad Request: /konto/profil/e-mail-bestaetigen/bf157b6d-5d2c-4932-a424-e2d5fa63b13b/jvfLrYhl3cXByuBw0ctu7Rc91mZT0LHC4Pu__bR98N8/
+..2026-08-15 13:14:51,163 WARNING django.request request_id=- Bad Request: /konto/verifizieren/MzFkNmUzZDAtMzg1OS00YzZjLThiOTUtN2VjZTE1ODdmOGI3/ddcssr-ecc30cf0e9e90159adf73298d20d4533/
+2026-08-15 13:14:51,213 WARNING django.request request_id=- Bad Request: /konto/verifizieren/NzYzMzBiMWQtNTIyMS00ZGY5LWE1YTctY2U1ZDcwZDUzNzIz/ddcssr-9e0853e6a68a6d395fe0667c33d97fa5/
+.2026-08-15 13:14:51,284 WARNING django.request request_id=- Bad Request: /konto/profil/e-mail-bestaetigen/2244e4be-007a-4bbb-9aab-dce20d277e42/a-FifCcBKcfCO7lOwJ0ggdphcv6hVHf22w0XySuy920/
+..2026-08-15 13:14:51,438 WARNING django.request request_id=331a2144-41f0-453a-883a-7d862f0c34a9 Method Not Allowed (GET): /konto/abmelden/
+.......2026-08-15 13:14:52,307 WARNING django.request request_id=- Not Found: /konto/profil/sitzungen/7564605c-99fa-4160-9b46-b10a25d19d80/beenden/
+.......2026-08-15 13:14:53,042 WARNING django.request request_id=- Bad Request: /fehlteile/919bc9a6-1f96-4597-aeb3-9bda2c752c34/bestand/
+............2026-08-15 13:14:54,037 WARNING django.request request_id=9cecb1c3-5d04-48c4-904f-3a402933b74d Method Not Allowed (GET): /papierkorb/part/53103e77-4caa-43dd-b8e9-078399b107cd/endgueltig-loeschen/
+2026-08-15 13:14:54,042 WARNING django.request request_id=- Not Found: /papierkorb/part/7422f56d-c466-4ab5-ac89-e15b3c90ccaf/endgueltig-loeschen/
+............2026-08-15 13:14:54,922 WARNING django.request request_id=- Not Found: /sets/320dd997-6276-4031-921e-21de1ea6f53f/inventar/1/bestand/
+.2026-08-15 13:14:55,022 WARNING django.request request_id=- Not Found: /teile/9f792b0c-e8af-4d1c-81c0-12bad321138e/bearbeiten/
+2026-08-15 13:14:55,028 WARNING django.request request_id=- Not Found: /teile/9f792b0c-e8af-4d1c-81c0-12bad321138e/loeschen/
+.2026-08-15 13:14:55,132 WARNING django.request request_id=- Not Found: /sets/9c943bd0-8b95-43b2-8ca8-e96e507f940e/
+2026-08-15 13:14:55,136 WARNING django.request request_id=- Not Found: /sets/9c943bd0-8b95-43b2-8ca8-e96e507f940e/loeschen/
+......2026-08-15 13:14:55,895 WARNING django.request request_id=35aed80f-14f2-4445-ae65-d27caabb4a06 Forbidden (Permission denied): /admin/accounts/user/
+Traceback (most recent call last):
+  File "D:\Video\BrickMissing-8-Django\.venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Video\BrickMissing-8-Django\.venv\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Video\BrickMissing-8-Django\.venv\Lib\site-packages\django\contrib\admin\options.py", line 720, in wrapper
+    return self.admin_site.admin_view(view)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Video\BrickMissing-8-Django\.venv\Lib\site-packages\django\utils\decorators.py", line 192, in _view_wrapper
+    result = _process_exception(request, e)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Video\BrickMissing-8-Django\.venv\Lib\site-packages\django\utils\decorators.py", line 190, in _view_wrapper
+    response = view_func(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Video\BrickMissing-8-Django\.venv\Lib\site-packages\django\views\decorators\cache.py", line 80, in _view_wrapper
+    response = view_func(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Video\BrickMissing-8-Django\.venv\Lib\site-packages\django\contrib\admin\sites.py", line 246, in inner
+    return view(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Video\BrickMissing-8-Django\.venv\Lib\site-packages\django\utils\decorators.py", line 48, in _wrapper
+    return bound_method(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Video\BrickMissing-8-Django\.venv\Lib\site-packages\django\utils\decorators.py", line 192, in _view_wrapper
+    result = _process_exception(request, e)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Video\BrickMissing-8-Django\.venv\Lib\site-packages\django\utils\decorators.py", line 190, in _view_wrapper
+    response = view_func(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Video\BrickMissing-8-Django\.venv\Lib\site-packages\django\contrib\admin\options.py", line 2022, in changelist_view
+    raise PermissionDenied
+django.core.exceptions.PermissionDenied
+.............2026-08-15 13:14:56,499 WARNING django.request request_id=- Not Found: /ansichten/2/loeschen/
+.2026-08-15 13:14:56,566 WARNING django.request request_id=- Bad Request: /daten/import/json/
+2026-08-15 13:14:56,570 WARNING django.request request_id=- Bad Request: /daten/import/json/
+2026-08-15 13:14:56,574 WARNING django.request request_id=- Bad Request: /daten/import/json/
+2026-08-15 13:14:56,584 WARNING django.request request_id=- Bad Request: /daten/import/json/
+2026-08-15 13:14:56,621 WARNING django.request request_id=- Bad Request: /daten/import/json/
+2026-08-15 13:14:56,638 WARNING django.request request_id=- Bad Request: /daten/import/csv/
+2026-08-15 13:14:56,650 WARNING django.request request_id=- Bad Request: /daten/import/csv/
+2026-08-15 13:14:56,670 WARNING django.request request_id=- Bad Request: /daten/import/csv/
+2026-08-15 13:14:56,679 WARNING django.request request_id=- Bad Request: /daten/import/csv/
+..2026-08-15 13:14:56,810 WARNING django.request request_id=- Bad Request: /daten/import/5f1a2913-945a-4e0b-bb64-c631c5acc338/bestaetigen/
+...2026-08-15 13:14:56,979 WARNING django.request request_id=- Bad Request: /daten/import/e76969f7-32d1-4434-98fa-2ab28550b4a1/bestaetigen/
+............2026-08-15 13:17:10,088 WARNING django.request request_id=- Bad Request: /integrationen/bild/
+2026-08-15 13:17:10,090 WARNING django.request request_id=- Bad Request: /integrationen/bild/
+.2026-08-15 13:17:10,191 WARNING django.request request_id=- Not Found: /integrationen/rebrickable/sets/6e84d308-857d-415a-9db7-1378e83c1fee/anleitungen/
+.2026-08-15 13:17:10,292 WARNING django.request request_id=- Not Found: /integrationen/rebrickable/sets/fad96239-e7b1-44d6-8172-1dcbdfb4e59c/
+.2026-08-15 13:17:10,394 WARNING django.request request_id=- Bad Request: /integrationen/bild/
+........2026-08-15 13:17:10,899 WARNING django.request request_id=- Bad Request: /integrationen/rebrickable/set-suche/
+.2026-08-15 13:17:11,001 WARNING django.request request_id=- Not Found: /integrationen/lego-pick-a-brick/cfcbfd12-5ccf-47d9-acc5-cf60ee005d34/
+...........2026-08-15 13:17:11,413 WARNING django.request request_id=- Not Found: /inventar/2/
+2026-08-15 13:17:11,417 WARNING django.request request_id=- Not Found: /lagerorte/1/
+2026-08-15 13:17:11,420 WARNING django.request request_id=- Not Found: /lagerorte/1/qr.svg
+.......2026-08-15 13:17:12,072 WARNING django.request request_id=- Not Found: /dokumente/1/download/
+2026-08-15 13:17:12,078 WARNING django.request request_id=- Not Found: /dokumente/1/loeschen/
+.2026-08-15 13:17:12,188 WARNING django.request request_id=- Not Found: /dokumente/1/download/
+..2026-08-15 13:17:12,386 WARNING django.request request_id=- Not Found: /bestellungen/2/
+2026-08-15 13:17:12,389 WARNING django.request request_id=- Not Found: /bestellungen/2/bearbeiten/
+2026-08-15 13:17:12,392 WARNING django.request request_id=- Not Found: /bestellungen/2/position/neu/
+2026-08-15 13:17:12,395 WARNING django.request request_id=- Not Found: /bestellungen/2/position/2/
+..2026-08-15 13:17:12,636 WARNING django.request request_id=- Bad Request: /bestellungen/1/position/1/eingang/
+2026-08-15 13:17:12,646 WARNING django.request request_id=- Not Found: /bestellungen/2/position/2/eingang/
+...2026-08-15 13:17:12,869 WARNING django.request request_id=- Not Found: /organisation/etiketten-qr/qr/4f899fb8-ee90-47a6-9dd5-2f68c9374531.svg
+..2026-08-15 13:17:13,035 WARNING django.request request_id=- Not Found: /organisation/minifiguren/1/teile/1/bestand/
+.........2026-08-15 13:17:13,795 WARNING django.request request_id=- Not Found: /organisation/collections/1/
+..2026-08-15 13:17:14,012 WARNING django.request request_id=- Not Found: /organisation/labels/2/preview/
+2026-08-15 13:17:14,015 WARNING django.request request_id=- Not Found: /organisation/collections/1/loeschen/
+.2026-08-15 13:17:14,138 WARNING django.request request_id=- Not Found: /organisation/mocs/2/versionen/2/aktivieren/
+.2026-08-15 13:17:14,240 WARNING django.request request_id=- Not Found: /organisation/collections/2/
+2026-08-15 13:17:14,244 WARNING django.request request_id=- Not Found: /organisation/collections/2/loeschen/
+2026-08-15 13:17:14,247 WARNING django.request request_id=- Not Found: /organisation/mocs/1/
+2026-08-15 13:17:14,251 WARNING django.request request_id=- Not Found: /organisation/mocs/1/loeschen/
+2026-08-15 13:17:14,253 WARNING django.request request_id=- Not Found: /organisation/wishlist/1/
+2026-08-15 13:17:14,257 WARNING django.request request_id=- Not Found: /organisation/wishlist/1/loeschen/
+2026-08-15 13:17:14,262 WARNING django.request request_id=- Not Found: /organisation/loans/1/
+2026-08-15 13:17:14,266 WARNING django.request request_id=- Not Found: /organisation/loans/1/loeschen/
+2026-08-15 13:17:14,269 WARNING django.request request_id=- Not Found: /organisation/notes/1/
+2026-08-15 13:17:14,273 WARNING django.request request_id=- Not Found: /organisation/notes/1/loeschen/
+2026-08-15 13:17:14,275 WARNING django.request request_id=- Not Found: /organisation/labels/1/
+2026-08-15 13:17:14,278 WARNING django.request request_id=- Not Found: /organisation/labels/1/loeschen/
+2026-08-15 13:17:14,281 WARNING django.request request_id=- Not Found: /organisation/minifigures/1/
+2026-08-15 13:17:14,284 WARNING django.request request_id=- Not Found: /organisation/minifigures/1/loeschen/
+.................C:\Users\sonja\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\Lib\zipfile\__init__.py:1624: UserWarning: Duplicate name: 'private/repeated.txt'
+  return self._open_to_write(zinfo, force_zip64=force_zip64)
+..............................
+----------------------------------------------------------------------
+Ran 187 tests in 153.999s
+
+OK
+Destroying test database for alias 'default'...
+
+================================================================================
+TEST SUMMARY
+================================================================================
+Gesamt: 187
+Passed: 187
+Failed: 0
+Errors: 0
+Skipped: 0
+Laufzeit: 156.940 s
+Status: PASS
+
+================================================================================
+NODE CHECK static\js\app.js
+================================================================================
+Befehl: node --check D:\Video\BrickMissing-8-Django\static\js\app.js
+Exit-Code: 0
+Laufzeit: 0.045 s
+(keine Ausgabe)
+
+================================================================================
+NODE CHECK static\js\labels.js
+================================================================================
+Befehl: node --check D:\Video\BrickMissing-8-Django\static\js\labels.js
+Exit-Code: 0
+Laufzeit: 0.046 s
+(keine Ausgabe)
+
+================================================================================
+NODE CHECK static\js\minifigure-inventory.js
+================================================================================
+Befehl: node --check D:\Video\BrickMissing-8-Django\static\js\minifigure-inventory.js
+Exit-Code: 0
+Laufzeit: 0.043 s
+(keine Ausgabe)
+
+================================================================================
+NODE CHECK static\service-worker.js
+================================================================================
+Befehl: node --check D:\Video\BrickMissing-8-Django\static\service-worker.js
+Exit-Code: 0
+Laufzeit: 0.046 s
+(keine Ausgabe)
+
+================================================================================
+JAVASCRIPT DATEIEN
+================================================================================
+PASS static\js\app.js (0.045 s) 
+PASS static\js\labels.js (0.046 s) 
+PASS static\js\minifigure-inventory.js (0.043 s) 
+PASS static\service-worker.js (0.046 s) 
+
+================================================================================
+URL AUDIT – ROUTE | NAME | VIEW
+================================================================================
+admin/ | admin:index | django.contrib.admin.sites.index | reverse=PASS
+admin/login/ | admin:login | django.contrib.admin.sites.login | reverse=PASS
+admin/logout/ | admin:logout | django.contrib.admin.sites.logout | reverse=PASS
+admin/password_change/ | admin:password_change | django.contrib.admin.sites.password_change | reverse=PASS
+admin/password_change/done/ | admin:password_change_done | django.contrib.admin.sites.password_change_done | reverse=PASS
+admin/autocomplete/ | admin:autocomplete | django.contrib.admin.sites.autocomplete_view | reverse=PASS
+admin/jsi18n/ | admin:jsi18n | django.contrib.admin.sites.i18n_javascript | reverse=PASS
+admin/r/<path:content_type_id>/<path:object_id>/ | admin:view_on_site | django.contrib.contenttypes.views.shortcut | reverse=N/A
+admin/auth/group/ | admin:auth_group_changelist | django.contrib.admin.options.changelist_view | reverse=PASS
+admin/auth/group/add/ | admin:auth_group_add | django.contrib.admin.options.add_view | reverse=PASS
+admin/auth/group/<path:object_id>/history/ | admin:auth_group_history | django.contrib.admin.options.history_view | reverse=N/A
+admin/auth/group/<path:object_id>/delete/ | admin:auth_group_delete | django.contrib.admin.options.delete_view | reverse=N/A
+admin/auth/group/<path:object_id>/change/ | admin:auth_group_change | django.contrib.admin.options.change_view | reverse=N/A
+admin/auth/group/<path:object_id>/ | - | django.views.generic.base.view | reverse=N/A
+admin/accounts/user/<id>/password/ | admin:auth_user_password_change | django.contrib.auth.admin.user_change_password | reverse=N/A
+admin/accounts/user/ | admin:accounts_user_changelist | django.contrib.admin.options.changelist_view | reverse=PASS
+admin/accounts/user/add/ | admin:accounts_user_add | django.contrib.auth.admin.add_view | reverse=PASS
+admin/accounts/user/<path:object_id>/history/ | admin:accounts_user_history | django.contrib.admin.options.history_view | reverse=N/A
+admin/accounts/user/<path:object_id>/delete/ | admin:accounts_user_delete | django.contrib.admin.options.delete_view | reverse=N/A
+admin/accounts/user/<path:object_id>/change/ | admin:accounts_user_change | django.contrib.admin.options.change_view | reverse=N/A
+admin/accounts/user/<path:object_id>/ | - | django.views.generic.base.view | reverse=N/A
+admin/accounts/recoverycode/ | admin:accounts_recoverycode_changelist | django.contrib.admin.options.changelist_view | reverse=PASS
+admin/accounts/recoverycode/add/ | admin:accounts_recoverycode_add | django.contrib.admin.options.add_view | reverse=PASS
+admin/accounts/recoverycode/<path:object_id>/history/ | admin:accounts_recoverycode_history | django.contrib.admin.options.history_view | reverse=N/A
+admin/accounts/recoverycode/<path:object_id>/delete/ | admin:accounts_recoverycode_delete | django.contrib.admin.options.delete_view | reverse=N/A
+admin/accounts/recoverycode/<path:object_id>/change/ | admin:accounts_recoverycode_change | django.contrib.admin.options.change_view | reverse=N/A
+admin/accounts/recoverycode/<path:object_id>/ | - | django.views.generic.base.view | reverse=N/A
+admin/accounts/pendingemailchange/ | admin:accounts_pendingemailchange_changelist | django.contrib.admin.options.changelist_view | reverse=PASS
+admin/accounts/pendingemailchange/add/ | admin:accounts_pendingemailchange_add | django.contrib.admin.options.add_view | reverse=PASS
+admin/accounts/pendingemailchange/<path:object_id>/history/ | admin:accounts_pendingemailchange_history | django.contrib.admin.options.history_view | reverse=N/A
+admin/accounts/pendingemailchange/<path:object_id>/delete/ | admin:accounts_pendingemailchange_delete | django.contrib.admin.options.delete_view | reverse=N/A
+admin/accounts/pendingemailchange/<path:object_id>/change/ | admin:accounts_pendingemailchange_change | django.contrib.admin.options.change_view | reverse=N/A
+admin/accounts/pendingemailchange/<path:object_id>/ | - | django.views.generic.base.view | reverse=N/A
+admin/accounts/accountsession/ | admin:accounts_accountsession_changelist | django.contrib.admin.options.changelist_view | reverse=PASS
+admin/accounts/accountsession/add/ | admin:accounts_accountsession_add | django.contrib.admin.options.add_view | reverse=PASS
+admin/accounts/accountsession/<path=[MASKED] | admin:accounts_accountsession_history | django.contrib.admin.options.history_view | reverse=N/A
+admin/accounts/accountsession/<path=[MASKED] | admin:accounts_accountsession_delete | django.contrib.admin.options.delete_view | reverse=N/A
+admin/accounts/accountsession/<path=[MASKED] | admin:accounts_accountsession_change | django.contrib.admin.options.change_view | reverse=N/A
+admin/accounts/accountsession/<path=[MASKED] | - | django.views.generic.base.view | reverse=N/A
+admin/audit/auditevent/ | admin:audit_auditevent_changelist | django.contrib.admin.options.changelist_view | reverse=PASS
+admin/audit/auditevent/add/ | admin:audit_auditevent_add | django.contrib.admin.options.add_view | reverse=PASS
+admin/audit/auditevent/<path:object_id>/history/ | admin:audit_auditevent_history | django.contrib.admin.options.history_view | reverse=N/A
+admin/audit/auditevent/<path:object_id>/delete/ | admin:audit_auditevent_delete | django.contrib.admin.options.delete_view | reverse=N/A
+admin/audit/auditevent/<path:object_id>/change/ | admin:audit_auditevent_change | django.contrib.admin.options.change_view | reverse=N/A
+admin/audit/auditevent/<path:object_id>/ | - | django.views.generic.base.view | reverse=N/A
+admin/catalog/legoset/ | admin:catalog_legoset_changelist | django.contrib.admin.options.changelist_view | reverse=PASS
+admin/catalog/legoset/add/ | admin:catalog_legoset_add | django.contrib.admin.options.add_view | reverse=PASS
+admin/catalog/legoset/<path:object_id>/history/ | admin:catalog_legoset_history | django.contrib.admin.options.history_view | reverse=N/A
+admin/catalog/legoset/<path:object_id>/delete/ | admin:catalog_legoset_delete | django.contrib.admin.options.delete_view | reverse=N/A
+admin/catalog/legoset/<path:object_id>/change/ | admin:catalog_legoset_change | django.contrib.admin.options.change_view | reverse=N/A
+admin/catalog/legoset/<path:object_id>/ | - | django.views.generic.base.view | reverse=N/A
+admin/catalog/part/ | admin:catalog_part_changelist | django.contrib.admin.options.changelist_view | reverse=PASS
+admin/catalog/part/add/ | admin:catalog_part_add | django.contrib.admin.options.add_view | reverse=PASS
+admin/catalog/part/<path:object_id>/history/ | admin:catalog_part_history | django.contrib.admin.options.history_view | reverse=N/A
+admin/catalog/part/<path:object_id>/delete/ | admin:catalog_part_delete | django.contrib.admin.options.delete_view | reverse=N/A
+admin/catalog/part/<path:object_id>/change/ | admin:catalog_part_change | django.contrib.admin.options.change_view | reverse=N/A
+admin/catalog/part/<path:object_id>/ | - | django.views.generic.base.view | reverse=N/A
+admin/catalog/setcopy/ | admin:catalog_setcopy_changelist | django.contrib.admin.options.changelist_view | reverse=PASS
+admin/catalog/setcopy/add/ | admin:catalog_setcopy_add | django.contrib.admin.options.add_view | reverse=PASS
+admin/catalog/setcopy/<path:object_id>/history/ | admin:catalog_setcopy_history | django.contrib.admin.options.history_view | reverse=N/A
+admin/catalog/setcopy/<path:object_id>/delete/ | admin:catalog_setcopy_delete | django.contrib.admin.options.delete_view | reverse=N/A
+admin/catalog/setcopy/<path:object_id>/change/ | admin:catalog_setcopy_change | django.contrib.admin.options.change_view | reverse=N/A
+admin/catalog/setcopy/<path:object_id>/ | - | django.views.generic.base.view | reverse=N/A
+admin/catalog/setinventoryitem/ | admin:catalog_setinventoryitem_changelist | django.contrib.admin.options.changelist_view | reverse=PASS
+admin/catalog/setinventoryitem/add/ | admin:catalog_setinventoryitem_add | django.contrib.admin.options.add_view | reverse=PASS
+admin/catalog/setinventoryitem/<path:object_id>/history/ | admin:catalog_setinventoryitem_history | django.contrib.admin.options.history_view | reverse=N/A
+admin/catalog/setinventoryitem/<path:object_id>/delete/ | admin:catalog_setinventoryitem_delete | django.contrib.admin.options.delete_view | reverse=N/A
+admin/catalog/setinventoryitem/<path:object_id>/change/ | admin:catalog_setinventoryitem_change | django.contrib.admin.options.change_view | reverse=N/A
+admin/catalog/setinventoryitem/<path:object_id>/ | - | django.views.generic.base.view | reverse=N/A
+admin/catalog/parthistory/ | admin:catalog_parthistory_changelist | django.contrib.admin.options.changelist_view | reverse=PASS
+admin/catalog/parthistory/add/ | admin:catalog_parthistory_add | django.contrib.admin.options.add_view | reverse=PASS
+admin/catalog/parthistory/<path:object_id>/history/ | admin:catalog_parthistory_history | django.contrib.admin.options.history_view | reverse=N/A
+admin/catalog/parthistory/<path:object_id>/delete/ | admin:catalog_parthistory_delete | django.contrib.admin.options.delete_view | reverse=N/A
+admin/catalog/parthistory/<path:object_id>/change/ | admin:catalog_parthistory_change | django.contrib.admin.options.change_view | reverse=N/A
+admin/catalog/parthistory/<path:object_id>/ | - | django.views.generic.base.view | reverse=N/A
+admin/inventory/inventoryitem/ | admin:inventory_inventoryitem_changelist | django.contrib.admin.options.changelist_view | reverse=PASS
+admin/inventory/inventoryitem/add/ | admin:inventory_inventoryitem_add | django.contrib.admin.options.add_view | reverse=PASS
+admin/inventory/inventoryitem/<path:object_id>/history/ | admin:inventory_inventoryitem_history | django.contrib.admin.options.history_view | reverse=N/A
+admin/inventory/inventoryitem/<path:object_id>/delete/ | admin:inventory_inventoryitem_delete | django.contrib.admin.options.delete_view | reverse=N/A
+admin/inventory/inventoryitem/<path:object_id>/change/ | admin:inventory_inventoryitem_change | django.contrib.admin.options.change_view | reverse=N/A
+admin/inventory/inventoryitem/<path:object_id>/ | - | django.views.generic.base.view | reverse=N/A
+admin/inventory/inventorymovement/ | admin:inventory_inventorymovement_changelist | django.contrib.admin.options.changelist_view | reverse=PASS
+admin/inventory/inventorymovement/add/ | admin:inventory_inventorymovement_add | django.contrib.admin.options.add_view | reverse=PASS
+admin/inventory/inventorymovement/<path:object_id>/history/ | admin:inventory_inventorymovement_history | django.contrib.admin.options.history_view | reverse=N/A
+admin/inventory/inventorymovement/<path:object_id>/delete/ | admin:inventory_inventorymovement_delete | django.contrib.admin.options.delete_view | reverse=N/A
+admin/inventory/inventorymovement/<path:object_id>/change/ | admin:inventory_inventorymovement_change | django.contrib.admin.options.change_view | reverse=N/A
+admin/inventory/inventorymovement/<path:object_id>/ | - | django.views.generic.base.view | reverse=N/A
+admin/inventory/warehouselocation/ | admin:inventory_warehouselocation_changelist | django.contrib.admin.options.changelist_view | reverse=PASS
+admin/inventory/warehouselocation/add/ | admin:inventory_warehouselocation_add | django.contrib.admin.options.add_view | reverse=PASS
+admin/inventory/warehouselocation/<path:object_id>/history/ | admin:inventory_warehouselocation_history | django.contrib.admin.options.history_view | reverse=N/A
+admin/inventory/warehouselocation/<path:object_id>/delete/ | admin:inventory_warehouselocation_delete | django.contrib.admin.options.delete_view | reverse=N/A
+admin/inventory/warehouselocation/<path:object_id>/change/ | admin:inventory_warehouselocation_change | django.contrib.admin.options.change_view | reverse=N/A
+admin/inventory/warehouselocation/<path:object_id>/ | - | django.views.generic.base.view | reverse=N/A
+admin/organizer/collection/ | admin:organizer_collection_changelist | django.contrib.admin.options.changelist_view | reverse=PASS
+admin/organizer/collection/add/ | admin:organizer_collection_add | django.contrib.admin.options.add_view | reverse=PASS
+admin/organizer/collection/<path:object_id>/history/ | admin:organizer_collection_history | django.contrib.admin.options.history_view | reverse=N/A
+admin/organizer/collection/<path:object_id>/delete/ | admin:organizer_collection_delete | django.contrib.admin.options.delete_view | reverse=N/A
+admin/organizer/collection/<path:object_id>/change/ | admin:organizer_collection_change | django.contrib.admin.options.change_view | reverse=N/A
+admin/organizer/collection/<path:object_id>/ | - | django.views.generic.base.view | reverse=N/A
+admin/organizer/moc/ | admin:organizer_moc_changelist | django.contrib.admin.options.changelist_view | reverse=PASS
+admin/organizer/moc/add/ | admin:organizer_moc_add | django.contrib.admin.options.add_view | reverse=PASS
+admin/organizer/moc/<path:object_id>/history/ | admin:organizer_moc_history | django.contrib.admin.options.history_view | reverse=N/A
+admin/organizer/moc/<path:object_id>/delete/ | admin:organizer_moc_delete | django.contrib.admin.options.delete_view | reverse=N/A
+admin/organizer/moc/<path:object_id>/change/ | admin:organizer_moc_change | django.contrib.admin.options.change_view | reverse=N/A
+admin/organizer/moc/<path:object_id>/ | - | django.views.generic.base.view | reverse=N/A
+admin/organizer/setminifigure/ | admin:organizer_setminifigure_changelist | django.contrib.admin.options.changelist_view | reverse=PASS
+admin/organizer/setminifigure/add/ | admin:organizer_setminifigure_add | django.contrib.admin.options.add_view | reverse=PASS
+admin/organizer/setminifigure/<path:object_id>/history/ | admin:organizer_setminifigure_history | django.contrib.admin.options.history_view | reverse=N/A
+admin/organizer/setminifigure/<path:object_id>/delete/ | admin:organizer_setminifigure_delete | django.contrib.admin.options.delete_view | reverse=N/A
+admin/organizer/setminifigure/<path:object_id>/change/ | admin:organizer_setminifigure_change | django.contrib.admin.options.change_view | reverse=N/A
+admin/organizer/setminifigure/<path:object_id>/ | - | django.views.generic.base.view | reverse=N/A
+admin/organizer/wishlistitem/ | admin:organizer_wishlistitem_changelist | django.contrib.admin.options.changelist_view | reverse=PASS
+admin/organizer/wishlistitem/add/ | admin:organizer_wishlistitem_add | django.contrib.admin.options.add_view | reverse=PASS
+admin/organizer/wishlistitem/<path:object_id>/history/ | admin:organizer_wishlistitem_history | django.contrib.admin.options.history_view | reverse=N/A
+admin/organizer/wishlistitem/<path:object_id>/delete/ | admin:organizer_wishlistitem_delete | django.contrib.admin.options.delete_view | reverse=N/A
+admin/organizer/wishlistitem/<path:object_id>/change/ | admin:organizer_wishlistitem_change | django.contrib.admin.options.change_view | reverse=N/A
+admin/organizer/wishlistitem/<path:object_id>/ | - | django.views.generic.base.view | reverse=N/A
+admin/organizer/loan/ | admin:organizer_loan_changelist | django.contrib.admin.options.changelist_view | reverse=PASS
+admin/organizer/loan/add/ | admin:organizer_loan_add | django.contrib.admin.options.add_view | reverse=PASS
+admin/organizer/loan/<path:object_id>/history/ | admin:organizer_loan_history | django.contrib.admin.options.history_view | reverse=N/A
+admin/organizer/loan/<path:object_id>/delete/ | admin:organizer_loan_delete | django.contrib.admin.options.delete_view | reverse=N/A
+admin/organizer/loan/<path:object_id>/change/ | admin:organizer_loan_change | django.contrib.admin.options.change_view | reverse=N/A
+admin/organizer/loan/<path:object_id>/ | - | django.views.generic.base.view | reverse=N/A
+admin/organizer/personalnote/ | admin:organizer_personalnote_changelist | django.contrib.admin.options.changelist_view | reverse=PASS
+admin/organizer/personalnote/add/ | admin:organizer_personalnote_add | django.contrib.admin.options.add_view | reverse=PASS
+admin/organizer/personalnote/<path:object_id>/history/ | admin:organizer_personalnote_history | django.contrib.admin.options.history_view | reverse=N/A
+admin/organizer/personalnote/<path:object_id>/delete/ | admin:organizer_personalnote_delete | django.contrib.admin.options.delete_view | reverse=N/A
+admin/organizer/personalnote/<path:object_id>/change/ | admin:organizer_personalnote_change | django.contrib.admin.options.change_view | reverse=N/A
+admin/organizer/personalnote/<path:object_id>/ | - | django.views.generic.base.view | reverse=N/A
+admin/organizer/labeltemplate/ | admin:organizer_labeltemplate_changelist | django.contrib.admin.options.changelist_view | reverse=PASS
+admin/organizer/labeltemplate/add/ | admin:organizer_labeltemplate_add | django.contrib.admin.options.add_view | reverse=PASS
+admin/organizer/labeltemplate/<path:object_id>/history/ | admin:organizer_labeltemplate_history | django.contrib.admin.options.history_view | reverse=N/A
+admin/organizer/labeltemplate/<path:object_id>/delete/ | admin:organizer_labeltemplate_delete | django.contrib.admin.options.delete_view | reverse=N/A
+admin/organizer/labeltemplate/<path:object_id>/change/ | admin:organizer_labeltemplate_change | django.contrib.admin.options.change_view | reverse=N/A
+admin/organizer/labeltemplate/<path:object_id>/ | - | django.views.generic.base.view | reverse=N/A
+admin/organizer/collectionmember/ | admin:organizer_collectionmember_changelist | django.contrib.admin.options.changelist_view | reverse=PASS
+admin/organizer/collectionmember/add/ | admin:organizer_collectionmember_add | django.contrib.admin.options.add_view | reverse=PASS
+admin/organizer/collectionmember/<path:object_id>/history/ | admin:organizer_collectionmember_history | django.contrib.admin.options.history_view | reverse=N/A
+admin/organizer/collectionmember/<path:object_id>/delete/ | admin:organizer_collectionmember_delete | django.contrib.admin.options.delete_view | reverse=N/A
+admin/organizer/collectionmember/<path:object_id>/change/ | admin:organizer_collectionmember_change | django.contrib.admin.options.change_view | reverse=N/A
+admin/organizer/collectionmember/<path:object_id>/ | - | django.views.generic.base.view | reverse=N/A
+admin/organizer/mocpart/ | admin:organizer_mocpart_changelist | django.contrib.admin.options.changelist_view | reverse=PASS
+admin/organizer/mocpart/add/ | admin:organizer_mocpart_add | django.contrib.admin.options.add_view | reverse=PASS
+admin/organizer/mocpart/<path:object_id>/history/ | admin:organizer_mocpart_history | django.contrib.admin.options.history_view | reverse=N/A
+admin/organizer/mocpart/<path:object_id>/delete/ | admin:organizer_mocpart_delete | django.contrib.admin.options.delete_view | reverse=N/A
+admin/organizer/mocpart/<path:object_id>/change/ | admin:organizer_mocpart_change | django.contrib.admin.options.change_view | reverse=N/A
+admin/organizer/mocpart/<path:object_id>/ | - | django.views.generic.base.view | reverse=N/A
+admin/organizer/mocversion/ | admin:organizer_mocversion_changelist | django.contrib.admin.options.changelist_view | reverse=PASS
+admin/organizer/mocversion/add/ | admin:organizer_mocversion_add | django.contrib.admin.options.add_view | reverse=PASS
+admin/organizer/mocversion/<path:object_id>/history/ | admin:organizer_mocversion_history | django.contrib.admin.options.history_view | reverse=N/A
+admin/organizer/mocversion/<path:object_id>/delete/ | admin:organizer_mocversion_delete | django.contrib.admin.options.delete_view | reverse=N/A
+admin/organizer/mocversion/<path:object_id>/change/ | admin:organizer_mocversion_change | django.contrib.admin.options.change_view | reverse=N/A
+admin/organizer/mocversion/<path:object_id>/ | - | django.views.generic.base.view | reverse=N/A
+admin/organizer/minifigurepart/ | admin:organizer_minifigurepart_changelist | django.contrib.admin.options.changelist_view | reverse=PASS
+admin/organizer/minifigurepart/add/ | admin:organizer_minifigurepart_add | django.contrib.admin.options.add_view | reverse=PASS
+admin/organizer/minifigurepart/<path:object_id>/history/ | admin:organizer_minifigurepart_history | django.contrib.admin.options.history_view | reverse=N/A
+admin/organizer/minifigurepart/<path:object_id>/delete/ | admin:organizer_minifigurepart_delete | django.contrib.admin.options.delete_view | reverse=N/A
+admin/organizer/minifigurepart/<path:object_id>/change/ | admin:organizer_minifigurepart_change | django.contrib.admin.options.change_view | reverse=N/A
+admin/organizer/minifigurepart/<path:object_id>/ | - | django.views.generic.base.view | reverse=N/A
+admin/organizer/workshopdocument/ | admin:organizer_workshopdocument_changelist | django.contrib.admin.options.changelist_view | reverse=PASS
+admin/organizer/workshopdocument/add/ | admin:organizer_workshopdocument_add | django.contrib.admin.options.add_view | reverse=PASS
+admin/organizer/workshopdocument/<path:object_id>/history/ | admin:organizer_workshopdocument_history | django.contrib.admin.options.history_view | reverse=N/A
+admin/organizer/workshopdocument/<path:object_id>/delete/ | admin:organizer_workshopdocument_delete | django.contrib.admin.options.delete_view | reverse=N/A
+admin/organizer/workshopdocument/<path:object_id>/change/ | admin:organizer_workshopdocument_change | django.contrib.admin.options.change_view | reverse=N/A
+admin/organizer/workshopdocument/<path:object_id>/ | - | django.views.generic.base.view | reverse=N/A
+admin/^(?P<app_label>auth|accounts|audit|catalog|inventory|organizer)/$ | admin:app_list | django.contrib.admin.sites.app_index | reverse=N/A
+admin/(?P<url>.*)$ | - | django.contrib.admin.sites.catch_all_view | reverse=N/A
+konto/profil/rebrickable/speichern/ | accounts:rebrickable_save | apps.accounts.views.rebrickable_save | reverse=PASS
+konto/profil/rebrickable/testen/ | accounts:rebrickable_test | apps.accounts.views.rebrickable_test | reverse=PASS
+konto/profil/rebrickable/entfernen/ | accounts:rebrickable_remove | apps.accounts.views.rebrickable_remove | reverse=PASS
+konto/registrieren/ | accounts:register | apps.accounts.views.register | reverse=PASS
+konto/anmelden/ | accounts:login | apps.accounts.views.view | reverse=PASS
+konto/abmelden/ | accounts:logout | django.contrib.auth.views.view | reverse=PASS
+konto/profil/ | accounts:profile | apps.accounts.views.account_profile | reverse=PASS
+konto/profil/e-mail-aendern/ | accounts:change_email | apps.accounts.views.change_email | reverse=PASS
+konto/profil/e-mail-bestaetigen/<uuid:pk>/<str:token>/ | accounts:confirm_email_change | apps.accounts.views.confirm_email_change | reverse=N/A
+konto/profil/sitzungen/ | accounts:sessions | apps.accounts.views.sessions | reverse=PASS
+konto/profil/sitzungen/<uuid:pk>/beenden/ | accounts:revoke_session | apps.accounts.views.revoke_session_view | reverse=N/A
+konto/profil/sitzungen/andere-beenden/ | accounts:revoke_other_sessions | apps.accounts.views.revoke_other_sessions | reverse=PASS
+konto/profil/konto-loeschen/ | accounts:delete_account | apps.accounts.views.delete_account | reverse=PASS
+konto/profil/deaktivieren/ | accounts:deactivate | apps.accounts.views.anonymize_account | reverse=PASS
+konto/verifizieren/erneut/ | accounts:resend_verification | apps.accounts.views.resend_verification | reverse=PASS
+konto/verifizieren/<uidb64>/<token>/ | accounts:verify | apps.accounts.views.verify_email | reverse=N/A
+konto/2fa/einrichten/ | accounts:two_factor_setup | apps.accounts.views.two_factor_setup | reverse=PASS
+konto/2fa/qr/ | accounts:two_factor_qr | apps.accounts.views.two_factor_qr | reverse=PASS
+konto/2fa/pruefen/ | accounts:two_factor_challenge | apps.accounts.views.two_factor_challenge | reverse=PASS
+konto/2fa/deaktivieren/ | accounts:two_factor_disable | apps.accounts.views.two_factor_disable | reverse=PASS
+konto/passwort-vergessen/ | accounts:password_reset | apps.accounts.views.view | reverse=PASS
+konto/passwort-vergessen/gesendet/ | accounts:password_reset_done | django.contrib.auth.views.view | reverse=PASS
+konto/passwort-neu/<uidb64>/<token>/ | accounts:password_reset_confirm | apps.accounts.views.view | reverse=N/A
+konto/passwort-neu/fertig/ | accounts:password_reset_complete | django.contrib.auth.views.view | reverse=PASS
+konto/passwort-aendern/ | accounts:password_change | apps.accounts.views.view | reverse=PASS
+ | dashboard | apps.catalog.views.dashboard | reverse=PASS
+sets/ | catalog:set_list | apps.catalog.views.set_list | reverse=PASS
+sets/neu/ | catalog:set_create | apps.catalog.views.set_edit | reverse=PASS
+sets/<uuid:pk>/ | catalog:set_detail | apps.catalog.views.set_detail | reverse=N/A
+sets/<uuid:pk>/bearbeiten/ | catalog:set_edit | apps.catalog.views.set_edit | reverse=N/A
+sets/<uuid:pk>/loeschen/ | catalog:set_delete | apps.catalog.views.set_delete | reverse=N/A
+sets/<uuid:set_pk>/exemplare/neu/ | catalog:set_copy_create | apps.catalog.views.set_copy_edit | reverse=N/A
+sets/<uuid:set_pk>/exemplare/<int:pk>/ | catalog:set_copy_edit | apps.catalog.views.set_copy_edit | reverse=N/A
+sets/<uuid:set_pk>/inventar/neu/ | catalog:set_inventory_create | apps.catalog.views.set_inventory_edit | reverse=N/A
+sets/<uuid:set_pk>/inventar/<int:pk>/ | catalog:set_inventory_edit | apps.catalog.views.set_inventory_edit | reverse=N/A
+sets/<uuid:set_pk>/inventar/aktion/<str:action>/ | catalog:set_inventory_action | apps.catalog.views.set_inventory_action | reverse=N/A
+sets/<uuid:set_pk>/inventar/<int:pk>/bestand/ | catalog:set_inventory_quantity | apps.catalog.views.set_inventory_quantity | reverse=N/A
+teile/ | catalog:part_list | apps.catalog.views.part_list | reverse=PASS
+teile/neu/ | catalog:part_create | apps.catalog.views.part_edit | reverse=PASS
+teile/<uuid:pk>/bearbeiten/ | catalog:part_edit | apps.catalog.views.part_edit | reverse=N/A
+teile/<uuid:pk>/loeschen/ | catalog:part_delete | apps.catalog.views.part_delete | reverse=N/A
+fehlteile/ | catalog:missing_parts | apps.catalog.views.missing_parts | reverse=PASS
+fehlteile/aktion/ | catalog:missing_parts_bulk | apps.catalog.views.missing_parts_bulk | reverse=PASS
+fehlteile/<uuid:pk>/bestand/ | catalog:missing_part_quantity | apps.catalog.views.missing_part_quantity | reverse=N/A
+fehlteile/<uuid:pk>/status/ | catalog:missing_part_status | apps.catalog.views.missing_part_status | reverse=N/A
+papierkorb/ | catalog:trash | apps.catalog.views.trash | reverse=PASS
+papierkorb/<str:kind>/<uuid:pk>/wiederherstellen/ | catalog:restore | apps.catalog.views.restore | reverse=N/A
+papierkorb/<str:kind>/<uuid:pk>/endgueltig-loeschen/ | catalog:permanent_delete | apps.catalog.views.permanent_delete | reverse=N/A
+inventar/ | inventory:list | apps.inventory.views.inventory_list | reverse=PASS
+inventar/neu/ | inventory:create | apps.inventory.views.inventory_edit | reverse=PASS
+inventar/<int:pk>/ | inventory:edit | apps.inventory.views.inventory_edit | reverse=N/A
+lagerorte/ | inventory:locations | apps.inventory.views.locations | reverse=PASS
+lagerorte/neu/ | inventory:location_create | apps.inventory.views.location_edit | reverse=PASS
+lagerorte/<int:pk>/ | inventory:location_edit | apps.inventory.views.location_edit | reverse=N/A
+lagerorte/<int:pk>/qr.svg | inventory:location_qr | apps.inventory.views.location_qr | reverse=N/A
+bestellungen/ | orders:list | apps.orders.views.order_list | reverse=PASS
+bestellungen/neu/ | orders:create | apps.orders.views.order_edit | reverse=PASS
+bestellungen/<int:pk>/ | orders:detail | apps.orders.views.order_detail | reverse=N/A
+bestellungen/<int:pk>/bearbeiten/ | orders:edit | apps.orders.views.order_edit | reverse=N/A
+bestellungen/<int:order_pk>/position/neu/ | orders:item_create | apps.orders.views.item_edit | reverse=N/A
+bestellungen/<int:order_pk>/position/<int:pk>/ | orders:item_edit | apps.orders.views.item_edit | reverse=N/A
+bestellungen/<int:order_pk>/position/<int:pk>/eingang/ | orders:receive_item | apps.orders.views.receive_item | reverse=N/A
+dokumente/ | media_library:list | apps.media_library.views.document_list | reverse=PASS
+dokumente/hochladen/ | media_library:upload | apps.media_library.views.upload | reverse=PASS
+dokumente/<int:pk>/download/ | media_library:download | apps.media_library.views.download | reverse=N/A
+dokumente/<int:pk>/loeschen/ | media_library:delete | apps.media_library.views.delete | reverse=N/A
+daten/import/ | data_portability:import_page | apps.data_portability.views.import_page | reverse=PASS
+daten/import/json/ | data_portability:import_json | apps.data_portability.views.import_json | reverse=PASS
+daten/import/csv/ | data_portability:import_csv | apps.data_portability.views.import_csv | reverse=PASS
+daten/import/<uuid:pk>/bestaetigen/ | data_portability:import_confirm | apps.data_portability.views.import_confirm | reverse=N/A
+daten/export/json/ | data_portability:export_json | apps.data_portability.views.export_json | reverse=PASS
+daten/export/fehlteile.csv | data_portability:export_csv | apps.data_portability.views.export_missing_csv | reverse=PASS
+organisation/minifiguren/ | organizer:minifigure_list | apps.organizer.views.minifigure_list | reverse=PASS
+organisation/etiketten-qr/ | organizer:label_studio | apps.organizer.views.label_studio | reverse=PASS
+organisation/etiketten-qr/qr/<uuid:set_pk>.svg | organizer:label_set_qr | apps.organizer.views.label_set_qr | reverse=N/A
+organisation/labels/<int:pk>/preview/ | organizer:label_preview | apps.organizer.views.label_preview | reverse=N/A
+organisation/labels/<int:pk>/print.css | organizer:label_print_css | apps.organizer.views.label_print_css | reverse=N/A
+organisation/labels/<int:pk>/qr/<int:item_pk>.svg | organizer:label_qr | apps.organizer.views.label_qr | reverse=N/A
+organisation/minifiguren/<int:figure_pk>/teile/<int:pk>/bestand/ | organizer:minifigure_part_quantity | apps.organizer.views.minifigure_part_quantity | reverse=N/A
+organisation/minifiguren/<int:figure_pk>/bestand/<str:action>/ | organizer:minifigure_inventory_action | apps.organizer.views.minifigure_inventory_action | reverse=N/A
+organisation/mocs/<int:moc_pk>/versionen/neu/ | organizer:moc_version_create | apps.organizer.views.moc_version_edit | reverse=N/A
+organisation/mocs/<int:moc_pk>/versionen/<int:pk>/ | organizer:moc_version_edit | apps.organizer.views.moc_version_edit | reverse=N/A
+organisation/mocs/<int:moc_pk>/versionen/<int:pk>/loeschen/ | organizer:moc_version_delete | apps.organizer.views.moc_version_delete | reverse=N/A
+organisation/mocs/<int:moc_pk>/versionen/<int:pk>/aktivieren/ | organizer:moc_version_activate | apps.organizer.views.moc_version_activate | reverse=N/A
+organisation/<str:area>/ | organizer:list | apps.organizer.views.area_list | reverse=N/A
+organisation/<str:area>/neu/ | organizer:create | apps.organizer.views.area_edit | reverse=N/A
+organisation/<str:area>/<int:pk>/ | organizer:edit | apps.organizer.views.area_edit | reverse=N/A
+organisation/<str:area>/<int:pk>/details/ | organizer:detail | apps.organizer.views.area_detail | reverse=N/A
+organisation/<str:area>/<int:parent_pk>/bestandteile/neu/ | organizer:child_create | apps.organizer.views.child_edit | reverse=N/A
+organisation/<str:area>/<int:parent_pk>/bestandteile/<int:pk>/ | organizer:child_edit | apps.organizer.views.child_edit | reverse=N/A
+organisation/<str:area>/<int:pk>/loeschen/ | organizer:delete | apps.organizer.views.area_delete | reverse=N/A
+system/backups/ | backups:list | apps.backups.views.backup_list | reverse=PASS
+system/backups/create/ | backups:create | apps.backups.views.backup_create | reverse=PASS
+system/backups/<int:pk>/download/ | backups:download | apps.backups.views.backup_download | reverse=N/A
+system/backups/<int:pk>/restore/ | backups:restore | apps.backups.views.backup_restore | reverse=N/A
+integrationen/rebrickable/set-suche/ | integrations:rebrickable_set_lookup | apps.integrations.views.rebrickable_set_lookup | reverse=PASS
+integrationen/rebrickable/sets/<uuid:pk>/ | integrations:sync_rebrickable | apps.integrations.views.sync_rebrickable | reverse=N/A
+integrationen/rebrickable/sets/<uuid:pk>/anleitungen/ | integrations:instructions | apps.integrations.views.instructions | reverse=N/A
+integrationen/bild/ | integrations:image_proxy | apps.integrations.views.image_proxy | reverse=PASS
+integrationen/lego-pick-a-brick/<uuid:pk>/ | integrations:pick_a_brick | apps.integrations.views.pick_a_brick | reverse=N/A
+integrationen/preise/sets/<uuid:pk>/ | integrations:sync_price | apps.integrations.views.sync_price | reverse=N/A
+health/ | health | apps.core.views.health | reverse=PASS
+service-worker.js | service_worker | apps.core.views.service_worker | reverse=PASS
+system/email-test/ | test_email | apps.core.views.test_email | reverse=PASS
+benachrichtigungen/ | notifications | apps.core.views.notifications | reverse=PASS
+benachrichtigungen/<int:pk>/gelesen/ | notification_read | apps.core.views.notification_read | reverse=N/A
+suche/ | global_search | apps.core.views.global_search | reverse=PASS
+ansichten/ | saved_views | apps.core.views.saved_views | reverse=PASS
+ansichten/<int:pk>/loeschen/ | saved_view_delete | apps.core.views.saved_view_delete | reverse=N/A
+zuletzt/ | recent_items | apps.core.views.recent_items | reverse=PASS
+datenqualitaet/ | quality | apps.core.views.quality | reverse=PASS
+datenqualitaet/pruefen/ | quality_scan | apps.core.views.quality_scan | reverse=PASS
+
+================================================================================
+FORM AUDIT
+================================================================================
+django.contrib.admin.forms.AdminAuthenticationForm | model=- | username | TextInput | required=True | choices=no | label=Benutzername
+django.contrib.admin.forms.AdminAuthenticationForm | model=- | password | PasswordInput | required=True | choices=no | label=Passwort
+django.contrib.auth.forms.AdminUserCreationForm | model=User | username | TextInput | required=True | choices=no | label=Benutzername
+django.contrib.auth.forms.AdminUserCreationForm | model=User | password1 | PasswordInput | required=False | choices=no | label=Passwort
+django.contrib.auth.forms.AdminUserCreationForm | model=User | password2 | PasswordInput | required=False | choices=no | label=Passwort bestätigen
+django.contrib.auth.forms.AdminUserCreationForm | model=User | usable_password | RadioSelect | required=False | choices=yes | label=Password-based authentication
+django.contrib.auth.forms.AuthenticationForm | model=- | username | TextInput | required=True | choices=no | label=Benutzername
+django.contrib.auth.forms.AuthenticationForm | model=- | password | PasswordInput | required=True | choices=no | label=Passwort
+django.contrib.auth.forms.BaseUserCreationForm | model=User | username | TextInput | required=True | choices=no | label=Benutzername
+django.contrib.auth.forms.BaseUserCreationForm | model=User | password1 | PasswordInput | required=True | choices=no | label=Passwort
+django.contrib.auth.forms.BaseUserCreationForm | model=User | password2 | PasswordInput | required=True | choices=no | label=Passwort bestätigen
+django.contrib.auth.forms.PasswordResetForm | model=- | email | EmailInput | required=True | choices=no | label=E-Mail-Adresse
+django.contrib.auth.forms.UserChangeForm | model=User | password | ReadOnlyPasswordHashWidget | required=False | choices=no | label=Passwort
+django.contrib.auth.forms.UserChangeForm | model=User | last_login | DateTimeInput | required=False | choices=no | label=Letzte Anmeldung
+django.contrib.auth.forms.UserChangeForm | model=User | is_superuser | CheckboxInput | required=False | choices=no | label=Administrator-Status
+django.contrib.auth.forms.UserChangeForm | model=User | groups | SelectMultiple | required=False | choices=no | label=Gruppen
+django.contrib.auth.forms.UserChangeForm | model=User | user_permissions | SelectMultiple | required=False | choices=yes | label=Berechtigungen
+django.contrib.auth.forms.UserChangeForm | model=User | username | TextInput | required=True | choices=no | label=Benutzername
+django.contrib.auth.forms.UserChangeForm | model=User | first_name | TextInput | required=False | choices=no | label=Vorname
+django.contrib.auth.forms.UserChangeForm | model=User | last_name | TextInput | required=False | choices=no | label=Nachname
+django.contrib.auth.forms.UserChangeForm | model=User | email | EmailInput | required=False | choices=no | label=E-Mail-Adresse
+django.contrib.auth.forms.UserChangeForm | model=User | is_staff | CheckboxInput | required=False | choices=no | label=Mitarbeiter-Status
+django.contrib.auth.forms.UserChangeForm | model=User | is_active | CheckboxInput | required=False | choices=no | label=Aktiv
+django.contrib.auth.forms.UserChangeForm | model=User | date_joined | DateTimeInput | required=True | choices=no | label=Mitglied seit
+django.contrib.auth.forms.UserCreationForm | model=User | username | TextInput | required=True | choices=no | label=Benutzername
+django.contrib.auth.forms.UserCreationForm | model=User | password1 | PasswordInput | required=True | choices=no | label=Passwort
+django.contrib.auth.forms.UserCreationForm | model=User | password2 | PasswordInput | required=True | choices=no | label=Passwort bestätigen
+apps.accounts.forms.AccountDeleteForm | model=- | password | PasswordInput | required=True | choices=no | label=Aktuelles Passwort
+apps.accounts.forms.AccountDeleteForm | model=- | confirmation | TextInput | required=True | choices=no | label=Zur Bestätigung „LÖSCHEN“ eingeben
+apps.accounts.forms.DeliverablePasswordResetForm | model=- | email | EmailInput | required=True | choices=no | label=E-Mail-Adresse
+apps.accounts.forms.EmailChangeForm | model=- | email | EmailInput | required=True | choices=no | label=Neue E-Mail-Adresse
+apps.accounts.forms.EmailChangeForm | model=- | password | PasswordInput | required=True | choices=no | label=Aktuelles Passwort
+apps.accounts.forms.RebrickableApiKeyForm | model=- | api_key | PasswordInput | required=True | choices=no | label=Rebrickable API-Key
+apps.accounts.forms.RegistrationForm | model=User | username | TextInput | required=True | choices=no | label=Benutzername
+apps.accounts.forms.RegistrationForm | model=User | email | EmailInput | required=True | choices=no | label=E-Mail
+apps.accounts.forms.RegistrationForm | model=User | password1 | PasswordInput | required=True | choices=no | label=Passwort
+apps.accounts.forms.RegistrationForm | model=User | password2 | PasswordInput | required=True | choices=no | label=Passwort bestätigen
+apps.accounts.forms.VerifiedAuthenticationForm | model=- | username | TextInput | required=True | choices=no | label=Benutzername
+apps.accounts.forms.VerifiedAuthenticationForm | model=- | password | PasswordInput | required=True | choices=no | label=Passwort
+apps.catalog.forms.LegoSetForm | model=LegoSet | set_number | TextInput | required=True | choices=no | label=Setnummer
+apps.catalog.forms.LegoSetForm | model=LegoSet | name | TextInput | required=True | choices=no | label=Name
+apps.catalog.forms.LegoSetForm | model=LegoSet | theme | TextInput | required=False | choices=no | label=Themenwelt
+apps.catalog.forms.LegoSetForm | model=LegoSet | subtheme | TextInput | required=False | choices=no | label=Unterthema
+apps.catalog.forms.LegoSetForm | model=LegoSet | year | NumberInput | required=False | choices=no | label=Erscheinungsjahr
+apps.catalog.forms.LegoSetForm | model=LegoSet | total_parts | NumberInput | required=False | choices=no | label=Teileanzahl
+apps.catalog.forms.LegoSetForm | model=LegoSet | minifigures | NumberInput | required=False | choices=no | label=Minifiguren
+apps.catalog.forms.LegoSetForm | model=LegoSet | description | Textarea | required=False | choices=no | label=Beschreibung
+apps.catalog.forms.LegoSetForm | model=LegoSet | condition | Select | required=True | choices=yes | label=Kaufzustand
+apps.catalog.forms.LegoSetForm | model=LegoSet | completeness | Select | required=True | choices=yes | label=Vollständigkeit
+apps.catalog.forms.LegoSetForm | model=LegoSet | build_status | Select | required=True | choices=yes | label=Aufbaustatus
+apps.catalog.forms.LegoSetForm | model=LegoSet | favorite | CheckboxInput | required=False | choices=no | label=Favorit
+apps.catalog.forms.LegoSetForm | model=LegoSet | image_url | URLInput | required=False | choices=no | label=Bild-URL
+apps.catalog.forms.LegoSetForm | model=LegoSet | purchase_date | DateInput | required=False | choices=no | label=Kaufdatum
+apps.catalog.forms.LegoSetForm | model=LegoSet | purchase_price | NumberInput | required=False | choices=no | label=Kaufpreis
+apps.catalog.forms.LegoSetForm | model=LegoSet | current_value | NumberInput | required=False | choices=no | label=Aktueller Wert
+apps.catalog.forms.LegoSetForm | model=LegoSet | has_box | CheckboxInput | required=False | choices=no | label=Box vorhanden
+apps.catalog.forms.LegoSetForm | model=LegoSet | has_instructions | CheckboxInput | required=False | choices=no | label=Anleitung vorhanden
+apps.catalog.forms.LegoSetForm | model=LegoSet | has_stickers | CheckboxInput | required=False | choices=no | label=Sticker vorhanden
+apps.catalog.forms.LegoSetForm | model=LegoSet | notes | Textarea | required=False | choices=no | label=Notizen
+apps.catalog.forms.PartForm | model=Part | lego_set | Select | required=False | choices=yes | label=Set-Zuordnung
+apps.catalog.forms.PartForm | model=Part | element_id | TextInput | required=True | choices=no | label=Element-ID
+apps.catalog.forms.PartForm | model=Part | design_id | TextInput | required=False | choices=no | label=Design-ID
+apps.catalog.forms.PartForm | model=Part | part_number | TextInput | required=False | choices=no | label=Teilenummer
+apps.catalog.forms.PartForm | model=Part | name | TextInput | required=True | choices=no | label=Name
+apps.catalog.forms.PartForm | model=Part | color | TextInput | required=False | choices=no | label=Farbe
+apps.catalog.forms.PartForm | model=Part | quantity | NumberInput | required=True | choices=no | label=Benötigte Menge
+apps.catalog.forms.PartForm | model=Part | owned_quantity | NumberInput | required=True | choices=no | label=Vorhandene Menge
+apps.catalog.forms.PartForm | model=Part | unassigned_found_quantity | NumberInput | required=True | choices=no | label=Nicht zugeordnete Fundmenge
+apps.catalog.forms.PartForm | model=Part | is_present | CheckboxInput | required=False | choices=no | label=Vorhanden
+apps.catalog.forms.PartForm | model=Part | status | Select | required=True | choices=yes | label=Status
+apps.catalog.forms.PartForm | model=Part | priority | Select | required=True | choices=yes | label=Priorität
+apps.catalog.forms.PartForm | model=Part | unit_price | NumberInput | required=True | choices=no | label=Stückpreis
+apps.catalog.forms.PartForm | model=Part | supplier | TextInput | required=False | choices=no | label=Lieferant
+apps.catalog.forms.PartForm | model=Part | notes | Textarea | required=False | choices=no | label=Notizen
+apps.catalog.forms.PartForm | model=Part | image_url | URLInput | required=False | choices=no | label=Bild-URL
+apps.catalog.forms.SetCopyForm | model=SetCopy | inventory_number | TextInput | required=False | choices=no | label=Inventory number
+apps.catalog.forms.SetCopyForm | model=SetCopy | serial_number | TextInput | required=False | choices=no | label=Serial number
+apps.catalog.forms.SetCopyForm | model=SetCopy | condition | Select | required=True | choices=yes | label=Zustand
+apps.catalog.forms.SetCopyForm | model=SetCopy | completeness | Select | required=True | choices=yes | label=Vollständigkeit
+apps.catalog.forms.SetCopyForm | model=SetCopy | build_status | Select | required=True | choices=yes | label=Aufbaustatus
+apps.catalog.forms.SetCopyForm | model=SetCopy | purchase_date | DateInput | required=False | choices=no | label=Purchase date
+apps.catalog.forms.SetCopyForm | model=SetCopy | purchase_price | NumberInput | required=True | choices=no | label=Purchase price
+apps.catalog.forms.SetCopyForm | model=SetCopy | notes | Textarea | required=False | choices=no | label=Notes
+apps.catalog.forms.SetCopyForm | model=SetCopy | image_url | URLInput | required=False | choices=no | label=Image url
+apps.catalog.forms.SetInventoryItemForm | model=SetInventoryItem | part_number | TextInput | required=True | choices=no | label=Part number
+apps.catalog.forms.SetInventoryItemForm | model=SetInventoryItem | element_id | TextInput | required=False | choices=no | label=Element id
+apps.catalog.forms.SetInventoryItemForm | model=SetInventoryItem | name | TextInput | required=True | choices=no | label=Name
+apps.catalog.forms.SetInventoryItemForm | model=SetInventoryItem | color_id | NumberInput | required=False | choices=no | label=Color id
+apps.catalog.forms.SetInventoryItemForm | model=SetInventoryItem | color_name | TextInput | required=False | choices=no | label=Color name
+apps.catalog.forms.SetInventoryItemForm | model=SetInventoryItem | required_quantity | NumberInput | required=True | choices=no | label=Required quantity
+apps.catalog.forms.SetInventoryItemForm | model=SetInventoryItem | owned_quantity | NumberInput | required=True | choices=no | label=Owned quantity
+apps.catalog.forms.SetInventoryItemForm | model=SetInventoryItem | is_spare | CheckboxInput | required=False | choices=no | label=Is spare
+apps.catalog.forms.SetInventoryItemForm | model=SetInventoryItem | image_url | URLInput | required=False | choices=no | label=Image url
+apps.inventory.forms.InventoryItemForm | model=InventoryItem | part_number | TextInput | required=True | choices=no | label=Teilenummer
+apps.inventory.forms.InventoryItemForm | model=InventoryItem | design_id | TextInput | required=False | choices=no | label=Design-ID
+apps.inventory.forms.InventoryItemForm | model=InventoryItem | element_id | TextInput | required=False | choices=no | label=Element-ID
+apps.inventory.forms.InventoryItemForm | model=InventoryItem | name | TextInput | required=True | choices=no | label=Bezeichnung
+apps.inventory.forms.InventoryItemForm | model=InventoryItem | color | TextInput | required=False | choices=no | label=Farbe
+apps.inventory.forms.InventoryItemForm | model=InventoryItem | category | TextInput | required=False | choices=no | label=Kategorie
+apps.inventory.forms.InventoryItemForm | model=InventoryItem | subcategory | TextInput | required=False | choices=no | label=Unterkategorie
+apps.inventory.forms.InventoryItemForm | model=InventoryItem | condition | Select | required=True | choices=yes | label=Zustand
+apps.inventory.forms.InventoryItemForm | model=InventoryItem | location | Select | required=False | choices=yes | label=Lagerort
+apps.inventory.forms.InventoryItemForm | model=InventoryItem | image_url | URLInput | required=False | choices=no | label=Bild-URL
+apps.inventory.forms.InventoryItemForm | model=InventoryItem | source | TextInput | required=False | choices=no | label=Quelle
+apps.inventory.forms.InventoryItemForm | model=InventoryItem | purchase_price | NumberInput | required=True | choices=no | label=Einkaufspreis
+apps.inventory.forms.InventoryItemForm | model=InventoryItem | unit_price | NumberInput | required=True | choices=no | label=Stückpreis
+apps.inventory.forms.InventoryItemForm | model=InventoryItem | notes | Textarea | required=False | choices=no | label=Notizen
+apps.inventory.forms.InventoryItemForm | model=InventoryItem | quantity | NumberInput | required=True | choices=no | label=Bestand
+apps.inventory.forms.InventoryItemForm | model=InventoryItem | reserved_quantity | NumberInput | required=True | choices=no | label=Reserviert
+apps.inventory.forms.WarehouseLocationForm | model=WarehouseLocation | parent | Select | required=False | choices=yes | label=Übergeordneter Lagerort
+apps.inventory.forms.WarehouseLocationForm | model=WarehouseLocation | name | TextInput | required=True | choices=no | label=Name
+apps.inventory.forms.WarehouseLocationForm | model=WarehouseLocation | location_type | TextInput | required=True | choices=no | label=Art des Lagerorts
+apps.inventory.forms.WarehouseLocationForm | model=WarehouseLocation | short_code | TextInput | required=False | choices=no | label=Kurzcode
+apps.inventory.forms.WarehouseLocationForm | model=WarehouseLocation | description | Textarea | required=False | choices=no | label=Beschreibung
+apps.inventory.forms.WarehouseLocationForm | model=WarehouseLocation | room | TextInput | required=False | choices=no | label=Raum
+apps.inventory.forms.WarehouseLocationForm | model=WarehouseLocation | color | TextInput | required=False | choices=no | label=Farbkennzeichnung
+apps.inventory.forms.WarehouseLocationForm | model=WarehouseLocation | capacity | NumberInput | required=True | choices=no | label=Kapazität
+apps.inventory.forms.WarehouseLocationForm | model=WarehouseLocation | photo_url | URLInput | required=False | choices=no | label=Foto-URL
+apps.inventory.forms.WarehouseLocationForm | model=WarehouseLocation | notes | Textarea | required=False | choices=no | label=Notizen
+apps.inventory.forms.WarehouseLocationForm | model=WarehouseLocation | active | CheckboxInput | required=False | choices=no | label=Aktiv
+apps.inventory.forms.WarehouseLocationForm | model=WarehouseLocation | locked | CheckboxInput | required=False | choices=no | label=Gesperrt
+apps.orders.forms.OrderForm | model=Order | supplier | TextInput | required=True | choices=no | label=Lieferant
+apps.orders.forms.OrderForm | model=Order | order_number | TextInput | required=False | choices=no | label=Bestellnummer
+apps.orders.forms.OrderForm | model=Order | status | Select | required=True | choices=yes | label=Status
+apps.orders.forms.OrderForm | model=Order | order_date | DateInput | required=False | choices=no | label=Bestelldatum
+apps.orders.forms.OrderForm | model=Order | expected_delivery | DateInput | required=False | choices=no | label=Erwartete Lieferung
+apps.orders.forms.OrderForm | model=Order | delivery_date | DateInput | required=False | choices=no | label=Lieferdatum
+apps.orders.forms.OrderForm | model=Order | goods_total | NumberInput | required=True | choices=no | label=Warenwert
+apps.orders.forms.OrderForm | model=Order | shipping_cost | NumberInput | required=True | choices=no | label=Versandkosten
+apps.orders.forms.OrderForm | model=Order | total | NumberInput | required=True | choices=no | label=Gesamt
+apps.orders.forms.OrderForm | model=Order | currency | Select | required=True | choices=yes | label=Währung
+apps.orders.forms.OrderForm | model=Order | payment_status | Select | required=False | choices=yes | label=Zahlungsstatus
+apps.orders.forms.OrderForm | model=Order | shipping_status | Select | required=False | choices=yes | label=Versandstatus
+apps.orders.forms.OrderForm | model=Order | tracking_number | TextInput | required=False | choices=no | label=Sendungsnummer
+apps.orders.forms.OrderForm | model=Order | tracking_url | URLInput | required=False | choices=no | label=Tracking-URL
+apps.orders.forms.OrderForm | model=Order | notes | Textarea | required=False | choices=no | label=Notizen
+apps.orders.forms.OrderItemForm | model=OrderItem | inventory_item | Select | required=False | choices=yes | label=Inventory item
+apps.orders.forms.OrderItemForm | model=OrderItem | part_number | TextInput | required=True | choices=no | label=Part number
+apps.orders.forms.OrderItemForm | model=OrderItem | name | TextInput | required=False | choices=no | label=Name
+apps.orders.forms.OrderItemForm | model=OrderItem | color | TextInput | required=False | choices=no | label=Color
+apps.orders.forms.OrderItemForm | model=OrderItem | quantity | NumberInput | required=True | choices=no | label=Quantity
+apps.orders.forms.OrderItemForm | model=OrderItem | received_quantity | NumberInput | required=True | choices=no | label=Received quantity
+apps.orders.forms.OrderItemForm | model=OrderItem | damaged_quantity | NumberInput | required=True | choices=no | label=Damaged quantity
+apps.orders.forms.OrderItemForm | model=OrderItem | wrong_quantity | NumberInput | required=True | choices=no | label=Wrong quantity
+apps.orders.forms.OrderItemForm | model=OrderItem | unit_price | NumberInput | required=True | choices=no | label=Unit price
+apps.orders.forms.OrderItemForm | model=OrderItem | target_set | Select | required=False | choices=yes | label=Target set
+apps.orders.forms.OrderItemForm | model=OrderItem | target_location | Select | required=False | choices=yes | label=Target location
+apps.orders.forms.OrderItemForm | model=OrderItem | notes | Textarea | required=False | choices=no | label=Notes
+apps.media_library.forms.PrivateDocumentForm | model=PrivateDocument | entity_type | Select | required=True | choices=yes | label=Objekttyp
+apps.media_library.forms.PrivateDocumentForm | model=PrivateDocument | entity_id | TextInput | required=True | choices=no | label=Objekt-ID
+apps.media_library.forms.PrivateDocumentForm | model=PrivateDocument | document_type | Select | required=True | choices=yes | label=Dokumenttyp
+apps.media_library.forms.PrivateDocumentForm | model=PrivateDocument | title | TextInput | required=True | choices=no | label=Titel
+apps.media_library.forms.PrivateDocumentForm | model=PrivateDocument | file | ClearableFileInput | required=True | choices=no | label=Datei
+
+================================================================================
+MODEL STRING AUDIT
+================================================================================
+admin.LogEntry | __str__=JA | kein sicherer Beispieldatensatz erzeugt
+auth.Permission | __str__=JA | kein sicherer Beispieldatensatz erzeugt
+auth.Group | __str__=JA | kein sicherer Beispieldatensatz erzeugt
+contenttypes.ContentType | __str__=JA | kein sicherer Beispieldatensatz erzeugt
+sessions.Session | __str__=GEERBT/NEIN | kein sicherer Beispieldatensatz erzeugt
+accounts.User | __str__=GEERBT/NEIN | kein sicherer Beispieldatensatz erzeugt
+accounts.PendingEmailChange | __str__=GEERBT/NEIN | kein sicherer Beispieldatensatz erzeugt
+accounts.AccountSession | __str__=GEERBT/NEIN | kein sicherer Beispieldatensatz erzeugt
+accounts.RecoveryCode | __str__=GEERBT/NEIN | kein sicherer Beispieldatensatz erzeugt
+audit.AuditEvent | __str__=GEERBT/NEIN | kein sicherer Beispieldatensatz erzeugt
+core.Notification | __str__=GEERBT/NEIN | kein sicherer Beispieldatensatz erzeugt
+core.SavedView | __str__=GEERBT/NEIN | kein sicherer Beispieldatensatz erzeugt
+core.RecentItem | __str__=GEERBT/NEIN | kein sicherer Beispieldatensatz erzeugt
+core.DataQualityIssue | __str__=GEERBT/NEIN | kein sicherer Beispieldatensatz erzeugt
+catalog.LegoSet | __str__=JA | kein sicherer Beispieldatensatz erzeugt
+catalog.SetCopy | __str__=JA | kein sicherer Beispieldatensatz erzeugt
+catalog.SetInventoryItem | __str__=JA | kein sicherer Beispieldatensatz erzeugt
+catalog.Part | __str__=JA | kein sicherer Beispieldatensatz erzeugt
+catalog.PartHistory | __str__=GEERBT/NEIN | kein sicherer Beispieldatensatz erzeugt
+inventory.WarehouseLocation | __str__=JA | kein sicherer Beispieldatensatz erzeugt
+inventory.InventoryItem | __str__=JA | kein sicherer Beispieldatensatz erzeugt
+inventory.InventoryMovement | __str__=GEERBT/NEIN | kein sicherer Beispieldatensatz erzeugt
+orders.Order | __str__=GEERBT/NEIN | kein sicherer Beispieldatensatz erzeugt
+orders.OrderItem | __str__=GEERBT/NEIN | kein sicherer Beispieldatensatz erzeugt
+organizer.Collection | __str__=JA | kein sicherer Beispieldatensatz erzeugt
+organizer.CollectionMember | __str__=JA | kein sicherer Beispieldatensatz erzeugt
+organizer.Moc | __str__=JA | kein sicherer Beispieldatensatz erzeugt
+organizer.MocPart | __str__=JA | kein sicherer Beispieldatensatz erzeugt
+organizer.MocVersion | __str__=JA | kein sicherer Beispieldatensatz erzeugt
+organizer.WishlistItem | __str__=JA | kein sicherer Beispieldatensatz erzeugt
+organizer.Loan | __str__=JA | kein sicherer Beispieldatensatz erzeugt
+organizer.PersonalNote | __str__=JA | kein sicherer Beispieldatensatz erzeugt
+organizer.WorkshopDocument | __str__=JA | kein sicherer Beispieldatensatz erzeugt
+organizer.LabelTemplate | __str__=JA | kein sicherer Beispieldatensatz erzeugt
+organizer.SetMinifigure | __str__=JA | kein sicherer Beispieldatensatz erzeugt
+organizer.MinifigurePart | __str__=JA | kein sicherer Beispieldatensatz erzeugt
+media_library.PrivateDocument | __str__=GEERBT/NEIN | kein sicherer Beispieldatensatz erzeugt
+data_portability.LegacyImportRecord | __str__=GEERBT/NEIN | kein sicherer Beispieldatensatz erzeugt
+data_portability.LegacyArchiveRecord | __str__=GEERBT/NEIN | kein sicherer Beispieldatensatz erzeugt
+data_portability.ImportBatch | __str__=GEERBT/NEIN | kein sicherer Beispieldatensatz erzeugt
+backups.BackupArtifact | __str__=GEERBT/NEIN | kein sicherer Beispieldatensatz erzeugt
+integrations.PriceObservation | __str__=GEERBT/NEIN | kein sicherer Beispieldatensatz erzeugt
+integrations.ValueSnapshot | __str__=GEERBT/NEIN | kein sicherer Beispieldatensatz erzeugt
+
+================================================================================
+DATABASE CONSISTENCY / SET COMPLETENESS
+================================================================================
+Datenbank: sqlite (ausschließlich SELECT)
+Sets ohne Nummer: 0
+Sets ohne Namen: 0
+Setinventar owned > required: 0
+Parts owned > required: 0
+Parts gefunden aber Bestand 0: 0
+Parts fehlt aber vollständig: 0
+Minifigurteile owned > required: 0
+Minifiguren Menge 0: 0
+Inventar ungültige Menge: 0
+Bestellungen ungültiger Status: 0
+Legacy-Platzhalter-E-Mails: 0
+Set-Vollständigkeitsabweichungen: 0
+
+================================================================================
+TEMPLATE / TRANSLATION / SOURCE AUDIT
+================================================================================
+object (...): apps\backups\tests.py:433: with patch.object(connection, "commit", side_effect=fail_first_commit):
+Inline-JavaScript: apps\core\tests.py:163: r"javascript:|\son(?:click|change|submit|input|keydown|keyup|load)\s*=|<script(?![^>]*\bsrc=)|<style\b|\sstyle\s*=",
+localhost/127.0.0.1: apps\core\tests.py:194: request = self.factory.get("/", REMOTE_ADDR="127.0.0.1", HTTP_X_FORWARDED_FOR="203.0.113.8")
+localhost/127.0.0.1: apps\core\tests.py:199: "/", REMOTE_ADDR="127.0.0.1", HTTP_X_FORWARDED_FOR="203.0.113.8, 10.0.0.2"
+localhost/127.0.0.1: apps\core\tests.py:201: self.assertEqual(client_ip(request), "127.0.0.1")
+object (...): apps\core\test_full_debug.py:29: @mock.patch.object(full_debug, "idor_audit")
+object (...): apps\core\test_full_debug.py:30: @mock.patch.object(full_debug, "static_and_service_worker")
+object (...): apps\core\test_full_debug.py:31: @mock.patch.object(full_debug, "security_audit")
+object (...): apps\core\test_full_debug.py:32: @mock.patch.object(full_debug, "source_audit")
+object (...): apps\core\test_full_debug.py:33: @mock.patch.object(full_debug, "database_audit")
+object (...): apps\core\test_full_debug.py:34: @mock.patch.object(full_debug, "forms_and_models")
+object (...): apps\core\test_full_debug.py:35: @mock.patch.object(full_debug, "url_audit")
+object (...): apps\core\test_full_debug.py:36: @mock.patch.object(full_debug, "javascript_audit")
+object (...): apps\core\test_full_debug.py:37: @mock.patch.object(full_debug, "framework_commands")
+object (...): apps\core\test_full_debug.py:38: @mock.patch.object(full_debug, "header")
+object (...): apps\core\test_full_debug.py:39: @mock.patch.object(full_debug, "django_setup", return_value=object())
+localhost/127.0.0.1: apps\core\test_full_debug.py:66: full_debug.public_http(full_debug.Report(), "http://127.0.0.1:8000")
+localhost/127.0.0.1: apps\data_portability\tests.py:281: same = {"HOST": "127.0.0.1", "PORT": "3306", "NAME": "brickmissing"}
+localhost/127.0.0.1: apps\integrations\tests.py:44: self.assertEqual(self.client.get(reverse("integrations:image_proxy"), {"url": "http://127.0.0.1/secret"}).status_code, 400)
+localhost/127.0.0.1: apps\integrations\tests.py:47: @patch("apps.integrations.services.socket.getaddrinfo", return_value=[(2, 1, 6, "", ("127.0.0.1", 443))])
+localhost/127.0.0.1: apps\integrations\tests.py:54: "127.0.0.1", "::1", "10.0.0.1", "172.16.0.1", "192.168.1.1",
+localhost/127.0.0.1: apps\integrations\tests.py:67: "not-a-url", "https://127.0.0.1/a.png",
+localhost/127.0.0.1: apps\integrations\tests.py:72: "https://cdn.rebrickable.com/a.png", 302, "redirect", {"Location": "http://127.0.0.1/"}, io.BytesIO()
+object (...): apps\organizer\tests.py:234: self.assertNotContains(response, " object (")
+localhost/127.0.0.1: apps\organizer\tests.py:452: def test_configured_public_origin_is_used_without_localhost(self):
+localhost/127.0.0.1: apps\organizer\tests.py:455: self.assertNotContains(response, "127.0.0.1")
+localhost/127.0.0.1: apps\data_portability\management\commands\migrate_legacy_brickmissing.py:97: host = str(cfg.get("HOST") or "localhost").casefold()
+localhost/127.0.0.1: apps\data_portability\management\commands\migrate_legacy_brickmissing.py:98: host = "loopback" if host in {"localhost", "127.0.0.1", "::1"} else host
+
+================================================================================
+SECURITY AUDIT (keine Secret-Werte)
+================================================================================
+DEBUG deaktiviert: VALID/SET
+ALLOWED_HOSTS gesetzt: VALID/SET
+SESSION_COOKIE_SECURE=[MASKED]
+CSRF_COOKIE_SECURE=[MASKED]
+SECURE_SSL_REDIRECT: VALID/SET
+HSTS gesetzt: VALID/SET
+CSP Middleware/Settings: VALID/SET
+SECRET_KEY Mindestlänge: VALID/SET
+
+================================================================================
+STATIC FILES / SERVICE WORKER
+================================================================================
+Referenzen: 11
+Fehlend: 0
+service-worker.js: vorhanden
+Cache-Version: brickmissing-shell-v73
+
+================================================================================
+PERMISSION / IDOR STATIC AUDIT
+================================================================================
+apps\accounts\views.py:97: user = User.objects.get(pk=force_str(urlsafe_base64_decode(uidb64)))
+apps\accounts\views.py:278: user = User.objects.get(pk=user_id, is_active=True, totp_enabled=True)
+apps\backups\views.py:37: artifact = get_object_or_404(BackupArtifact, pk=pk, status="ready")
+apps\backups\views.py:51: artifact = get_object_or_404(BackupArtifact, pk=pk, status="ready")
+apps\catalog\views.py:602: instance = get_object_or_404(SetInventoryItem, pk=pk, lego_set=lego_set) if pk else None
+apps\catalog\views.py:646: item = get_object_or_404(SetInventoryItem.objects.select_for_update(), pk=pk, lego_set=lego_set)
+apps\orders\views.py:49: item = get_object_or_404(OrderItem, pk=pk, order=order) if pk else None
+apps\orders\views.py:66: item = get_object_or_404(OrderItem.objects.select_for_update(), pk=pk, order=order)
+apps\organizer\views.py:580: version = get_object_or_404(MocVersion, pk=pk, moc=moc) if pk else None
+apps\organizer\views.py:610: version = get_object_or_404(MocVersion, pk=pk, moc=moc)
+apps\organizer\views.py:629: version = get_object_or_404(MocVersion, pk=pk, moc=moc)
+apps\organizer\views.py:701: instance = get_object_or_404(model, pk=pk, **{relation: parent}) if pk else None
+apps\organizer\views.py:738: part = get_object_or_404(MinifigurePart.objects.select_for_update(), pk=pk, minifigure=figure)
+
+================================================================================
+READ-ONLY CRAWLER / DIAGNOSTICS
+================================================================================
+Authentifizierte Schreibdiagnosen werden ausschließlich von der Django-Test-Suite in einer isolierten Testdatenbank ausgeführt.
+MinifigureInventoryInteractionTests prüft 0→1/komplett, JSON, refresh_from_db-äquivalente Persistenz, Status und Set-Vollständigkeit.
+LabelStudioTests prüft alle vier Modi, Partials, Startpositionen, QR-Ziele, Auswahl und sichere Origin-Erzeugung.
+Production-Modus führt niemals POST/PUT/PATCH/DELETE aus.
+
+================================================================================
+ZUSAMMENFASSUNG
+================================================================================
+CRITICAL: 0
+ERROR: 0
+WARNING: 37
+PASS: 34
+INFO: 0
+
+ALLE FUNDE
+[PASS] DJANGO SYSTEM CHECK: Exit-Code 0
+[PASS] DJANGO DEPLOY CHECK: Exit-Code 0
+[PASS] MIGRATION DRIFT: Exit-Code 0
+[PASS] RUFF: Exit-Code 0
+[PASS] PYTHON SYNTAX: Syntaxfehler: 0
+[PASS] COLLECTSTATIC DRY RUN: Exit-Code 0
+[PASS] TEST SUITE: Exit-Code 0
+[PASS] NODE CHECK static\js\app.js: Exit-Code 0
+[PASS] NODE CHECK static\js\labels.js: Exit-Code 0
+[PASS] NODE CHECK static\js\minifigure-inventory.js: Exit-Code 0
+[PASS] NODE CHECK static\service-worker.js: Exit-Code 0
+[PASS] URL AUDIT: 279 URL-Patterns rekursiv erfasst.
+[WARNING] FORM AUDIT: Formular nicht parameterlos instanziierbar: AdminPasswordChangeForm
+  SetPasswordForm.__init__() missing 1 required positional argument: 'user'
+[WARNING] FORM AUDIT: Formular nicht parameterlos instanziierbar: AdminPasswordChangeForm
+  AdminPasswordChangeForm.__init__() missing 1 required positional argument: 'user'
+[WARNING] FORM AUDIT: Formular nicht parameterlos instanziierbar: PasswordChangeForm
+  SetPasswordForm.__init__() missing 1 required positional argument: 'user'
+[WARNING] FORM AUDIT: Formular nicht parameterlos instanziierbar: SetPasswordForm
+  SetPasswordForm.__init__() missing 1 required positional argument: 'user'
+[WARNING] FORM AUDIT: NumberInput ohne sichtbares min: LegoSetForm.purchase_price
+[WARNING] FORM AUDIT: NumberInput ohne sichtbares min: LegoSetForm.current_value
+[WARNING] FORM AUDIT: NumberInput ohne sichtbares min: PartForm.unit_price
+[WARNING] FORM AUDIT: NumberInput ohne sichtbares min: SetCopyForm.purchase_price
+[WARNING] FORM AUDIT: NumberInput ohne sichtbares min: SetInventoryItemForm.color_id
+[WARNING] FORM AUDIT: NumberInput ohne sichtbares min: OrderForm.goods_total
+[WARNING] FORM AUDIT: NumberInput ohne sichtbares min: OrderForm.shipping_cost
+[WARNING] FORM AUDIT: NumberInput ohne sichtbares min: OrderForm.total
+[WARNING] FORM AUDIT: NumberInput ohne sichtbares min: OrderItemForm.unit_price
+[WARNING] MODEL STRING AUDIT: Kein eigener __str__: sessions.Session
+[WARNING] MODEL STRING AUDIT: Kein eigener __str__: accounts.User
+[WARNING] MODEL STRING AUDIT: Kein eigener __str__: accounts.PendingEmailChange
+[WARNING] MODEL STRING AUDIT: Kein eigener __str__: accounts.AccountSession
+[WARNING] MODEL STRING AUDIT: Kein eigener __str__: accounts.RecoveryCode
+[WARNING] MODEL STRING AUDIT: Kein eigener __str__: audit.AuditEvent
+[WARNING] MODEL STRING AUDIT: Kein eigener __str__: core.Notification
+[WARNING] MODEL STRING AUDIT: Kein eigener __str__: core.SavedView
+[WARNING] MODEL STRING AUDIT: Kein eigener __str__: core.RecentItem
+[WARNING] MODEL STRING AUDIT: Kein eigener __str__: core.DataQualityIssue
+[WARNING] MODEL STRING AUDIT: Kein eigener __str__: catalog.PartHistory
+[WARNING] MODEL STRING AUDIT: Kein eigener __str__: inventory.InventoryMovement
+[WARNING] MODEL STRING AUDIT: Kein eigener __str__: orders.Order
+[WARNING] MODEL STRING AUDIT: Kein eigener __str__: orders.OrderItem
+[WARNING] MODEL STRING AUDIT: Kein eigener __str__: media_library.PrivateDocument
+[WARNING] MODEL STRING AUDIT: Kein eigener __str__: data_portability.LegacyImportRecord
+[WARNING] MODEL STRING AUDIT: Kein eigener __str__: data_portability.LegacyArchiveRecord
+[WARNING] MODEL STRING AUDIT: Kein eigener __str__: data_portability.ImportBatch
+[WARNING] MODEL STRING AUDIT: Kein eigener __str__: backups.BackupArtifact
+[WARNING] MODEL STRING AUDIT: Kein eigener __str__: integrations.PriceObservation
+[WARNING] MODEL STRING AUDIT: Kein eigener __str__: integrations.ValueSnapshot
+[PASS] DATABASE CONSISTENCY: Sets ohne Nummer: 0
+[PASS] DATABASE CONSISTENCY: Sets ohne Namen: 0
+[PASS] DATABASE CONSISTENCY: Setinventar owned > required: 0
+[PASS] DATABASE CONSISTENCY: Parts owned > required: 0
+[PASS] DATABASE CONSISTENCY: Parts gefunden aber Bestand 0: 0
+[PASS] DATABASE CONSISTENCY: Parts fehlt aber vollständig: 0
+[PASS] DATABASE CONSISTENCY: Minifigurteile owned > required: 0
+[PASS] DATABASE CONSISTENCY: Minifiguren Menge 0: 0
+[PASS] DATABASE CONSISTENCY: Inventar ungültige Menge: 0
+[PASS] DATABASE CONSISTENCY: Bestellungen ungültiger Status: 0
+[PASS] DATABASE CONSISTENCY: Legacy-Platzhalter-E-Mails: 0
+[PASS] SET COMPLETENESS: Abweichungen: 0
+[WARNING] SOURCE/TEMPLATE AUDIT: localhost/127.0.0.1 in apps\data_portability\management\commands\migrate_legacy_brickmissing.py:97
+[WARNING] SOURCE/TEMPLATE AUDIT: localhost/127.0.0.1 in apps\data_portability\management\commands\migrate_legacy_brickmissing.py:98
+[PASS] SECURITY AUDIT: DEBUG deaktiviert
+[PASS] SECURITY AUDIT: ALLOWED_HOSTS gesetzt
+[PASS] SECURITY AUDIT: SESSION_COOKIE_SECURE
+[PASS] SECURITY AUDIT: CSRF_COOKIE_SECURE
+[PASS] SECURITY AUDIT: SECURE_SSL_REDIRECT
+[PASS] SECURITY AUDIT: HSTS gesetzt
+[PASS] SECURITY AUDIT: CSP Middleware/Settings
+[PASS] SECURITY AUDIT: SECRET_KEY Mindestlänge
+[PASS] STATIC FILES: Fehlende referenzierte Assets: 0
+[WARNING] PERMISSION / IDOR: Manuell zu prüfende Treffer: 13
+[PASS] SAFETY: Audit beendet; keine Migration, kein Import, kein Deployment und keine E-Mail ausgelöst.
