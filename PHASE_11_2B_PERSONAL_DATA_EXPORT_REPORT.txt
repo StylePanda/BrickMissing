@@ -1,0 +1,197 @@
+PHASE 11.2B – VOLLSTÄNDIGER PERSONENBEZOGENER DATENEXPORT
+Stand: 2026-08-15
+
+1. ZIEL UND ERGEBNIS
+
+Ein eigenständiger personenbezogener Gesamtexport wurde implementiert. Er ergänzt
+den bestehenden Set-/Teileexport und ersetzt oder verändert diesen nicht. Der Export
+wird ausschließlich für den aktuell angemeldeten Benutzer als ZIP im Arbeitsspeicher
+erzeugt und nicht öffentlich oder dauerhaft gespeichert.
+
+2. UNTERSUCHTE APPS UND MODELS
+
+accounts:
+- User: exportiert sichere Account-, Status-, Gruppen-, direkte Berechtigungs- und
+  Zeitangaben.
+- PendingEmailChange, AccountSession, RecoveryCode: vollständig ausgeschlossen.
+
+audit:
+- AuditEvent: eigene Actor-/Target-Ereignisse, sicher minimiert.
+
+backups:
+- BackupArtifact: nur eigene Ersteller-Zuordnung und nicht-sensitive Metadaten.
+  Backup-Dateiname, SHA-256 und Backup-Inhalt sind ausgeschlossen.
+
+catalog:
+- LegoSet, SetCopy, SetInventoryItem, Part und PartHistory.
+
+core:
+- Notification, SavedView, RecentItem und DataQualityIssue.
+
+data_portability:
+- ImportBatch: Metadaten/Report ohne rohe Payload.
+- LegacyArchiveRecord: eigene Metadaten ohne Payload/Quell-Fingerprint.
+- LegacyImportRecord: bewusst nicht exportiert, weil imported_by den ausführenden
+  Importeur und nicht verlässlich den Dateneigentümer bezeichnet.
+
+integrations:
+- PriceObservation und ValueSnapshot.
+- Der verschlüsselte Rebrickable-API-Key wird niemals exportiert.
+
+inventory:
+- WarehouseLocation, InventoryItem und indirekt eigene InventoryMovement-Datensätze.
+
+media_library:
+- PrivateDocument-Metadaten und verfügbare physische eigene Dateien.
+
+orders:
+- Order und indirekt zugehörige OrderItem-Datensätze.
+
+organizer:
+- Collection, eigene CollectionMember-Mitgliedschaften, Moc, MocPart, MocVersion,
+  WishlistItem, Loan, PersonalNote, WorkshopDocument, LabelTemplate,
+  SetMinifigure und MinifigurePart.
+
+3. EXPORTSTRUKTUR
+
+- manifest.json
+- account.json
+- collections.json
+- inventory.json
+- organizer.json
+- orders.json
+- notifications.json
+- audit.json
+- imports.json
+- private_documents.json
+- files/<document-id>-<sicherer-dateiname> für verfügbare eigene Dokumente
+
+JSON ist UTF-8, eingerückt und strukturell stabil. UUID, Datum/Zeit und Decimal
+werden über DjangoJSONEncoder als sichere JSON-Strings serialisiert. manifest.json
+enthält Formatversion 1.0, Erstellungszeitpunkt, BrickMissing-Version, Benutzer-ID,
+Dateiliste, Kategorien, Datensatzanzahlen und Dateistatus.
+
+4. BEWUSST AUSGESCHLOSSENE DATEN
+
+- Passwort und Passwort-Hash
+- SECRET_KEY, Environment-Variablen und Infrastruktur-Secrets
+- TOTP-Secret und Recovery-Code-Digests
+- Session-Keys und Django-Session-Inhalte
+- Pending-E-Mail-Token-Digests
+- verschlüsselter Rebrickable-API-Key
+- Datenbank-/SMTP-Zugangsdaten
+- rohe ImportBatch- und LegacyArchiveRecord-Payloads
+- Legacy-Quell-Fingerprints
+- globale LegacyImportRecord-Zuordnungen
+- Audit-E-Mail-Hashes, Identitätssnapshots und Freitext-details
+- Backup-Dateiname, Backup-Hash und Backup-Inhalt
+- Benutzer- und Inhaltsdaten anderer Benutzer
+
+5. SHARED DATA
+
+Eigene Collections werden vollständig exportiert. Bei fremdbesessenen geteilten
+Collections wird nur die eigene CollectionMember-Zeile mit Collection-ID und eigener
+Rolle exportiert. Namen, E-Mail-Adressen, User-IDs und Rollen anderer Mitglieder
+werden nicht exportiert.
+
+6. PRIVATE DATEIEN
+
+Nur PrivateDocument-Datensätze mit owner == request.user werden berücksichtigt.
+Dateipfade müssen relativ sein, dürfen kein „..“ enthalten, müssen nach resolve()
+innerhalb PRIVATE_MEDIA_ROOT liegen, eine reguläre Datei sein und dürfen kein
+Symlink sein. ZIP-Namen bestehen aus Dokument-ID plus bereinigtem Basisdateinamen.
+Fehlende oder unsichere Dateien brechen den Export nicht ab; ihr Status und ihre
+Dokument-ID werden in private_documents.json/manifest.json dokumentiert. Es werden
+keine Dateien unter static/ oder öffentlichem Media dauerhaft angelegt.
+
+7. AUTHENTIFIZIERUNG UND HTTP
+
+- GET /daten/meine-daten/ zeigt die Bestätigungsseite.
+- POST /daten/meine-daten/download/ erzeugt den Download.
+- login_required, POST, CSRF und benutzerbezogenes Rate Limit: 3 pro Stunde.
+- Bei verwendbarem Passwort ist das aktuelle Passwort zwingend.
+- Ohne verwendbares Passwort gelten die bereits authentifizierte aktive Sitzung,
+  CSRF und das exakte Bestätigungswort EXPORTIEREN als alternativer Flow.
+- Kein user_id-Parameter wird angenommen.
+- Content-Type application/zip, Content-Disposition attachment.
+- Cache-Control no-store, private und X-Content-Type-Options nosniff.
+
+8. AUDIT
+
+Nach erfolgreicher Erzeugung wird account.personal_data_exported protokolliert.
+Details enthalten nur Formatversion sowie Anzahl enthaltener/fehlender privater
+Dateien. Exportinhalt, Dateinamen, Passwörter, Tokens und Secrets werden nicht geloggt.
+
+9. READ-ONLY-DIAGNOSE
+
+python manage.py audit_personal_data_export <USER_UUID>
+
+Der Command zeigt Kategorienanzahlen, Anzahl privater Dateien, geschätzte private
+Dateigröße und Warnungen zu fehlenden/unsicheren Dateien. Er erzeugt keinen Export,
+verändert keine DB und gibt keine fachlichen Inhalte oder Secrets aus.
+
+10. GEÄNDERTE/NEUE DATEIEN PHASE 11.2B
+
+- apps/accounts/forms.py
+- apps/data_portability/personal_export.py (neu)
+- apps/data_portability/views.py
+- apps/data_portability/urls.py
+- apps/data_portability/management/commands/audit_personal_data_export.py (neu)
+- apps/data_portability/test_personal_export.py (neu)
+- templates/accounts/profile.html
+- templates/data_portability/personal_export.html (neu)
+- PHASE_11_2B_PERSONAL_DATA_EXPORT_REPORT.txt (neu)
+
+Die bestehende Implementierung aus Phase 11.2A wurde nicht zurückgesetzt,
+überschrieben oder funktional umgebaut.
+
+11. TESTS UND ERGEBNISSE
+
+Neue gezielte Exporttests: 12/12 bestanden.
+Vollständige Django-Testsuite: 225/225 bestanden, 0 fehlgeschlagen.
+python manage.py check: keine Probleme.
+python manage.py makemigrations --check --dry-run: keine Änderungen erkannt.
+ruff check .: bestanden.
+python -m pytest -q: nicht ausführbar, da pytest in .venv nicht installiert ist.
+Die vollständige vorhandene Suite wurde mit python manage.py test ausgeführt.
+Keine relevanten JavaScript-Dateien geändert; keine Frontend-Testausführung nötig.
+
+Abgedeckt sind: anonymer Zugriff, Owner-Isolation, Fremddatenschutz, Secret-Ausschluss,
+gültiges ZIP/JSON, UUID/Datum/Decimal, eigene/fremde/fehlende/unsichere Dateien,
+Path Traversal, Symlink-Abwehr, Audit, falsches Passwort, CSRF, passwortloser Account, bestehender
+Setexport und vollständige Regression einschließlich Phase 11.2A.
+
+12. MIGRATION UND STATISCHE DATEIEN
+
+Migration erforderlich: NEIN.
+collectstatic erforderlich: NEIN (keine statischen Dateien geändert).
+Service-Restart bei späterem Deployment: JA (Python-Code und URL-Routing geändert).
+
+13. EMPFOHLENE SPÄTERE DEPLOYMENT-SCHRITTE
+
+Nur nach ausdrücklicher Production-Freigabe und gemäß bestehendem deploy.sh:
+
+1. Production-Backup erstellen/verifizieren.
+2. Freigegebenen Commit deployen.
+3. ./deploy.sh gemäß bestehendem Serververfahren ausführen.
+4. Derzeit keine Migration und kein collectstatic aufgrund Phase 11.2B erforderlich;
+   deploy.sh darf seine idempotenten Standardprüfungen dennoch ausführen.
+5. brickmissing.service über den bestehenden Deployment-Ablauf neu starten.
+6. python manage.py audit_personal_data_export <USER_UUID> read-only ausführen.
+7. Mit einem Testkonto UI, Passwortbestätigung, ZIP und AuditEvent prüfen.
+
+In dieser Phase erfolgten kein Deployment, kein Service-Restart, keine Production-
+Datenänderung, kein Commit und kein Push.
+
+14. BEKANNTE EINSCHRÄNKUNGEN/RISIKEN
+
+- Der Export wird vollständig im Arbeitsspeicher erzeugt. Für außergewöhnlich große
+  private Dokumentbestände wäre später ein begrenzter verschlüsselter Tempfile- oder
+  Streaming-Ansatz sinnvoll.
+- Der alternative Flow für Konten ohne verwendbares Passwort stützt sich auf die
+  aktive authentifizierte Sitzung, CSRF und das Bestätigungswort. BrickMissing besitzt
+  derzeit keinen separaten WebAuthn-/Recovery-Reauth-Flow.
+- Fehlende private Dateien werden transparent gemeldet, können aber naturgemäß nicht
+  in das ZIP aufgenommen werden.
+- Aufbewahrung/Export von Backup-Inhalten bleibt ein administrativer Prozess und ist
+  bewusst nicht Bestandteil des Benutzerdownloads.

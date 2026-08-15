@@ -71,6 +71,39 @@ class AccountDeleteForm(forms.Form):
         return value
 
 
+class PersonalDataExportForm(forms.Form):
+    password = forms.CharField(
+        label="Aktuelles Passwort",
+        required=False,
+        widget=forms.PasswordInput(attrs={"autocomplete": "current-password"}),
+    )
+    confirmation = forms.CharField(label="Zur Bestätigung „EXPORTIEREN“ eingeben")
+
+    def __init__(self, *args, user, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user = user
+        self.fields["password"].required = user.has_usable_password()
+        if not user.has_usable_password():
+            self.fields["password"].help_text = (
+                "Für dieses Konto ist kein verwendbares Passwort hinterlegt. "
+                "Die bestätigte aktive Anmeldung und das Bestätigungswort werden verwendet."
+            )
+
+    def clean_confirmation(self):
+        value = self.cleaned_data["confirmation"].strip().upper()
+        if value != "EXPORTIEREN":
+            raise ValidationError("Bitte gib zur Bestätigung „EXPORTIEREN“ ein.")
+        return value
+
+    def clean(self):
+        cleaned = super().clean()
+        if self.user.has_usable_password() and not self.user.check_password(
+            cleaned.get("password", "")
+        ):
+            self.add_error("password", "Das Passwort ist nicht korrekt.")
+        return cleaned
+
+
 class DeliverablePasswordResetForm(PasswordResetForm):
     def get_users(self, email):
         for user in super().get_users(email):

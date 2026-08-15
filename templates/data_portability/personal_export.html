@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Meine Daten exportieren{% endblock %}
+{% block content %}
+<section class="auth-card">
+  <p class="eyebrow">Datenschutz</p>
+  <h1>Meine Daten exportieren</h1>
+  <p>Lade eine Kopie deiner bei BrickMissing gespeicherten personenbezogenen und dir zugeordneten Daten als ZIP-Datei herunter.</p>
+  <p>Passwörter, Sicherheitsschlüssel, Recovery Codes und Sitzungsdaten sind niemals enthalten.</p>
+  <form method="post" action="{% url 'data_portability:personal_export_download' %}" class="stack">
+    {% csrf_token %}
+    {{ form.as_div }}
+    <div class="form-actions">
+      <a class="button" href="{% url 'accounts:profile' %}">Abbrechen</a>
+      <button class="primary">Datenexport herunterladen</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

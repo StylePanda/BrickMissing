@@ -4,6 +4,12 @@ from . import views
 
 app_name = "data_portability"
 urlpatterns = [
+    path("daten/meine-daten/", views.personal_export_page, name="personal_export"),
+    path(
+        "daten/meine-daten/download/",
+        views.personal_export_download,
+        name="personal_export_download",
+    ),
     path("daten/import/", views.import_page, name="import_page"),
     path("daten/import/json/", views.import_json, name="import_json"),
     path("daten/import/csv/", views.import_csv, name="import_csv"),

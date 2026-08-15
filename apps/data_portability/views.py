@@ -10,11 +10,13 @@ from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from apps.accounts.forms import PersonalDataExportForm
 from apps.audit.models import AuditEvent
 from apps.catalog.models import LegoSet, Part
 from apps.core.rate_limit import limited
 
 from .models import ImportBatch
+from .personal_export import build_personal_data_export
 from .services import parse_csv_upload, parse_json_upload
 
 
@@ -93,6 +95,50 @@ def export_missing_csv(request):
         details={"rows": len(records)},
         request_id=request.request_id,
     )
+    return response
+
+
+@login_required
+def personal_export_page(request):
+    return render(
+        request,
+        "data_portability/personal_export.html",
+        {"form": PersonalDataExportForm(user=request.user)},
+    )
+
+
+@login_required
+@require_POST
+def personal_export_download(request):
+    if limited(request, "personal-data-export", 3, 3600, per_user=True):
+        return HttpResponse("Zu viele Exportanfragen. Bitte später erneut versuchen.", status=429)
+    form = PersonalDataExportForm(request.POST, user=request.user)
+    if not form.is_valid():
+        return render(
+            request,
+            "data_portability/personal_export.html",
+            {"form": form},
+            status=400,
+        )
+    result = build_personal_data_export(request.user)
+    AuditEvent.objects.create(
+        actor=request.user,
+        target_user=request.user,
+        action="account.personal_data_exported",
+        entity_type="personal_data_export",
+        details={
+            "format_version": "1.0",
+            "private_files": result.private_files,
+            "missing_private_files": len(result.missing_files),
+        },
+        request_id=request.request_id,
+    )
+    response = HttpResponse(result.content, content_type="application/zip")
+    response["Content-Disposition"] = (
+        'attachment; filename="brickmissing-personenbezogene-daten.zip"'
+    )
+    response["Cache-Control"] = "no-store, private"
+    response["X-Content-Type-Options"] = "nosniff"
     return response
 
 
