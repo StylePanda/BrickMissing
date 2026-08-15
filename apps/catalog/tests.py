@@ -260,7 +260,7 @@ class CatalogFlowTests(TestCase):
         self.assertRedirects(response, reverse("catalog:missing_parts"))
         own.refresh_from_db()
         foreign.refresh_from_db()
-        self.assertEqual((own.owned_quantity, own.status), (3, Part.Status.FOUND))
+        self.assertEqual((own.owned_quantity, own.status), (0, Part.Status.FOUND))
         self.assertEqual((foreign.owned_quantity, foreign.status), (0, Part.Status.MISSING))
 
     def test_missing_parts_groups_element_and_color_with_set_allocations(self):
@@ -302,8 +302,8 @@ class CatalogFlowTests(TestCase):
         Part.objects.create(owner=self.user, lego_set=lego_set, element_id="full", name="Full", color="Red", quantity=2, owned_quantity=2, status=Part.Status.FOUND)
         response = self.client.get(reverse("catalog:missing_parts"))
         groups = response.context["page_obj"].object_list
-        self.assertEqual(len(groups), 2)
-        self.assertEqual({group["status"] for group in groups}, {Part.Status.MISSING, "partial"})
+        self.assertEqual(len(groups), 3)
+        self.assertEqual({group["status"] for group in groups}, {Part.Status.MISSING, Part.Status.FOUND})
         found = self.client.get(reverse("catalog:missing_parts"), {"status": "found"})
         self.assertEqual(found.context["page_obj"].object_list[0]["status_label"], "Gefunden")
 
@@ -322,14 +322,16 @@ class CatalogFlowTests(TestCase):
         self.assertEqual(bulk.status_code, 302)
         red_first.refresh_from_db()
         red_second.refresh_from_db()
-        self.assertEqual((red_first.owned_quantity, red_second.owned_quantity), (4, 2))
+        self.assertEqual((red_first.owned_quantity, red_second.owned_quantity), (1, 0))
+        self.assertEqual((red_first.status, red_second.status), (Part.Status.FOUND, Part.Status.FOUND))
 
     def test_single_allocation_quantity_change_updates_group_aggregation(self):
         lego_set = LegoSet.objects.create(owner=self.user, set_number="300", name="Mengen")
         part = Part.objects.create(owner=self.user, lego_set=lego_set, element_id="aggregate", name="Aggregate", color="White", quantity=4, owned_quantity=0)
         self.client.post(reverse("catalog:missing_part_quantity", args=[part.pk]), {"owned_quantity": 3})
         group = self.client.get(reverse("catalog:missing_parts")).context["page_obj"].object_list[0]
-        self.assertEqual((group["required"], group["owned"], group["missing"], group["status"]), (4, 3, 1, "partial"))
+        self.assertEqual((group["required"], group["owned"], group["missing"], group["status"]), (4, 3, 1, Part.Status.MISSING))
+        self.assertEqual(group["stock"], "partial")
 
     def test_color_multiselect_has_compact_shared_checkbox_layout(self):
         lego_set = LegoSet.objects.create(owner=self.user, set_number="400", name="Farben")
@@ -363,7 +365,7 @@ class CatalogFlowTests(TestCase):
         self.assertRedirects(self.client.post(own_url), reverse("catalog:trash"))
         self.assertFalse(Part.objects.filter(pk=own.pk).exists())
 
-    def test_direct_missing_quantity_derives_status_and_rejects_invalid_values(self):
+    def test_direct_quantity_does_not_change_workflow_status(self):
         part = Part.objects.create(owner=self.user, element_id="direct", name="Direkt", quantity=5)
         url = reverse("catalog:missing_part_quantity", args=[part.pk])
         self.assertRedirects(self.client.post(url, {"owned_quantity": 2}), reverse("catalog:missing_parts"))
@@ -372,19 +374,19 @@ class CatalogFlowTests(TestCase):
         self.assertEqual(self.client.post(url, {"owned_quantity": 6}).status_code, 400)
         self.client.post(url, {"owned_quantity": 5})
         part.refresh_from_db()
-        self.assertEqual((part.owned_quantity, part.status), (5, Part.Status.FOUND))
+        self.assertEqual((part.owned_quantity, part.status), (5, Part.Status.MISSING))
 
-    def test_direct_status_keeps_quantity_consistent(self):
+    def test_direct_status_does_not_change_quantity(self):
         part = Part.objects.create(owner=self.user, element_id="status", name="Status", quantity=3, owned_quantity=1)
         url = reverse("catalog:missing_part_status", args=[part.pk])
         self.client.post(url, {"status": Part.Status.FOUND})
         part.refresh_from_db()
-        self.assertEqual(part.owned_quantity, 3)
+        self.assertEqual(part.owned_quantity, 1)
         self.client.post(url, {"status": Part.Status.MISSING})
         part.refresh_from_db()
-        self.assertEqual(part.owned_quantity, 0)
+        self.assertEqual(part.owned_quantity, 1)
 
-    def test_part_form_cannot_persist_found_with_zero_stock(self):
+    def test_part_form_keeps_workflow_status_and_stock_independent(self):
         from apps.catalog.forms import PartForm
 
         form = PartForm(
@@ -402,7 +404,75 @@ class CatalogFlowTests(TestCase):
         saved.owner = self.user
         saved.save()
         saved.refresh_from_db()
-        self.assertEqual((saved.status, saved.owned_quantity), (Part.Status.FOUND, 3))
+        self.assertEqual((saved.status, saved.owned_quantity), (Part.Status.FOUND, 0))
+
+    def test_each_workflow_status_filter_is_exact(self):
+        url = reverse("catalog:missing_parts")
+        records = {}
+        for status, label in Part.Status.choices:
+            records[status] = Part.objects.create(
+                owner=self.user, element_id=f"filter-{status}", name=f"Teil {label}",
+                quantity=2, owned_quantity=2, status=status,
+            )
+        for status, _label in Part.Status.choices:
+            with self.subTest(status=status):
+                groups = self.client.get(url, {"status": status}).context["page_obj"].object_list
+                allocations = [part for group in groups for part in group["allocations"]]
+                self.assertEqual(allocations, [records[status]])
+
+    def test_stock_filter_is_independent_from_workflow_status(self):
+        url = reverse("catalog:missing_parts")
+        complete = Part.objects.create(
+            owner=self.user, element_id="stock-complete", name="Komplett",
+            quantity=2, owned_quantity=2, status=Part.Status.INSTALLED,
+        )
+        partial = Part.objects.create(
+            owner=self.user, element_id="stock-partial", name="Teilweise",
+            quantity=2, owned_quantity=1, status=Part.Status.FOUND,
+        )
+        missing = Part.objects.create(
+            owner=self.user, element_id="stock-none", name="Nicht vorhanden",
+            quantity=2, owned_quantity=0, status=Part.Status.ORDERED,
+        )
+        for value, expected in (
+            ("complete", complete), ("partial", partial), ("none", missing)
+        ):
+            with self.subTest(stock=value):
+                groups = self.client.get(url, {"stock": value}).context["page_obj"].object_list
+                allocations = [part for group in groups for part in group["allocations"]]
+                self.assertEqual(allocations, [expected])
+
+    def test_group_workflow_status_is_mixed_not_derived_from_stock(self):
+        lego_set = LegoSet.objects.create(owner=self.user, set_number="mix", name="Gemischt")
+        Part.objects.create(
+            owner=self.user, lego_set=lego_set, element_id="mix", name="Mix",
+            color="Black", quantity=1, owned_quantity=1, status=Part.Status.FOUND,
+        )
+        Part.objects.create(
+            owner=self.user, lego_set=lego_set, element_id="mix", name="Mix",
+            color="Black", quantity=1, owned_quantity=1, status=Part.Status.INSTALLED,
+        )
+        group = self.client.get(reverse("catalog:missing_parts")).context["page_obj"].object_list[0]
+        self.assertEqual((group["status"], group["status_label"]), ("mixed", "Gemischt"))
+        self.assertEqual((group["stock"], group["stock_label"]), ("complete", "Vollständig vorhanden"))
+
+    def test_ajax_status_response_comes_from_reloaded_database_state(self):
+        part = Part.objects.create(
+            owner=self.user, element_id="ajax", name="Ajax", quantity=1,
+            owned_quantity=1, status=Part.Status.FOUND,
+        )
+        response = self.client.post(
+            reverse("catalog:missing_part_status", args=[part.pk]),
+            {"status": Part.Status.INSTALLED},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+            HTTP_ACCEPT="application/json",
+        )
+        part.refresh_from_db()
+        self.assertEqual(part.status, Part.Status.INSTALLED)
+        self.assertEqual(part.owned_quantity, 1)
+        self.assertEqual(response.json()["part"]["status"], part.status)
+        filtered = self.client.get(reverse("catalog:missing_parts"), {"status": "found"})
+        self.assertFalse(any(part in group["allocations"] for group in filtered.context["page_obj"]))
 
     def test_set_detail_inventory_workbench_and_direct_quantity(self):
         lego_set = LegoSet.objects.create(owner=self.user, set_number="75010", name="B-wing")

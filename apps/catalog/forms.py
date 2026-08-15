@@ -1,6 +1,7 @@
 from django import forms
 
 from .models import LegoSet, Part, SetCopy, SetInventoryItem
+from .part_status import expected_is_present
 
 
 class LegoSetForm(forms.ModelForm):
@@ -66,17 +67,12 @@ class PartForm(forms.ModelForm):
 
     def clean(self):
         cleaned = super().clean()
-        quantity = cleaned.get("quantity")
-        owned = cleaned.get("owned_quantity")
-        status = cleaned.get("status")
-        if quantity is None or owned is None or status is None:
-            return cleaned
-        if status == Part.Status.MISSING and owned >= quantity and quantity > 0:
-            self.add_error("status", "Ein vollständig vorhandenes Teil kann nicht als fehlend gespeichert werden.")
-        if status in {Part.Status.FOUND, Part.Status.RECEIVED, Part.Status.INSTALLED}:
-            cleaned["owned_quantity"] = quantity
+        if cleaned.get("owned_quantity") is not None and cleaned.get("unassigned_found_quantity") is not None:
+            candidate = self.instance
+            candidate.owned_quantity = cleaned["owned_quantity"]
+            candidate.unassigned_found_quantity = cleaned["unassigned_found_quantity"]
+            cleaned["is_present"] = expected_is_present(candidate)
         return cleaned
-
 
 class SetCopyForm(forms.ModelForm):
     condition = forms.ChoiceField(label="Zustand", choices=LegoSetForm.CONDITION_CHOICES)

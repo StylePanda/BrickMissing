@@ -4,7 +4,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, F, Q, Sum
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
@@ -18,6 +18,12 @@ from apps.organizer.models import MinifigurePart, Moc, SetMinifigure
 from .colors import grouped_colors
 from .forms import LegoSetForm, PartForm, SetCopyForm, SetInventoryItemForm
 from .models import LegoSet, Part, SetCopy, SetInventoryItem
+from .part_status import (
+    group_workflow_status,
+    stock_state,
+    synchronize_presence_marker,
+    workflow_status_label,
+)
 from .services import set_completeness as _set_completeness
 from .services import soft_delete, update_part
 
@@ -221,6 +227,13 @@ def missing_parts(request):
     query = request.GET.get("q", "").strip()
     selected_colors = [value for value in request.GET.getlist("color") if value]
     status = request.GET.get("status", "")
+    if status in Part.Status.values:
+        queryset = queryset.filter(status=status)
+    else:
+        status = ""
+    stock = request.GET.get("stock", "all")
+    if stock not in {"all", "complete", "partial", "none"}:
+        stock = "all"
     minimum = request.GET.get("minimum", "").strip()
     if query:
         queryset = queryset.filter(
@@ -322,7 +335,7 @@ def missing_parts(request):
             minifigure_parts = minifigure_parts.filter(quantity__gte=2)
         for part in minifigure_parts:
             missing = part.missing_quantity
-            status_key = (
+            stock_key = (
                 "complete" if missing == 0 else "partial" if part.owned_quantity else "missing"
             )
             groups.append(
@@ -337,38 +350,32 @@ def missing_parts(request):
                     "owned": part.owned_quantity,
                     "missing": missing,
                     "allocations": [part],
-                    "statuses": {status_key},
+                    "statuses": set(),
                     "cost": 0,
-                    "status": status_key,
-                    "status_label": (
-                        "Komplett" if missing == 0
-                        else "Teilweise vorhanden" if part.owned_quantity else "Fehlt"
-                    ),
+                    "status": "none",
+                    "status_label": "Kein Workflowstatus",
+                    "stock": stock_key,
+                    "stock_label": stock_state(part.quantity, part.owned_quantity)[1],
                     "first_set": part.minifigure.lego_set.set_number,
                     "bulk_value": "",
                     "is_minifigure": True,
                 }
             )
     for group in groups:
-        if group.get("is_minifigure"):
-            continue
-        if group["missing"] == 0:
-            group["status"], group["status_label"] = Part.Status.FOUND, "Gefunden"
-        elif group["owned"]:
-            group["status"], group["status_label"] = "partial", "Teilweise vorhanden"
-        else:
-            group["status"], group["status_label"] = Part.Status.MISSING, "Fehlt"
-        group["first_set"] = min(
-            (item.lego_set.set_number for item in group["allocations"] if item.lego_set),
-            default="",
-        )
-        group["bulk_value"] = ",".join(str(item.pk) for item in group["allocations"])
-    if status == Part.Status.ORDERED:
-        groups = [group for group in groups if group["statuses"] == {Part.Status.ORDERED}]
-    elif status in {Part.Status.MISSING, Part.Status.FOUND, "partial"}:
-        groups = [group for group in groups if group["status"] == status]
-    elif not status:
-        groups = [group for group in groups if group["missing"] > 0]
+        if not group.get("is_minifigure"):
+            group["status"], group["status_label"] = group_workflow_status(group["statuses"])
+            group["stock"], group["stock_label"] = stock_state(
+                group["required"], group["owned"]
+            )
+            group["first_set"] = min(
+                (item.lego_set.set_number for item in group["allocations"] if item.lego_set),
+                default="",
+            )
+            group["bulk_value"] = ",".join(str(item.pk) for item in group["allocations"])
+    if status:
+        groups = [group for group in groups if not group.get("is_minifigure")]
+    if stock != "all":
+        groups = [group for group in groups if group["stock"] == stock]
     if minimum.isdigit():
         groups = [group for group in groups if group["missing"] >= int(minimum)]
     groups.sort(
@@ -387,10 +394,8 @@ def missing_parts(request):
             "selected_colors": selected_colors,
             "color_summary": f"{len(selected_colors)} Farben" if selected_colors else "Alle Farben",
             "status": status,
-            "statuses": (
-                (Part.Status.MISSING, "Fehlt"), ("partial", "Teilweise vorhanden"),
-                (Part.Status.ORDERED, "Bestellt"), (Part.Status.FOUND, "Gefunden/Vollständig"),
-            ),
+            "statuses": Part.Status.choices,
+            "stock": stock,
             "part_statuses": Part.Status.choices,
             "minimum": minimum,
             "sort": ordering,
@@ -417,23 +422,16 @@ def missing_parts_bulk(request):
                 continue
     identifiers = list(dict.fromkeys(identifiers))[:500]
     action = request.POST.get("action")
-    if action not in {"found", "missing", "ordered"}:
+    if action not in Part.Status.values:
         return HttpResponse("Ungültige Aktion", status=400)
     records = Part.objects.select_for_update().filter(
         owner=request.user, pk__in=identifiers, deleted_at__isnull=True
     )
     changed = 0
     for part in records:
-        if action == "found":
-            part.owned_quantity = part.quantity
-            part.status = Part.Status.FOUND
-        elif action == "missing":
-            part.owned_quantity = 0
-            part.status = Part.Status.MISSING
-        else:
-            part.status = Part.Status.ORDERED
+        part.status = action
         part.full_clean()
-        part.save(update_fields=["owned_quantity", "status", "updated_at"])
+        part.save(update_fields=["status", "updated_at"])
         changed += 1
     AuditEvent.objects.create(
         actor=request.user, target_user=request.user, action="missing_parts.bulk",
@@ -459,10 +457,19 @@ def missing_part_quantity(request, pk):
     if quantity is None:
         return HttpResponse("Der vorhandene Bestand ist ungültig.", status=400)
     part.owned_quantity = quantity
-    part.status = Part.Status.FOUND if quantity == part.quantity else Part.Status.MISSING
+    synchronize_presence_marker(part)
     part.full_clean()
-    part.save(update_fields=["owned_quantity", "status", "updated_at"])
+    part.save(update_fields=["owned_quantity", "is_present", "updated_at"])
+    part.refresh_from_db()
     AuditEvent.objects.create(actor=request.user, target_user=request.user, action="missing_part.quantity_changed", entity_type="part", entity_id=str(part.pk), details={"owned_quantity": quantity}, request_id=request.request_id)
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        stock_key, stock_label = stock_state(part.quantity, part.owned_quantity)
+        return JsonResponse({"ok": True, "part": {
+            "id": str(part.pk), "owned": part.owned_quantity,
+            "missing": part.missing_quantity, "status": part.status,
+            "status_label": workflow_status_label(part.status),
+            "stock": stock_key, "stock_label": stock_label,
+        }})
     return redirect("catalog:missing_parts")
 
 
@@ -475,13 +482,16 @@ def missing_part_status(request, pk):
     if status not in Part.Status.values:
         return HttpResponse("Der Status ist ungültig.", status=400)
     part.status = status
-    if status == Part.Status.MISSING:
-        part.owned_quantity = 0
-    elif status in {Part.Status.FOUND, Part.Status.RECEIVED, Part.Status.INSTALLED}:
-        part.owned_quantity = part.quantity
     part.full_clean()
-    part.save(update_fields=["owned_quantity", "status", "updated_at"])
+    part.save(update_fields=["status", "updated_at"])
+    part.refresh_from_db()
     AuditEvent.objects.create(actor=request.user, target_user=request.user, action="missing_part.status_changed", entity_type="part", entity_id=str(part.pk), details={"status": status}, request_id=request.request_id)
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return JsonResponse({"ok": True, "part": {
+            "id": str(part.pk), "owned": part.owned_quantity,
+            "missing": part.missing_quantity, "status": part.status,
+            "status_label": workflow_status_label(part.status),
+        }})
     return redirect("catalog:missing_parts")
 
 

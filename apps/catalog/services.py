@@ -4,6 +4,7 @@ from django.utils import timezone
 from apps.audit.models import AuditEvent
 
 from .models import Part, PartHistory
+from .part_status import synchronize_presence_marker
 
 
 def set_completeness(lego_set):
@@ -25,22 +26,13 @@ def stored_completeness_value(result):
     return "vollständig" if result["missing"] == 0 else "unvollständig"
 
 
-def normalize_part_state(part):
-    """Keep terminal availability states and persisted quantities consistent."""
-    if part.status == Part.Status.MISSING:
-        part.owned_quantity = min(part.owned_quantity, max(part.quantity - 1, 0))
-    elif part.status in {Part.Status.FOUND, Part.Status.RECEIVED, Part.Status.INSTALLED}:
-        part.owned_quantity = part.quantity
-    return part
-
-
 @transaction.atomic
 def update_part(part: Part, values: dict, actor, request_id=None) -> Part:
     locked = Part.objects.select_for_update().get(pk=part.pk, owner=actor)
     old_status = locked.status
     for field, value in values.items():
         setattr(locked, field, value)
-    normalize_part_state(locked)
+    synchronize_presence_marker(locked)
     locked.full_clean()
     locked.save()
     if locked.status != old_status:

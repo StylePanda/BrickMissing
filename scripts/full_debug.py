@@ -299,6 +299,7 @@ def database_audit(report: Report):
 
     from apps.accounts.models import User
     from apps.catalog.models import LegoSet, Part, SetInventoryItem
+    from apps.catalog.part_status import analyze_part_status
     from apps.inventory.models import InventoryItem
     from apps.orders.models import Order
     from apps.organizer.models import MinifigurePart, SetMinifigure
@@ -308,8 +309,6 @@ def database_audit(report: Report):
         "Sets ohne Namen": LegoSet.objects.filter(name="").count,
         "Setinventar owned > required": SetInventoryItem.objects.filter(owned_quantity__gt=F("required_quantity")).count,
         "Parts owned > required": Part.objects.filter(owned_quantity__gt=F("quantity")).count,
-        "Parts gefunden aber Bestand 0": Part.objects.filter(status=Part.Status.FOUND, owned_quantity=0).count,
-        "Parts fehlt aber vollständig": Part.objects.filter(status=Part.Status.MISSING, owned_quantity__gte=F("quantity")).count,
         "Minifigurteile owned > required": MinifigurePart.objects.filter(owned_quantity__gt=F("quantity")).count,
         "Minifiguren Menge 0": SetMinifigure.objects.filter(quantity=0).count,
         "Inventar ungültige Menge": InventoryItem.objects.filter(quantity__lt=0).count,
@@ -324,6 +323,22 @@ def database_audit(report: Report):
             report.add("WARNING" if count else "PASS", "DATABASE CONSISTENCY", f"{label}: {count}")
         except Exception as exc:
             report.add("ERROR", "DATABASE CONSISTENCY", f"Prüfung fehlgeschlagen: {label}", exc)
+    status_counts = Counter()
+    for part in Part.objects.filter(deleted_at__isnull=True).iterator(chunk_size=500):
+        for finding in analyze_part_status(part):
+            status_counts[finding.category] += 1
+    for category, label in (
+        ("A", "Gefunden + Bestand 0"), ("B", "Gefunden + Teilbestand"),
+        ("C", "Fehlt + vollständig vorhanden"), ("D", "Unbekannter Workflowstatus"),
+        ("E", "is_present widerspricht Mengen"),
+    ):
+        count = status_counts[category]
+        lines.append(f"Part-Status {category} – {label}: {count}")
+        report.add(
+            "WARNING" if count else "PASS", "PART STATUS CONSISTENCY",
+            f"Kategorie {category} ({label}): {count}",
+            recommendation="python manage.py reconcile_part_status (read-only Dry-run)",
+        )
     mismatch = 0
     completeness_lines = []
     from apps.catalog.services import set_completeness

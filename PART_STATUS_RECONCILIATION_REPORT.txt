@@ -1,0 +1,143 @@
+BRICKMISSING 8 – PART STATUS RECONCILIATION REPORT
+==================================================
+
+ERGEBNIS
+- Workflowstatus und Bestandsvollständigkeit sind jetzt fachlich und technisch getrennt.
+- Neuer Management-Command: reconcile_part_status.
+- Standardlauf ist ausschließlich read-only; --apply wurde nicht gegen Production ausgeführt.
+- Keine Production-Daten, SQLite-Daten oder Secrets wurden verwendet.
+
+URSACHE DER BISHERIGEN 171 WARNUNGEN
+- Der alte Full-Debug-Check zählte pauschal status=found + owned_quantity=0.
+- Der V7-Importer übernahm status, owned_quantity, unassigned_found_quantity und is_present
+  getrennt. Das entspricht dem Datenmodell und ist nicht automatisch ein Datenfehler.
+- Aktuelle Mengen-/Status-Views und PartForm hatten die getrennten Konzepte jedoch teilweise
+  wieder gekoppelt: Mengenänderungen leiteten einen Status ab; Statusänderungen überschrieben Mengen.
+- Die Fehlteile-Gruppierung leitete bei vollständiger Menge pauschal "Gefunden" ab und verlor dadurch
+  Unterschiede zwischen Gefunden, Erhalten und Eingebaut.
+- Welche der 171 Datensätze fachlich wirklich falsch sind, kann erst der neue Production-Dry-run
+  kategorisieren. Sie werden nicht automatisch geändert.
+
+SOURCE OF TRUTH
+- Workflowstatus: Part.status mit exakt den Model-Choices missing, found, ordered, shipped,
+  received und installed.
+- Bestand: Part.quantity, Part.owned_quantity und Part.unassigned_found_quantity.
+- Bestandsanzeige: vollständig, teilweise oder nicht vorhanden wird ausschließlich aus Mengen berechnet.
+- is_present ist ein redundanter Marker und wird sicher aus
+  owned_quantity + unassigned_found_quantity > 0 abgeleitet.
+- Ein vollständiger Bestand verändert den Workflowstatus nicht. Ein Workflowstatus verändert die
+  Mengen nicht.
+
+ZENTRALE LOGIK
+- apps/catalog/part_status.py enthält Workflowlabels, Bestandszustand, Gruppenstatus und Auditklassen.
+- Alle Statusfilter verwenden Part.Status.choices ohne Alias-Mappings.
+- Gleiche Unterstatus ergeben denselben Gruppenstatus; unterschiedliche Unterstatus ergeben Gemischt.
+- Minifigurenteile besitzen keinen Part-Workflowstatus und werden als solche nicht in einen gewählten
+  Part-Statusfilter gemischt.
+
+RECONCILIATION-KATEGORIEN
+A) found + owned_quantity=0: AMBIGUOUS / MANUAL REVIEW.
+B) found + 0<owned_quantity<quantity: AMBIGUOUS / MANUAL REVIEW.
+C) missing + owned_quantity>=quantity: AMBIGUOUS / MANUAL REVIEW.
+D) unbekannter Workflowstatus: AMBIGUOUS / MANUAL REVIEW.
+E) is_present widerspricht den Mengen: AUTO-SAFE; nur is_present wird korrigiert.
+
+Der Command gibt je Fund aus:
+- interne ID, Element-ID, Design-/Partnummer, Name, Farbe und Setnummer
+- quantity, owned_quantity und unassigned_found_quantity
+- aktuellen Workflowstatus, erwartete Einordnung und vorgeschlagene Änderung
+- AUTO-SAFE oder AMBIGUOUS / MANUAL REVIEW
+
+APPLY-SICHERHEIT
+- Ohne --apply erfolgen ausschließlich SELECT-Abfragen.
+- --apply verwendet transaction.atomic und select_for_update.
+- --apply verändert ausschließlich Kategorie E und niemals status, quantity, owned_quantity oder
+  unassigned_found_quantity.
+- Fehler rollen alle Änderungen des Laufs zurück.
+- Anzahl Funde pro Kategorie und tatsächlich geänderte Datensätze werden ausgegeben.
+
+FEHLTEILE-UI
+- Statusfilter: Alle Status, Fehlt, Gefunden, Bestellt, Versendet, Erhalten, Eingebaut.
+- Jeder Status wird serverseitig exakt mit Part.status gefiltert.
+- Separater Bestandsfilter: Alle Bestände, Vollständig vorhanden, Teilweise vorhanden,
+  Nicht vorhanden.
+- Jede Set-Zuordnung zeigt ihren tatsächlichen Workflowstatus.
+- Gruppenstatus berücksichtigt die Unterstatus und zeigt bei Abweichungen Gemischt.
+- Inline-Statusupdate speichert per POST, lädt den Datensatz serverseitig erneut und liefert den
+  persistierten DB-Wert als JSON.
+- Das JavaScript übernimmt ausschließlich den Serverwert, aktualisiert den Gruppenstatus und entfernt
+  Zuordnungen, die nicht mehr zum aktiven Statusfilter gehören.
+- Standard-POST/Redirect bleibt als progressive, CSP-kompatible Rückfallebene erhalten.
+
+ALTE STATUS-MAPPINGS
+- Entfernt: vollständig vorhanden => found.
+- Entfernt: Mengenänderung => missing/found.
+- Entfernt: status missing => Menge 0.
+- Entfernt: status found/received/installed => Menge vollständig.
+- Entfernt: Filter Gefunden/Vollständig als kombinierte Option.
+
+TESTABDECKUNG
+- Dry-run verändert keine Daten.
+- --apply verändert nur den sicheren is_present-Marker.
+- Ambiguous-Fälle bleiben unverändert.
+- Konsistente Datensätze bleiben unverändert.
+- Mengen >1, Teilbestand, Vollbestand und Bestand 0.
+- unassigned_found_quantity wird berücksichtigt und nicht verändert.
+- Transaktionsrollback bei kontrolliertem Fehler.
+- Exakte Filtertests für alle sechs Workflowstatus.
+- Getrennter Bestandsfilter vollständig/teilweise/nicht vorhanden.
+- found und installed bleiben bei gleicher Menge verschieden.
+- Gemischter Gruppenstatus.
+- Statuspersistenz mit refresh_from_db und DB-basierter JSON-Response.
+- Filterergebnis nach Statusänderung.
+
+AUSGEFÜHRTE CHECKS
+- python manage.py check: PASS
+- python manage.py makemigrations --check --dry-run: PASS, keine Änderungen
+- python manage.py test: PASS, 200/200, 0 Fehler
+- ruff check .: PASS
+- node --check für alle eigenen relevanten JS-Dateien: PASS
+- Lokaler reconcile_part_status Dry-run: PASS, 0 lokale Funde, 0 Änderungen
+
+GEÄNDERTE DATEIEN
+- apps/catalog/forms.py
+- apps/catalog/services.py
+- apps/catalog/views.py
+- apps/catalog/part_status.py
+- apps/catalog/management/commands/reconcile_part_status.py
+- apps/catalog/tests.py
+- apps/catalog/test_reconcile_part_status.py
+- scripts/full_debug.py
+- templates/catalog/missing_parts.html
+- static/js/missing-parts.js
+- PART_STATUS_RECONCILIATION_REPORT.txt
+
+MIGRATIONEN / DATENBANK
+- Keine Schemamigration erforderlich.
+- Keine automatische Datenmigration.
+- MariaDB/MySQL-kompatible Django-ORM-Abfragen; keine SQLite-spezifische Logik.
+
+EXAKTE PRODUCTION-BEFEHLE
+Read-only Dry-run:
+  cd /var/www/brickmissing/current
+  sudo -u brickmissing ./.venv/bin/python manage.py reconcile_part_status --settings=config.settings.production
+
+Optional Ausgabe in eine geschützte Datei schreiben:
+  cd /var/www/brickmissing/current
+  sudo -u brickmissing sh -c './.venv/bin/python manage.py reconcile_part_status --settings=config.settings.production > /var/www/brickmissing/shared/var/reconcile_part_status_dry_run.txt'
+
+Explizites Anwenden ausschließlich nach Prüfung und Backup:
+  cd /var/www/brickmissing/current
+  sudo -u brickmissing ./.venv/bin/python manage.py reconcile_part_status --apply --settings=config.settings.production
+
+BACKUP / ROLLBACK
+- Vor --apply ein verifiziertes MariaDB-Backup erstellen und Dry-run-Ausgabe archivieren.
+- A–D niemals pauschal per SQL korrigieren; sie erfordern fachliche Einzelprüfung.
+- Kategorie E kann durch erneuten Dry-run verifiziert werden; erwartet wird danach E=0.
+- Bei Command-Fehlern sorgt transaction.atomic für vollständigen Rollback.
+- Für ein betriebliches Rollback bleibt das vorher angelegte MariaDB-Backup maßgeblich.
+
+NICHT AUSGEFÜHRT
+- Kein Production-Dry-run.
+- Kein Production --apply.
+- Kein Deployment, Service-Restart oder Push.
