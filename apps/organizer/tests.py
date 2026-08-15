@@ -324,9 +324,70 @@ class MinifigureInventoryInteractionTests(TestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertTrue(payload["ok"])
+        self.assertEqual(payload["part"]["id"], self.part.pk)
+        self.assertEqual(payload["part"]["minifigure_id"], self.figure.pk)
+        self.assertEqual(payload["part"]["required"], 2)
+        self.assertEqual(payload["part"]["owned"], 2)
+        self.assertEqual(payload["part"]["missing"], 0)
         self.assertEqual(payload["part"]["status"], "complete")
+        self.assertEqual(payload["figure"]["id"], self.figure.pk)
+        self.assertEqual(payload["figure"]["owned"], 2)
+        self.assertEqual(payload["figure"]["required"], 2)
+        self.assertEqual(payload["figure"]["missing"], 0)
         self.assertEqual(payload["figure"]["status"], "complete")
         self.assertEqual(payload["set"]["key"], "complete")
+
+    def test_inline_manual_quantity_transitions_are_persistent_and_idempotent(self):
+        url = reverse("organizer:minifigure_part_quantity", args=[self.figure.pk, self.part.pk])
+        headers = {"HTTP_ACCEPT": "application/json", "HTTP_X_REQUESTED_WITH": "XMLHttpRequest"}
+
+        partial = self.client.post(url, {"owned_quantity": 1}, **headers).json()
+        self.part.refresh_from_db()
+        self.assertEqual(self.part.owned_quantity, 1)
+        self.assertEqual((partial["part"]["owned"], partial["part"]["missing"], partial["part"]["status"]), (1, 1, "partial"))
+        self.assertEqual((partial["figure"]["owned"], partial["figure"]["required"], partial["figure"]["status"]), (1, 2, "partial"))
+
+        missing = self.client.post(url, {"owned_quantity": 0}, **headers).json()
+        self.part.refresh_from_db()
+        self.assertEqual(self.part.owned_quantity, 0)
+        self.assertEqual((missing["part"]["owned"], missing["part"]["missing"], missing["part"]["status"]), (0, 2, "missing"))
+        self.assertEqual(missing["figure"]["status"], "missing")
+
+        repeated = self.client.post(url, {"owned_quantity": 0}, **headers).json()
+        self.part.refresh_from_db()
+        self.assertEqual(self.part.owned_quantity, 0)
+        self.assertEqual(repeated["figure"], missing["figure"])
+
+    def test_x_button_payload_makes_complete_figure_incomplete_and_persists(self):
+        self.part.owned_quantity = self.part.quantity
+        self.part.save(update_fields=["owned_quantity"])
+        response = self.client.post(
+            reverse("organizer:minifigure_part_quantity", args=[self.figure.pk, self.part.pk]),
+            {"owned_quantity": 0},
+            HTTP_ACCEPT="application/json",
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.part.refresh_from_db()
+        self.assertEqual(self.part.owned_quantity, 0)
+        payload = response.json()
+        self.assertEqual(payload["part"]["status"], "missing")
+        self.assertEqual(payload["figure"]["status"], "missing")
+
+    def test_part_from_another_figure_cannot_be_changed_through_owned_figure(self):
+        other_figure = SetMinifigure.objects.create(
+            owner=self.user, lego_set=self.figure.lego_set, figure_number="fig-2", name="Mechaniker"
+        )
+        other_part = MinifigurePart.objects.create(
+            minifigure=other_figure, part_number="legs", name="Beine", quantity=1
+        )
+        response = self.client.post(
+            reverse("organizer:minifigure_part_quantity", args=[self.figure.pk, other_part.pk]),
+            {"owned_quantity": 1},
+        )
+        self.assertEqual(response.status_code, 404)
+        other_part.refresh_from_db()
+        self.assertEqual(other_part.owned_quantity, 0)
 
 
 class MinifigurePageTests(TestCase):

@@ -29,20 +29,36 @@
         });
         const payload = await response.json();
         if (!response.ok || !payload.ok) throw new Error(payload.message || "Bestand konnte nicht gespeichert werden.");
-        if (input) input.value = payload.part.owned;
-        row?.querySelectorAll("[data-part-owned]").forEach((node) => { node.textContent = payload.part.owned; });
-        row?.querySelectorAll("[data-part-missing]").forEach((node) => { node.textContent = payload.part.missing; });
-        const partStatus = row?.querySelector("[data-part-status]");
-        if (partStatus) { partStatus.textContent = payload.part.status_label; partStatus.className = `badge ${payload.part.status}`; }
-        figure?.querySelectorAll("[data-figure-owned]").forEach((node) => { node.textContent = payload.figure.owned; });
-        figure?.querySelectorAll("[data-figure-required]").forEach((node) => { node.textContent = payload.figure.required; });
-        const progress = figure?.querySelector("[data-figure-progress]"); if (progress) progress.value = payload.figure.percent;
-        const fallbackCount = figure?.querySelector(".minifigure-progress strong");
-        if (fallbackCount) fallbackCount.textContent = `${payload.figure.owned}/${payload.figure.required}`;
-        const fallbackProgress = figure?.querySelector(".minifigure-progress progress");
-        if (fallbackProgress) fallbackProgress.value = payload.figure.percent;
-        const figureStatus = figure?.querySelector("[data-figure-status]") || figure?.querySelector(".minifigure-progress .badge");
-        if (figureStatus) { figureStatus.textContent = payload.figure.status_label; figureStatus.className = `badge ${payload.figure.status}`; }
+        const matchingForms = [...document.querySelectorAll('form[action*="/organisation/minifiguren/"][action$="/bestand/"]')]
+          .filter((candidate) => candidate.action === form.action);
+        const partRows = new Set([row]);
+        matchingForms.forEach((candidate) => {
+          candidate.querySelectorAll('input[type="number"][name="owned_quantity"]').forEach((node) => { node.value = payload.part.owned; });
+          partRows.add(candidate.closest("[data-minifigure-part]") || candidate.closest("tr"));
+        });
+        partRows.forEach((partRow) => {
+          if (!partRow) return;
+          partRow.querySelectorAll("[data-part-owned]").forEach((node) => { node.textContent = payload.part.owned; });
+          partRow.querySelectorAll("[data-part-missing]").forEach((node) => { node.textContent = payload.part.missing; });
+          const partStatus = partRow.querySelector("[data-part-status]") || partRow.querySelector(".badge");
+          if (partStatus) { partStatus.textContent = payload.part.status_label; partStatus.className = `badge ${payload.part.status}`; }
+        });
+        const figures = new Set([figure]);
+        matchingForms.forEach((candidate) => {
+          figures.add(candidate.closest("[data-minifigure]") || candidate.closest("details")?.previousElementSibling || candidate.closest(".minifigure-card"));
+        });
+        figures.forEach((figureNode) => {
+          if (!figureNode) return;
+          figureNode.querySelectorAll("[data-figure-owned]").forEach((node) => { node.textContent = payload.figure.owned; });
+          figureNode.querySelectorAll("[data-figure-required]").forEach((node) => { node.textContent = payload.figure.required; });
+          const progress = figureNode.querySelector("[data-figure-progress]"); if (progress) progress.value = payload.figure.percent;
+          const fallbackCount = figureNode.querySelector(".minifigure-progress strong");
+          if (fallbackCount) fallbackCount.textContent = `${payload.figure.owned}/${payload.figure.required}`;
+          const fallbackProgress = figureNode.querySelector(".minifigure-progress progress");
+          if (fallbackProgress) fallbackProgress.value = payload.figure.percent;
+          const figureStatus = figureNode.querySelector("[data-figure-status]") || figureNode.querySelector(".minifigure-progress .badge");
+          if (figureStatus) { figureStatus.textContent = payload.figure.status_label; figureStatus.className = `badge ${payload.figure.status}`; }
+        });
         document.querySelectorAll("[data-set-completeness]").forEach((node) => { node.textContent = payload.set.label; node.className = `badge ${payload.set.key}`; });
         document.querySelectorAll("[data-set-completeness-count]").forEach((node) => { node.textContent = `${payload.set.owned} von ${payload.set.required} vorhanden`; });
         const completenessTerm = [...document.querySelectorAll("dt")].find((node) => node.textContent.trim() === "Vollständigkeit");

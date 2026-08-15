@@ -745,6 +745,7 @@ def minifigure_part_quantity(request, figure_pk, pk):
     part.owned_quantity = quantity
     part.full_clean()
     part.save(update_fields=["owned_quantity"])
+    part.refresh_from_db()
     AuditEvent.objects.create(actor=request.user, target_user=request.user, action="minifigure_part.quantity_changed", entity_type="minifigure_part", entity_id=str(part.pk), details={"owned_quantity": quantity}, request_id=request.request_id)
     if request.headers.get("Accept") == "application/json":
         figure_record = _minifigure_record(
@@ -759,6 +760,8 @@ def minifigure_part_quantity(request, figure_pk, pk):
             {
                 "ok": True,
                 "part": {
+                    "id": part.pk,
+                    "minifigure_id": figure.pk,
                     "owned": part.owned_quantity,
                     "required": part.quantity,
                     "missing": part.missing_quantity,
@@ -772,6 +775,7 @@ def minifigure_part_quantity(request, figure_pk, pk):
                     ),
                 },
                 "figure": {
+                    "id": figure.pk,
                     "owned": figure_record["owned"],
                     "required": figure_record["required"],
                     "missing": figure_record["missing"],
