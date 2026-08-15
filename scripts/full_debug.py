@@ -12,6 +12,7 @@ import inspect
 import os
 import platform
 import re
+import shutil
 import socket
 import subprocess
 import sys
@@ -160,7 +161,13 @@ def framework_commands(report: Report, python: str, production: bool):
     command(report, "DJANGO SYSTEM CHECK", [python, "manage.py", "check"])
     command(report, "DJANGO DEPLOY CHECK", [python, "manage.py", "check", "--deploy"])
     command(report, "MIGRATION DRIFT", [python, "manage.py", "makemigrations", "--check", "--dry-run"])
-    command(report, "RUFF", [python, "-m", "ruff", "check", "--no-cache", "."])
+    try:
+        importlib.import_module("ruff")
+    except ModuleNotFoundError:
+        report.section("RUFF", ["SKIPPED: Python-Modul ruff ist nicht installiert."])
+        report.add("WARNING", "RUFF", "SKIPPED: Ruff ist nicht installiert.")
+    else:
+        command(report, "RUFF", [python, "-m", "ruff", "check", "--no-cache", "."])
     python_syntax_audit(report)
     command(report, "COLLECTSTATIC DRY RUN", [python, "manage.py", "collectstatic", "--dry-run", "--noinput"])
     if production:
@@ -191,6 +198,10 @@ def python_syntax_audit(report: Report):
 
 def javascript_audit(report: Report):
     files = sorted((ROOT / "static" / "js").glob("*.js")) + sorted(ROOT.glob("static/service-worker.js"))
+    if shutil.which("node") is None:
+        report.section("JAVASCRIPT DATEIEN", [f"SKIPPED: Node.js ist nicht installiert ({len(files)} Dateien nicht geprüft)."])
+        report.add("WARNING", "JAVASCRIPT", "SKIPPED: Node.js ist nicht verfügbar.")
+        return
     lines = []
     for path in files:
         code, output, elapsed = command(report, f"NODE CHECK {path.relative_to(ROOT)}", ["node", "--check", str(path)], timeout=30)
@@ -234,6 +245,7 @@ def url_audit(report: Report):
 def forms_and_models(report: Report):
     from django import forms
     from django.apps import apps
+    from django.db import models as django_models
 
     form_lines, model_lines = [], []
     for config in apps.get_app_configs():
@@ -250,15 +262,32 @@ def forms_and_models(report: Report):
                         form_lines.append(f"{cls.__module__}.{name} | model={getattr(model, '__name__', '-')} | {field_name} | {field.widget.__class__.__name__} | required={field.required} | choices={choices} | label={field.label}")
                         if isinstance(field, forms.DateField) and not isinstance(field.widget, forms.DateInput):
                             report.add("WARNING", "FORM AUDIT", f"DateField ohne DateInput: {name}.{field_name}")
-                        if isinstance(field.widget, forms.NumberInput) and field.widget.attrs.get("min") is None:
+                        if (
+                            isinstance(field.widget, forms.NumberInput)
+                            and field.widget.attrs.get("min") is None
+                            and getattr(field, "min_value", None) is None
+                            and not field_name.endswith("_id")
+                        ):
                             report.add("WARNING", "FORM AUDIT", f"NumberInput ohne sichtbares min: {name}.{field_name}")
                 except Exception as exc:
-                    report.add("WARNING", "FORM AUDIT", f"Formular nicht parameterlos instanziierbar: {name}", exc)
+                    expected_user_forms = {
+                        "AdminPasswordChangeForm", "PasswordChangeForm", "SetPasswordForm"
+                    }
+                    report.add(
+                        "INFO" if name in expected_user_forms else "WARNING",
+                        "FORM AUDIT",
+                        (
+                            f"SKIPPED: {name} benötigt erwartungsgemäß einen Benutzer."
+                            if name in expected_user_forms
+                            else f"Formular nicht parameterlos instanziierbar: {name}"
+                        ),
+                        "" if name in expected_user_forms else exc,
+                    )
     for model in apps.get_models():
-        owns_str = "__str__" in model.__dict__
+        owns_str = model.__str__ is not django_models.Model.__str__
         sample = "kein sicherer Beispieldatensatz erzeugt"
         model_lines.append(f"{model._meta.label} | __str__={'JA' if owns_str else 'GEERBT/NEIN'} | {sample}")
-        if not owns_str:
+        if not owns_str and model._meta.app_config.name.startswith("apps."):
             report.add("WARNING", "MODEL STRING AUDIT", f"Kein eigener __str__: {model._meta.label}", recommendation="Sichtbare ModelChoice-Darstellung prüfen.")
     report.section("FORM AUDIT", form_lines or ["Keine Forms erfasst."])
     report.section("MODEL STRING AUDIT", model_lines)
@@ -422,10 +451,23 @@ def system_read_only(report: Report):
         ],
         30,
     )
-    command(report, "NGINX TEST", ["nginx", "-t"], 30)
+    if shutil.which("nginx") is None:
+        report.section("NGINX TEST", ["SKIPPED: nginx ist nicht installiert oder nicht im PATH."])
+        report.add("WARNING", "NGINX TEST", "SKIPPED: nginx ist nicht verfügbar.")
+    else:
+        code, output, _elapsed = command(report, "NGINX TEST", ["nginx", "-t"], 30)
+        if code and re.search(r"permission denied|access is denied", output, re.I):
+            finding = report.findings[-1]
+            finding.severity = "WARNING"
+            finding.message = "Prüfung benötigt erhöhte Leserechte; sudo wurde nicht aufgerufen."
     started = time.perf_counter()
-    result = subprocess.run(  # noqa: S603,S607 - fixed read-only system command
-        ["journalctl", "-u", "brickmissing.service", "-n", "200", "--no-pager"],  # noqa: S607
+    journalctl = shutil.which("journalctl")
+    if journalctl is None:
+        report.section("JOURNAL SUMMARY", ["SKIPPED: journalctl ist nicht verfügbar."])
+        report.add("WARNING", "JOURNAL SUMMARY", "SKIPPED: journalctl ist nicht verfügbar.")
+        return
+    result = subprocess.run(  # noqa: S603 - fixed read-only system command
+        [journalctl, "-u", "brickmissing.service", "-n", "200", "--no-pager"],
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -449,10 +491,15 @@ def system_read_only(report: Report):
             *[f"{label}: {count}" for label, count in counts.items()],
         ],
     )
+    permission_denied = bool(re.search(r"permission denied|not permitted|no entries", journal, re.I))
     report.add(
-        "PASS" if result.returncode == 0 else "ERROR",
+        "PASS" if result.returncode == 0 and not permission_denied else "WARNING",
         "JOURNAL SUMMARY",
-        f"Exit-Code {result.returncode}; Log-Inhalte aus Datenschutzgründen nicht ausgegeben.",
+        (
+            "Logs konnten wegen fehlender Leserechte nicht vollständig gelesen werden; sudo wurde nicht aufgerufen."
+            if permission_denied
+            else f"Exit-Code {result.returncode}; Log-Inhalte aus Datenschutzgründen nicht ausgegeben."
+        ),
     )
 
 

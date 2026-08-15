@@ -13,13 +13,24 @@ class OrderForm(forms.ModelForm):
         model = Order
         exclude = ("owner", "legacy_id", "deleted_at")
         labels = {"supplier": "Lieferant", "order_number": "Bestellnummer", "order_date": "Bestelldatum", "expected_delivery": "Erwartete Lieferung", "delivery_date": "Lieferdatum", "goods_total": "Warenwert", "shipping_cost": "Versandkosten", "total": "Gesamt", "tracking_number": "Sendungsnummer", "tracking_url": "Tracking-URL", "notes": "Notizen"}
-        widgets = {"order_date": forms.DateInput(attrs={"type": "date"}), "expected_delivery": forms.DateInput(attrs={"type": "date"}), "delivery_date": forms.DateInput(attrs={"type": "date"}), "notes": forms.Textarea(attrs={"rows": 3})}
+        widgets = {
+            "order_date": forms.DateInput(attrs={"type": "date"}),
+            "expected_delivery": forms.DateInput(attrs={"type": "date"}),
+            "delivery_date": forms.DateInput(attrs={"type": "date"}),
+            "notes": forms.Textarea(attrs={"rows": 3}),
+            "goods_total": forms.NumberInput(attrs={"min": "0", "step": "0.01"}),
+            "shipping_cost": forms.NumberInput(attrs={"min": "0", "step": "0.01"}),
+            "total": forms.NumberInput(attrs={"min": "0", "step": "0.01"}),
+        }
 
 
 class OrderItemForm(forms.ModelForm):
     class Meta:
         model = OrderItem
         exclude = ("order", "legacy_id")
+        widgets = {
+            "unit_price": forms.NumberInput(attrs={"min": "0", "step": "0.01"}),
+        }
 
     def __init__(self, *args, owner=None, **kwargs):
         super().__init__(*args, **kwargs)

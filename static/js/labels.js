@@ -20,22 +20,40 @@
           signal: controller.signal,
           headers: full ? {} : {"X-Requested-With": "XMLHttpRequest"},
         });
-        if (!response.ok) throw new Error("Vorschau konnte nicht aktualisiert werden.");
-        const documentCopy = new DOMParser().parseFromString(await response.text(), "text/html");
+        const responseText = await response.text();
+        if (!response.ok) {
+          const detail = responseText.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 180);
+          throw new Error(`Vorschau konnte nicht aktualisiert werden (HTTP ${response.status})${detail ? `: ${detail}` : "."}`);
+        }
+        const documentCopy = new DOMParser().parseFromString(responseText, "text/html");
         if (current !== sequence) return;
         if (full) {
           const replacement = documentCopy.querySelector("[data-label-studio]");
-          if (replacement) studio.replaceWith(replacement);
+          if (!replacement) throw new Error("Die Serverantwort enthält kein Label-Studio.");
+          studio.replaceWith(replacement);
           init();
         } else {
           const replacement = documentCopy.querySelector("[data-label-preview]");
-          if (replacement) studio.querySelector("[data-label-preview]").replaceWith(replacement);
+          if (!replacement) throw new Error("Die Serverantwort enthält keine Etikettenvorschau.");
+          studio.querySelector("[data-label-preview]").replaceWith(replacement);
         }
         window.history.replaceState({}, "", buildUrl());
       } catch (error) {
         if (error.name === "AbortError" && current !== sequence) return;
         const status = studio.querySelector("[data-label-status]");
-        if (status) status.innerHTML = '<div class="label-preview-error">Vorschau konnte nicht aktualisiert werden. <button type="button" data-label-retry>Erneut versuchen</button></div>';
+        console.error("Label-Vorschau fehlgeschlagen", error);
+        if (status) {
+          status.replaceChildren();
+          const notice = document.createElement("div");
+          notice.className = "label-preview-error";
+          notice.append(document.createTextNode(error.message || "Vorschau konnte nicht aktualisiert werden."));
+          const retry = document.createElement("button");
+          retry.type = "button";
+          retry.dataset.labelRetry = "true";
+          retry.textContent = "Erneut versuchen";
+          notice.append(" ", retry);
+          status.append(notice);
+        }
         studio.querySelector("[data-label-retry]")?.addEventListener("click", () => refresh());
       } finally {
         window.clearTimeout(timeout);

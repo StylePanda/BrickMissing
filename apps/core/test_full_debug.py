@@ -64,3 +64,10 @@ class FullDebugToolTests(TestCase):
     def test_non_https_production_origin_is_rejected(self):
         with self.assertRaises(ValueError):
             full_debug.public_http(full_debug.Report(), "http://127.0.0.1:8000")
+
+    @mock.patch("scripts.full_debug.shutil.which", return_value=None)
+    def test_missing_node_is_warning_not_error(self, _which):
+        report = full_debug.Report()
+        full_debug.javascript_audit(report)
+        self.assertEqual(report.findings[-1].severity, "WARNING")
+        self.assertIn("SKIPPED", report.render())

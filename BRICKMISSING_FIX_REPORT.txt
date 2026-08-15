@@ -1,0 +1,128 @@
+BRICKMISSING 8 – PRODUCTION DEBUG FIX REPORT
+============================================
+
+GRUNDLAGE
+- Analysiert wurden der aktuelle Codebestand und die im Auftrag genannten Production-Funde.
+- BRICKMISSING_PRODUCTION_DEBUG.txt war im Projektordner nicht vorhanden; die genannten Counts
+  (171 inkonsistente Parts, 77 Set-Abweichungen) wurden deshalb nicht lokal neu interpretiert.
+- Es wurden keine Production-Daten gelesen, geändert, gelöscht oder importiert.
+
+1. STATUS / MENGEN / PERSISTENZ
+Ursache:
+- Die spezialisierten Mengen-, Status-, Bulk-, Minifiguren- und Set-Inventar-Endpunkte speichern
+  bereits atomar und konsistent.
+- Das allgemeine PartForm/update_part konnte jedoch status=found/received/installed zusammen mit
+  owned_quantity=0 speichern. Legacy-Importdaten konnten denselben widersprüchlichen Zustand tragen.
+- Das erklärt "gefunden + Bestand 0" als vorhandenen Datenzustand; es ist kein Beleg für einen
+  ausschließlich lokalen UI-Updatefehler.
+
+Behebung:
+- Terminale Verfügbarkeitsstatus normalisieren owned_quantity auf quantity.
+- Vollständig vorhandene Teile können nicht als missing gespeichert werden.
+- Bestehende POST-Endpunkte bleiben atomar, owner-scoped und laden in Regressionstests erneut aus DB.
+- Keine automatische Korrektur der 171 Production-Datensätze.
+
+2. SET-VOLLSTÄNDIGKEIT
+Ursache:
+- LegoSet.completeness enthält einen manuellen/Legacy-Snapshot.
+- Detailansicht, Minifiguren und Labels nutzten bereits apps.catalog.services.set_completeness;
+  der gespeicherte Snapshot wurde bei Mengenänderungen nicht zuverlässig synchronisiert.
+
+Behebung:
+- Eine zentrale Regel in set_completeness:
+  missing == 0 -> Vollständig; missing > 0 -> Unvollständig.
+- Auch Sets ohne relevante Positionen ergeben gemäß dieser Regel Vollständig.
+- Das Setformular bietet keinen manuellen Vollständigkeitsstatus mehr an.
+- Neuer Command reconcile_set_completeness:
+  Standard ist read-only Dry-run, Ausgabe mit Setnummer/sicherer ID und Mengen.
+  Nur die ausdrückliche Option --apply schreibt die berechneten Werte.
+
+Dry-run:
+  python manage.py reconcile_set_completeness
+
+Explizites Anwenden (NICHT ausgeführt):
+  python manage.py reconcile_set_completeness --apply
+
+3. ETIKETTEN & QR-CODES
+Ursache:
+- Alle vier Vorlagen und die Option "Setbilder anzeigen" waren im aktuellen Code vorhanden.
+- labels.js reduzierte HTTP-, Server- und Antwortstrukturfehler auf eine generische Meldung.
+- Eine HTTP-200-Antwort ohne erwartetes Preview-Fragment wurde still akzeptiert.
+
+Behebung:
+- HTTP-Status und eine begrenzte, bereinigte Servermeldung werden sichtbar ausgegeben.
+- Fehlende Preview-/Studio-Fragmente werden als konkrete Fehler erkannt.
+- Fehler werden ohne innerHTML und CSP-konform in den DOM geschrieben und in console.error protokolliert.
+- Retry, Live-Preview, Startpositionen, QR-Ziele, HERMA-Maße und Bild an/aus bleiben erhalten.
+- Tests decken vier Vorlagen, Partial-Preview, leere/mehrfache Auswahl, Startpositionen,
+  Bild an/aus, QR-Ziele und Eigentümergrenzen ab.
+
+4. DEBUG-SYSTEM
+- Fehlendes Ruff: WARNING/SKIPPED statt Codefehler.
+- Fehlendes Node.js: WARNING/SKIPPED statt JavaScriptfehler.
+- Fehlendes nginx: WARNING/SKIPPED.
+- nginx Permission denied: WARNING mit Hinweis auf Leserechte; kein sudo-Aufruf.
+- journalctl fehlt/keine Leserechte: WARNING; kein sudo-Aufruf und keine Log-Inhalte im Bericht.
+- Absichtlich user-gebundene Django-Passwortforms werden als INFO/SKIPPED klassifiziert.
+- Geerbtes funktionsfähiges __str__ (z. B. User) wird nicht mehr fälschlich als fehlend gemeldet.
+- NumberInput-Prüfung berücksichtigt min_value und technische ID-Felder.
+
+5. PERMISSION / IDOR
+- Alle 13 heuristischen Treffer wurden im Code geprüft.
+- Accounts: E-Mail-Tokenprüfung bzw. signierter Sessionzustand/2FA-Prüfung schützt den Zugriff.
+- Backups: staff_member_required schützt Liste, Download und Restore.
+- Catalog/Orders/Organizer: Child-Objekte sind jeweils über ein owner-scoped Parent-Objekt gebunden.
+- Ergebnis: keine bestätigte IDOR-Sicherheitslücke; die statische Heuristik bleibt als manuelle Prüfliste.
+
+6. MODEL-STRINGS UND FORMULARGRENZEN
+- Models ohne eigenes __str__ wurden geprüft. Es wurden keine pauschalen Darstellungen ergänzt,
+  weil die gemeldeten technischen/Audit-Modelle nicht als ModelChoice-UI verwendet werden.
+- Preisfelder in Catalog und Orders haben jetzt min=0 und step=0.01.
+- Mengenfelder behalten ihre bestehenden nicht-negativen Model-/Formgrenzen.
+
+GEÄNDERTE DATEIEN
+- apps/catalog/forms.py
+- apps/catalog/services.py
+- apps/catalog/tests.py
+- apps/catalog/test_reconcile_completeness.py
+- apps/catalog/management/__init__.py
+- apps/catalog/management/commands/__init__.py
+- apps/catalog/management/commands/reconcile_set_completeness.py
+- apps/core/test_full_debug.py
+- apps/orders/forms.py
+- apps/organizer/tests.py
+- scripts/full_debug.py
+- static/js/labels.js
+- templates/catalog/set_form.html
+- BRICKMISSING_FULL_DEBUG.txt
+- BRICKMISSING_FIX_REPORT.txt
+
+TESTS UND CHECKS
+- python manage.py check: PASS
+- python manage.py makemigrations --check --dry-run: PASS, keine Änderungen erkannt
+- python manage.py test: PASS, 192/192, 0 failed, 0 errors, 0 skipped
+- ruff check .: PASS
+- node --check für app.js, labels.js, minifigure-inventory.js, service-worker.js: PASS
+- Neuer vollständiger Debuglauf: 0 CRITICAL, 0 ERROR, 22 WARNING, 34 PASS, 4 INFO
+
+DATENBANKÄNDERUNGEN / MIGRATIONEN
+- Keine Production-Datenbankänderung.
+- Keine Datenmigration.
+- Keine neue Django-Schemamigration erforderlich.
+- Reconciliation wurde nicht mit --apply ausgeführt.
+
+SICHERHEITSÄNDERUNGEN
+- Keine Permission- oder Auth-Abschwächung.
+- Kein CSP unsafe-inline/unsafe-eval.
+- Keine Secrets, E-Mails, Tokens oder Production-Daten ausgegeben.
+- Debugwerkzeug ruft niemals sudo auf.
+
+NOCH OFFEN / BEWUSST NICHT AUTOMATISCH BEHOBEN
+- Die 171 Production-Part-Abweichungen müssen zunächst mit einem sicheren Production-Dry-run
+  mengen-/statusbezogen aufgelistet und fachlich bestätigt werden.
+- Die 77 gespeicherten Set-Abweichungen können mit dem neuen Command read-only geprüft werden;
+  --apply erfordert eine bewusste Serverentscheidung und vorheriges Backup.
+- 22 Debug-Warnungen verbleiben überwiegend für technische Models ohne UI-relevantes __str__,
+  zwei dokumentierte Legacy-DB-Localhost-Beispieldefaults und die statische IDOR-Prüfliste.
+
+KEIN DEPLOYMENT, KEIN PUSH UND KEINE PRODUCTION-AKTION AUSGEFÜHRT.

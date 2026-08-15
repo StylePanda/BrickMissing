@@ -15,7 +15,7 @@ class CompletenessAndColorTests(TestCase):
         self.lego_set = LegoSet.objects.create(owner=self.user, set_number="1", name="Set")
 
     def test_set_completeness_is_derived_from_normal_and_minifigure_parts(self):
-        self.assertEqual(set_completeness(self.lego_set)["key"], "unknown")
+        self.assertEqual(set_completeness(self.lego_set)["key"], "complete")
         item = SetInventoryItem.objects.create(
             lego_set=self.lego_set, part_number="3001", name="Stein",
             required_quantity=2, owned_quantity=2,
@@ -37,7 +37,7 @@ class CompletenessAndColorTests(TestCase):
             lego_set=self.lego_set, part_number="spare", name="Ersatz",
             required_quantity=1, owned_quantity=0, is_spare=True,
         )
-        self.assertEqual(set_completeness(self.lego_set)["key"], "unknown")
+        self.assertEqual(set_completeness(self.lego_set)["key"], "complete")
 
     def test_central_color_categories(self):
         cases = {
@@ -383,6 +383,26 @@ class CatalogFlowTests(TestCase):
         self.client.post(url, {"status": Part.Status.MISSING})
         part.refresh_from_db()
         self.assertEqual(part.owned_quantity, 0)
+
+    def test_part_form_cannot_persist_found_with_zero_stock(self):
+        from apps.catalog.forms import PartForm
+
+        form = PartForm(
+            {
+                "element_id": "consistent", "design_id": "", "part_number": "",
+                "name": "Konsistent", "color": "", "quantity": 3,
+                "owned_quantity": 0, "unassigned_found_quantity": 0,
+                "is_present": "", "status": Part.Status.FOUND, "priority": "normal",
+                "unit_price": 0, "supplier": "", "notes": "", "image_url": "",
+            },
+            owner=self.user,
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        saved = form.save(commit=False)
+        saved.owner = self.user
+        saved.save()
+        saved.refresh_from_db()
+        self.assertEqual((saved.status, saved.owned_quantity), (Part.Status.FOUND, 3))
 
     def test_set_detail_inventory_workbench_and_direct_quantity(self):
         lego_set = LegoSet.objects.create(owner=self.user, set_number="75010", name="B-wing")

@@ -2,80 +2,89 @@ BRICKMISSING FULL APPLICATION DIAGNOSTIC
 ============================================
 
 TOP 20 PROBLEME
-1. [WARNING] FORM AUDIT: Formular nicht parameterlos instanziierbar: AdminPasswordChangeForm
-   Ursache/Detail: SetPasswordForm.__init__() missing 1 required positional argument: 'user'
-   Empfehlung: prüfen
-2. [WARNING] FORM AUDIT: Formular nicht parameterlos instanziierbar: AdminPasswordChangeForm
-   Ursache/Detail: AdminPasswordChangeForm.__init__() missing 1 required positional argument: 'user'
-   Empfehlung: prüfen
-3. [WARNING] FORM AUDIT: Formular nicht parameterlos instanziierbar: PasswordChangeForm
-   Ursache/Detail: SetPasswordForm.__init__() missing 1 required positional argument: 'user'
-   Empfehlung: prüfen
-4. [WARNING] FORM AUDIT: Formular nicht parameterlos instanziierbar: SetPasswordForm
-   Ursache/Detail: SetPasswordForm.__init__() missing 1 required positional argument: 'user'
-   Empfehlung: prüfen
-5. [WARNING] FORM AUDIT: NumberInput ohne sichtbares min: LegoSetForm.purchase_price
-   Ursache/Detail: nicht näher bestimmt
-   Empfehlung: prüfen
-6. [WARNING] FORM AUDIT: NumberInput ohne sichtbares min: LegoSetForm.current_value
-   Ursache/Detail: nicht näher bestimmt
-   Empfehlung: prüfen
-7. [WARNING] FORM AUDIT: NumberInput ohne sichtbares min: PartForm.unit_price
-   Ursache/Detail: nicht näher bestimmt
-   Empfehlung: prüfen
-8. [WARNING] FORM AUDIT: NumberInput ohne sichtbares min: SetCopyForm.purchase_price
-   Ursache/Detail: nicht näher bestimmt
-   Empfehlung: prüfen
-9. [WARNING] FORM AUDIT: NumberInput ohne sichtbares min: SetInventoryItemForm.color_id
-   Ursache/Detail: nicht näher bestimmt
-   Empfehlung: prüfen
-10. [WARNING] FORM AUDIT: NumberInput ohne sichtbares min: OrderForm.goods_total
-   Ursache/Detail: nicht näher bestimmt
-   Empfehlung: prüfen
-11. [WARNING] FORM AUDIT: NumberInput ohne sichtbares min: OrderForm.shipping_cost
-   Ursache/Detail: nicht näher bestimmt
-   Empfehlung: prüfen
-12. [WARNING] FORM AUDIT: NumberInput ohne sichtbares min: OrderForm.total
-   Ursache/Detail: nicht näher bestimmt
-   Empfehlung: prüfen
-13. [WARNING] FORM AUDIT: NumberInput ohne sichtbares min: OrderItemForm.unit_price
-   Ursache/Detail: nicht näher bestimmt
-   Empfehlung: prüfen
-14. [WARNING] MODEL STRING AUDIT: Kein eigener __str__: sessions.Session
+1. [WARNING] MODEL STRING AUDIT: Kein eigener __str__: accounts.PendingEmailChange
    Ursache/Detail: nicht näher bestimmt
    Empfehlung: Sichtbare ModelChoice-Darstellung prüfen.
-15. [WARNING] MODEL STRING AUDIT: Kein eigener __str__: accounts.User
+2. [WARNING] MODEL STRING AUDIT: Kein eigener __str__: accounts.AccountSession
    Ursache/Detail: nicht näher bestimmt
    Empfehlung: Sichtbare ModelChoice-Darstellung prüfen.
-16. [WARNING] MODEL STRING AUDIT: Kein eigener __str__: accounts.PendingEmailChange
+3. [WARNING] MODEL STRING AUDIT: Kein eigener __str__: accounts.RecoveryCode
    Ursache/Detail: nicht näher bestimmt
    Empfehlung: Sichtbare ModelChoice-Darstellung prüfen.
-17. [WARNING] MODEL STRING AUDIT: Kein eigener __str__: accounts.AccountSession
+4. [WARNING] MODEL STRING AUDIT: Kein eigener __str__: audit.AuditEvent
    Ursache/Detail: nicht näher bestimmt
    Empfehlung: Sichtbare ModelChoice-Darstellung prüfen.
-18. [WARNING] MODEL STRING AUDIT: Kein eigener __str__: accounts.RecoveryCode
+5. [WARNING] MODEL STRING AUDIT: Kein eigener __str__: core.Notification
    Ursache/Detail: nicht näher bestimmt
    Empfehlung: Sichtbare ModelChoice-Darstellung prüfen.
-19. [WARNING] MODEL STRING AUDIT: Kein eigener __str__: audit.AuditEvent
+6. [WARNING] MODEL STRING AUDIT: Kein eigener __str__: core.SavedView
    Ursache/Detail: nicht näher bestimmt
    Empfehlung: Sichtbare ModelChoice-Darstellung prüfen.
-20. [WARNING] MODEL STRING AUDIT: Kein eigener __str__: core.Notification
+7. [WARNING] MODEL STRING AUDIT: Kein eigener __str__: core.RecentItem
    Ursache/Detail: nicht näher bestimmt
    Empfehlung: Sichtbare ModelChoice-Darstellung prüfen.
+8. [WARNING] MODEL STRING AUDIT: Kein eigener __str__: core.DataQualityIssue
+   Ursache/Detail: nicht näher bestimmt
+   Empfehlung: Sichtbare ModelChoice-Darstellung prüfen.
+9. [WARNING] MODEL STRING AUDIT: Kein eigener __str__: catalog.PartHistory
+   Ursache/Detail: nicht näher bestimmt
+   Empfehlung: Sichtbare ModelChoice-Darstellung prüfen.
+10. [WARNING] MODEL STRING AUDIT: Kein eigener __str__: inventory.InventoryMovement
+   Ursache/Detail: nicht näher bestimmt
+   Empfehlung: Sichtbare ModelChoice-Darstellung prüfen.
+11. [WARNING] MODEL STRING AUDIT: Kein eigener __str__: orders.Order
+   Ursache/Detail: nicht näher bestimmt
+   Empfehlung: Sichtbare ModelChoice-Darstellung prüfen.
+12. [WARNING] MODEL STRING AUDIT: Kein eigener __str__: orders.OrderItem
+   Ursache/Detail: nicht näher bestimmt
+   Empfehlung: Sichtbare ModelChoice-Darstellung prüfen.
+13. [WARNING] MODEL STRING AUDIT: Kein eigener __str__: media_library.PrivateDocument
+   Ursache/Detail: nicht näher bestimmt
+   Empfehlung: Sichtbare ModelChoice-Darstellung prüfen.
+14. [WARNING] MODEL STRING AUDIT: Kein eigener __str__: data_portability.LegacyImportRecord
+   Ursache/Detail: nicht näher bestimmt
+   Empfehlung: Sichtbare ModelChoice-Darstellung prüfen.
+15. [WARNING] MODEL STRING AUDIT: Kein eigener __str__: data_portability.LegacyArchiveRecord
+   Ursache/Detail: nicht näher bestimmt
+   Empfehlung: Sichtbare ModelChoice-Darstellung prüfen.
+16. [WARNING] MODEL STRING AUDIT: Kein eigener __str__: data_portability.ImportBatch
+   Ursache/Detail: nicht näher bestimmt
+   Empfehlung: Sichtbare ModelChoice-Darstellung prüfen.
+17. [WARNING] MODEL STRING AUDIT: Kein eigener __str__: backups.BackupArtifact
+   Ursache/Detail: nicht näher bestimmt
+   Empfehlung: Sichtbare ModelChoice-Darstellung prüfen.
+18. [WARNING] MODEL STRING AUDIT: Kein eigener __str__: integrations.PriceObservation
+   Ursache/Detail: nicht näher bestimmt
+   Empfehlung: Sichtbare ModelChoice-Darstellung prüfen.
+19. [WARNING] MODEL STRING AUDIT: Kein eigener __str__: integrations.ValueSnapshot
+   Ursache/Detail: nicht näher bestimmt
+   Empfehlung: Sichtbare ModelChoice-Darstellung prüfen.
+20. [WARNING] SOURCE/TEMPLATE AUDIT: localhost/127.0.0.1 in apps\data_portability\management\commands\migrate_legacy_brickmissing.py:97
+   Ursache/Detail: nicht näher bestimmt
+   Empfehlung: prüfen
 
 ================================================================================
 REPORT HEADER
 ================================================================================
-Datum/Uhrzeit UTC: 2026-08-15T11:14:42.793741+00:00
+Datum/Uhrzeit UTC: 2026-08-15T11:40:51.884374+00:00
 Hostname: StylePanda
 Python: 3.12.13
 Django: 5.2.16
-Git Commit: c5bc974d76e99bfb500a98208b1c22d4e3f312ab
+Git Commit: bb029c635e981ba0e53416c35fce9218ca43fae8
 Branch: main
 Working Tree Status:
-?? BRICKMISSING_FULL_DEBUG.txt
-?? apps/core/test_full_debug.py
-?? scripts/full_debug.py
+M BRICKMISSING_FULL_DEBUG.txt
+ M apps/catalog/forms.py
+ M apps/catalog/services.py
+ M apps/catalog/tests.py
+ M apps/core/test_full_debug.py
+ M apps/orders/forms.py
+ M apps/organizer/tests.py
+ M scripts/full_debug.py
+ M static/js/labels.js
+ M templates/catalog/set_form.html
+?? apps/catalog/management/
+?? apps/catalog/test_reconcile_completeness.py
 Settings: config.settings.development
 Production-Modus: False
 DEBUG: True
@@ -87,7 +96,7 @@ DJANGO SYSTEM CHECK
 ================================================================================
 Befehl: D:\Video\BrickMissing-8-Django\.venv\Scripts\python.exe manage.py check
 Exit-Code: 0
-Laufzeit: 1.006 s
+Laufzeit: 0.879 s
 System check identified no issues (0 silenced).
 
 ================================================================================
@@ -95,7 +104,7 @@ DJANGO DEPLOY CHECK
 ================================================================================
 Befehl: D:\Video\BrickMissing-8-Django\.venv\Scripts\python.exe manage.py check --deploy
 Exit-Code: 0
-Laufzeit: 1.031 s
+Laufzeit: 0.834 s
 System check identified some issues:
 
 WARNINGS:
@@ -113,7 +122,7 @@ MIGRATION DRIFT
 ================================================================================
 Befehl: D:\Video\BrickMissing-8-Django\.venv\Scripts\python.exe manage.py makemigrations --check --dry-run
 Exit-Code: 0
-Laufzeit: 1.147 s
+Laufzeit: 0.933 s
 No changes detected
 
 ================================================================================
@@ -121,20 +130,20 @@ RUFF
 ================================================================================
 Befehl: D:\Video\BrickMissing-8-Django\.venv\Scripts\python.exe -m ruff check --no-cache .
 Exit-Code: 0
-Laufzeit: 0.196 s
+Laufzeit: 0.195 s
 All checks passed!
 
 ================================================================================
 PYTHON SYNTAX (read-only AST)
 ================================================================================
-Dateien: 158
+Dateien: 162
 
 ================================================================================
 COLLECTSTATIC DRY RUN
 ================================================================================
 Befehl: D:\Video\BrickMissing-8-Django\.venv\Scripts\python.exe manage.py collectstatic --dry-run --noinput
 Exit-Code: 0
-Laufzeit: 0.859 s
+Laufzeit: 0.909 s
 Pretending to copy 'D:\Video\BrickMissing-8-Django\static\admin\css\brickmissing-admin.css'
 Pretending to copy 'D:\Video\BrickMissing-8-Django\static\css\app.css'
 Pretending to copy 'D:\Video\BrickMissing-8-Django\static\css\labels.css'
@@ -149,31 +158,31 @@ TEST SUITE
 ================================================================================
 Befehl: D:\Video\BrickMissing-8-Django\.venv\Scripts\python.exe manage.py test
 Exit-Code: 0
-Laufzeit: 156.940 s
-Found 187 test(s).
+Laufzeit: 159.139 s
+Found 192 test(s).
 System check identified no issues (0 silenced).
 
 Creating test database for alias 'default'...
 
-2026-08-15 13:14:50,253 WARNING django.security.csrf request_id=09fd389f-e058-4bd8-a4bf-9dcf341c3cc6 Forbidden (CSRF cookie not set.): /konto/profil/deaktivieren/
-.2026-08-15 13:14:50,311 WARNING django.request request_id=d9edcaa5-8e6a-44bf-983a-6a39623db45e Method Not Allowed (GET): /konto/profil/deaktivieren/
-2026-08-15 13:14:50,382 WARNING django.request request_id=- Bad Request: /konto/profil/deaktivieren/
-.2026-08-15 13:14:50,662 WARNING django.request request_id=- Too Many Requests: /konto/passwort-vergessen/
-...2026-08-15 13:14:51,052 WARNING django.request request_id=- Bad Request: /konto/profil/e-mail-bestaetigen/bf157b6d-5d2c-4932-a424-e2d5fa63b13b/jvfLrYhl3cXByuBw0ctu7Rc91mZT0LHC4Pu__bR98N8/
-..2026-08-15 13:14:51,163 WARNING django.request request_id=- Bad Request: /konto/verifizieren/MzFkNmUzZDAtMzg1OS00YzZjLThiOTUtN2VjZTE1ODdmOGI3/ddcssr-ecc30cf0e9e90159adf73298d20d4533/
-2026-08-15 13:14:51,213 WARNING django.request request_id=- Bad Request: /konto/verifizieren/NzYzMzBiMWQtNTIyMS00ZGY5LWE1YTctY2U1ZDcwZDUzNzIz/ddcssr-9e0853e6a68a6d395fe0667c33d97fa5/
-.2026-08-15 13:14:51,284 WARNING django.request request_id=- Bad Request: /konto/profil/e-mail-bestaetigen/2244e4be-007a-4bbb-9aab-dce20d277e42/a-FifCcBKcfCO7lOwJ0ggdphcv6hVHf22w0XySuy920/
-..2026-08-15 13:14:51,438 WARNING django.request request_id=331a2144-41f0-453a-883a-7d862f0c34a9 Method Not Allowed (GET): /konto/abmelden/
-.......2026-08-15 13:14:52,307 WARNING django.request request_id=- Not Found: /konto/profil/sitzungen/7564605c-99fa-4160-9b46-b10a25d19d80/beenden/
-.......2026-08-15 13:14:53,042 WARNING django.request request_id=- Bad Request: /fehlteile/919bc9a6-1f96-4597-aeb3-9bda2c752c34/bestand/
-............2026-08-15 13:14:54,037 WARNING django.request request_id=9cecb1c3-5d04-48c4-904f-3a402933b74d Method Not Allowed (GET): /papierkorb/part/53103e77-4caa-43dd-b8e9-078399b107cd/endgueltig-loeschen/
-2026-08-15 13:14:54,042 WARNING django.request request_id=- Not Found: /papierkorb/part/7422f56d-c466-4ab5-ac89-e15b3c90ccaf/endgueltig-loeschen/
-............2026-08-15 13:14:54,922 WARNING django.request request_id=- Not Found: /sets/320dd997-6276-4031-921e-21de1ea6f53f/inventar/1/bestand/
-.2026-08-15 13:14:55,022 WARNING django.request request_id=- Not Found: /teile/9f792b0c-e8af-4d1c-81c0-12bad321138e/bearbeiten/
-2026-08-15 13:14:55,028 WARNING django.request request_id=- Not Found: /teile/9f792b0c-e8af-4d1c-81c0-12bad321138e/loeschen/
-.2026-08-15 13:14:55,132 WARNING django.request request_id=- Not Found: /sets/9c943bd0-8b95-43b2-8ca8-e96e507f940e/
-2026-08-15 13:14:55,136 WARNING django.request request_id=- Not Found: /sets/9c943bd0-8b95-43b2-8ca8-e96e507f940e/loeschen/
-......2026-08-15 13:14:55,895 WARNING django.request request_id=35aed80f-14f2-4445-ae65-d27caabb4a06 Forbidden (Permission denied): /admin/accounts/user/
+2026-08-15 13:40:59,292 WARNING django.security.csrf request_id=0808965c-56b0-4bdd-a802-b84dca7a6cbd Forbidden (CSRF cookie not set.): /konto/profil/deaktivieren/
+.2026-08-15 13:40:59,357 WARNING django.request request_id=21c98177-6719-4660-a74d-49441428bbfa Method Not Allowed (GET): /konto/profil/deaktivieren/
+2026-08-15 13:40:59,433 WARNING django.request request_id=- Bad Request: /konto/profil/deaktivieren/
+.2026-08-15 13:40:59,750 WARNING django.request request_id=- Too Many Requests: /konto/passwort-vergessen/
+...2026-08-15 13:41:00,129 WARNING django.request request_id=- Bad Request: /konto/profil/e-mail-bestaetigen/11938324-8be8-4b30-80c1-08a0460adf98/HCjxVxvCWU-ePoLRQBQDZ6o06hffZroNSS8r63aOz_Y/
+..2026-08-15 13:41:00,235 WARNING django.request request_id=- Bad Request: /konto/verifizieren/MDgyOGE4N2MtYjlkYS00OTBjLWIyNzEtZGUyMDQ1ZjUwNmIz/ddcu0c-753c5c06559b2db8fb542025f5dea606/
+2026-08-15 13:41:00,286 WARNING django.request request_id=- Bad Request: /konto/verifizieren/Mjk5NWMxNjctZmYzNC00NTg1LWJmMDktZTUwYmI0OGVlYzIz/ddcu0c-09853cd3bf0d759b3cce146d4ed423ff/
+.2026-08-15 13:41:00,357 WARNING django.request request_id=- Bad Request: /konto/profil/e-mail-bestaetigen/4cab7e12-f137-40c3-92dd-4b32fdbe2a46/MhKDtpaW3OOgxKrfzmbhXnYEnK5IEhfhkjcyxx7wur8/
+..2026-08-15 13:41:00,524 WARNING django.request request_id=e926b164-6d35-4440-a561-306571cbe3ab Method Not Allowed (GET): /konto/abmelden/
+.......2026-08-15 13:41:01,450 WARNING django.request request_id=- Not Found: /konto/profil/sitzungen/a8e4801f-70ff-4e39-b3f9-b5bf4572f647/beenden/
+.........2026-08-15 13:41:02,233 WARNING django.request request_id=- Bad Request: /fehlteile/e2dbf154-f0ea-47b0-9694-9e6dae4f7d5d/bestand/
+.............2026-08-15 13:41:03,225 WARNING django.request request_id=eb4592b7-d60f-45f9-9df0-6d444dcaaa6b Method Not Allowed (GET): /papierkorb/part/9de7f47a-9245-4697-83ab-b50115cba11a/endgueltig-loeschen/
+2026-08-15 13:41:03,230 WARNING django.request request_id=- Not Found: /papierkorb/part/453dd75a-c80a-4a37-8b32-d8131e89dc0c/endgueltig-loeschen/
+............2026-08-15 13:41:04,194 WARNING django.request request_id=- Not Found: /sets/6cef3f89-6171-44ef-af73-b43f71613f2a/inventar/1/bestand/
+.2026-08-15 13:41:04,298 WARNING django.request request_id=- Not Found: /teile/55bf3d8e-6c5d-4d81-96c3-7fd22de4d401/bearbeiten/
+2026-08-15 13:41:04,302 WARNING django.request request_id=- Not Found: /teile/55bf3d8e-6c5d-4d81-96c3-7fd22de4d401/loeschen/
+.2026-08-15 13:41:04,413 WARNING django.request request_id=- Not Found: /sets/8ec96597-6bea-480f-b8c0-ff7daed89009/
+2026-08-15 13:41:04,417 WARNING django.request request_id=- Not Found: /sets/8ec96597-6bea-480f-b8c0-ff7daed89009/loeschen/
+......2026-08-15 13:41:05,159 WARNING django.request request_id=62a4a8ab-a632-4eaa-a451-c503c02b4ac6 Forbidden (Permission denied): /admin/accounts/user/
 Traceback (most recent call last):
   File "D:\Video\BrickMissing-8-Django\.venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
     response = get_response(request)
@@ -208,62 +217,62 @@ Traceback (most recent call last):
   File "D:\Video\BrickMissing-8-Django\.venv\Lib\site-packages\django\contrib\admin\options.py", line 2022, in changelist_view
     raise PermissionDenied
 django.core.exceptions.PermissionDenied
-.............2026-08-15 13:14:56,499 WARNING django.request request_id=- Not Found: /ansichten/2/loeschen/
-.2026-08-15 13:14:56,566 WARNING django.request request_id=- Bad Request: /daten/import/json/
-2026-08-15 13:14:56,570 WARNING django.request request_id=- Bad Request: /daten/import/json/
-2026-08-15 13:14:56,574 WARNING django.request request_id=- Bad Request: /daten/import/json/
-2026-08-15 13:14:56,584 WARNING django.request request_id=- Bad Request: /daten/import/json/
-2026-08-15 13:14:56,621 WARNING django.request request_id=- Bad Request: /daten/import/json/
-2026-08-15 13:14:56,638 WARNING django.request request_id=- Bad Request: /daten/import/csv/
-2026-08-15 13:14:56,650 WARNING django.request request_id=- Bad Request: /daten/import/csv/
-2026-08-15 13:14:56,670 WARNING django.request request_id=- Bad Request: /daten/import/csv/
-2026-08-15 13:14:56,679 WARNING django.request request_id=- Bad Request: /daten/import/csv/
-..2026-08-15 13:14:56,810 WARNING django.request request_id=- Bad Request: /daten/import/5f1a2913-945a-4e0b-bb64-c631c5acc338/bestaetigen/
-...2026-08-15 13:14:56,979 WARNING django.request request_id=- Bad Request: /daten/import/e76969f7-32d1-4434-98fa-2ab28550b4a1/bestaetigen/
-............2026-08-15 13:17:10,088 WARNING django.request request_id=- Bad Request: /integrationen/bild/
-2026-08-15 13:17:10,090 WARNING django.request request_id=- Bad Request: /integrationen/bild/
-.2026-08-15 13:17:10,191 WARNING django.request request_id=- Not Found: /integrationen/rebrickable/sets/6e84d308-857d-415a-9db7-1378e83c1fee/anleitungen/
-.2026-08-15 13:17:10,292 WARNING django.request request_id=- Not Found: /integrationen/rebrickable/sets/fad96239-e7b1-44d6-8172-1dcbdfb4e59c/
-.2026-08-15 13:17:10,394 WARNING django.request request_id=- Bad Request: /integrationen/bild/
-........2026-08-15 13:17:10,899 WARNING django.request request_id=- Bad Request: /integrationen/rebrickable/set-suche/
-.2026-08-15 13:17:11,001 WARNING django.request request_id=- Not Found: /integrationen/lego-pick-a-brick/cfcbfd12-5ccf-47d9-acc5-cf60ee005d34/
-...........2026-08-15 13:17:11,413 WARNING django.request request_id=- Not Found: /inventar/2/
-2026-08-15 13:17:11,417 WARNING django.request request_id=- Not Found: /lagerorte/1/
-2026-08-15 13:17:11,420 WARNING django.request request_id=- Not Found: /lagerorte/1/qr.svg
-.......2026-08-15 13:17:12,072 WARNING django.request request_id=- Not Found: /dokumente/1/download/
-2026-08-15 13:17:12,078 WARNING django.request request_id=- Not Found: /dokumente/1/loeschen/
-.2026-08-15 13:17:12,188 WARNING django.request request_id=- Not Found: /dokumente/1/download/
-..2026-08-15 13:17:12,386 WARNING django.request request_id=- Not Found: /bestellungen/2/
-2026-08-15 13:17:12,389 WARNING django.request request_id=- Not Found: /bestellungen/2/bearbeiten/
-2026-08-15 13:17:12,392 WARNING django.request request_id=- Not Found: /bestellungen/2/position/neu/
-2026-08-15 13:17:12,395 WARNING django.request request_id=- Not Found: /bestellungen/2/position/2/
-..2026-08-15 13:17:12,636 WARNING django.request request_id=- Bad Request: /bestellungen/1/position/1/eingang/
-2026-08-15 13:17:12,646 WARNING django.request request_id=- Not Found: /bestellungen/2/position/2/eingang/
-...2026-08-15 13:17:12,869 WARNING django.request request_id=- Not Found: /organisation/etiketten-qr/qr/4f899fb8-ee90-47a6-9dd5-2f68c9374531.svg
-..2026-08-15 13:17:13,035 WARNING django.request request_id=- Not Found: /organisation/minifiguren/1/teile/1/bestand/
-.........2026-08-15 13:17:13,795 WARNING django.request request_id=- Not Found: /organisation/collections/1/
-..2026-08-15 13:17:14,012 WARNING django.request request_id=- Not Found: /organisation/labels/2/preview/
-2026-08-15 13:17:14,015 WARNING django.request request_id=- Not Found: /organisation/collections/1/loeschen/
-.2026-08-15 13:17:14,138 WARNING django.request request_id=- Not Found: /organisation/mocs/2/versionen/2/aktivieren/
-.2026-08-15 13:17:14,240 WARNING django.request request_id=- Not Found: /organisation/collections/2/
-2026-08-15 13:17:14,244 WARNING django.request request_id=- Not Found: /organisation/collections/2/loeschen/
-2026-08-15 13:17:14,247 WARNING django.request request_id=- Not Found: /organisation/mocs/1/
-2026-08-15 13:17:14,251 WARNING django.request request_id=- Not Found: /organisation/mocs/1/loeschen/
-2026-08-15 13:17:14,253 WARNING django.request request_id=- Not Found: /organisation/wishlist/1/
-2026-08-15 13:17:14,257 WARNING django.request request_id=- Not Found: /organisation/wishlist/1/loeschen/
-2026-08-15 13:17:14,262 WARNING django.request request_id=- Not Found: /organisation/loans/1/
-2026-08-15 13:17:14,266 WARNING django.request request_id=- Not Found: /organisation/loans/1/loeschen/
-2026-08-15 13:17:14,269 WARNING django.request request_id=- Not Found: /organisation/notes/1/
-2026-08-15 13:17:14,273 WARNING django.request request_id=- Not Found: /organisation/notes/1/loeschen/
-2026-08-15 13:17:14,275 WARNING django.request request_id=- Not Found: /organisation/labels/1/
-2026-08-15 13:17:14,278 WARNING django.request request_id=- Not Found: /organisation/labels/1/loeschen/
-2026-08-15 13:17:14,281 WARNING django.request request_id=- Not Found: /organisation/minifigures/1/
-2026-08-15 13:17:14,284 WARNING django.request request_id=- Not Found: /organisation/minifigures/1/loeschen/
+.............2026-08-15 13:41:05,924 WARNING django.request request_id=- Not Found: /ansichten/2/loeschen/
+.2026-08-15 13:41:05,995 WARNING django.request request_id=- Bad Request: /daten/import/json/
+2026-08-15 13:41:06,000 WARNING django.request request_id=- Bad Request: /daten/import/json/
+2026-08-15 13:41:06,004 WARNING django.request request_id=- Bad Request: /daten/import/json/
+2026-08-15 13:41:06,023 WARNING django.request request_id=- Bad Request: /daten/import/json/
+2026-08-15 13:41:06,050 WARNING django.request request_id=- Bad Request: /daten/import/json/
+2026-08-15 13:41:06,059 WARNING django.request request_id=- Bad Request: /daten/import/csv/
+2026-08-15 13:41:06,064 WARNING django.request request_id=- Bad Request: /daten/import/csv/
+2026-08-15 13:41:06,074 WARNING django.request request_id=- Bad Request: /daten/import/csv/
+2026-08-15 13:41:06,079 WARNING django.request request_id=- Bad Request: /daten/import/csv/
+..2026-08-15 13:41:06,212 WARNING django.request request_id=- Bad Request: /daten/import/4c743fb2-b756-43b9-a06f-28d8f3ab610a/bestaetigen/
+...2026-08-15 13:41:06,408 WARNING django.request request_id=- Bad Request: /daten/import/94302f62-2041-4f28-a7ed-9e3c2703ef63/bestaetigen/
+............2026-08-15 13:43:21,043 WARNING django.request request_id=- Bad Request: /integrationen/bild/
+2026-08-15 13:43:21,044 WARNING django.request request_id=- Bad Request: /integrationen/bild/
+.2026-08-15 13:43:21,149 WARNING django.request request_id=- Not Found: /integrationen/rebrickable/sets/52924328-f620-4002-9b02-716aad258825/anleitungen/
+.2026-08-15 13:43:21,244 WARNING django.request request_id=- Not Found: /integrationen/rebrickable/sets/2bd74861-605c-4d5e-814a-ab9c2ba3ba50/
+.2026-08-15 13:43:21,341 WARNING django.request request_id=- Bad Request: /integrationen/bild/
+........2026-08-15 13:43:21,839 WARNING django.request request_id=- Bad Request: /integrationen/rebrickable/set-suche/
+.2026-08-15 13:43:21,951 WARNING django.request request_id=- Not Found: /integrationen/lego-pick-a-brick/867354ed-c061-4ef1-b8eb-eb0361b459da/
+...........2026-08-15 13:43:22,376 WARNING django.request request_id=- Not Found: /inventar/2/
+2026-08-15 13:43:22,380 WARNING django.request request_id=- Not Found: /lagerorte/1/
+2026-08-15 13:43:22,383 WARNING django.request request_id=- Not Found: /lagerorte/1/qr.svg
+.......2026-08-15 13:43:23,001 WARNING django.request request_id=- Not Found: /dokumente/1/download/
+2026-08-15 13:43:23,004 WARNING django.request request_id=- Not Found: /dokumente/1/loeschen/
+.2026-08-15 13:43:23,119 WARNING django.request request_id=- Not Found: /dokumente/1/download/
+..2026-08-15 13:43:23,315 WARNING django.request request_id=- Not Found: /bestellungen/2/
+2026-08-15 13:43:23,318 WARNING django.request request_id=- Not Found: /bestellungen/2/bearbeiten/
+2026-08-15 13:43:23,321 WARNING django.request request_id=- Not Found: /bestellungen/2/position/neu/
+2026-08-15 13:43:23,323 WARNING django.request request_id=- Not Found: /bestellungen/2/position/2/
+..2026-08-15 13:43:23,544 WARNING django.request request_id=- Bad Request: /bestellungen/1/position/1/eingang/
+2026-08-15 13:43:23,549 WARNING django.request request_id=- Not Found: /bestellungen/2/position/2/eingang/
+....2026-08-15 13:43:23,818 WARNING django.request request_id=- Not Found: /organisation/etiketten-qr/qr/c0420dce-7023-4d2a-87d8-c5c7fcbac0ae.svg
+..2026-08-15 13:43:23,980 WARNING django.request request_id=- Not Found: /organisation/minifiguren/1/teile/1/bestand/
+.........2026-08-15 13:43:24,745 WARNING django.request request_id=- Not Found: /organisation/collections/1/
+..2026-08-15 13:43:24,962 WARNING django.request request_id=- Not Found: /organisation/labels/2/preview/
+2026-08-15 13:43:24,965 WARNING django.request request_id=- Not Found: /organisation/collections/1/loeschen/
+.2026-08-15 13:43:25,077 WARNING django.request request_id=- Not Found: /organisation/mocs/2/versionen/2/aktivieren/
+.2026-08-15 13:43:25,177 WARNING django.request request_id=- Not Found: /organisation/collections/2/
+2026-08-15 13:43:25,180 WARNING django.request request_id=- Not Found: /organisation/collections/2/loeschen/
+2026-08-15 13:43:25,183 WARNING django.request request_id=- Not Found: /organisation/mocs/1/
+2026-08-15 13:43:25,185 WARNING django.request request_id=- Not Found: /organisation/mocs/1/loeschen/
+2026-08-15 13:43:25,188 WARNING django.request request_id=- Not Found: /organisation/wishlist/1/
+2026-08-15 13:43:25,191 WARNING django.request request_id=- Not Found: /organisation/wishlist/1/loeschen/
+2026-08-15 13:43:25,194 WARNING django.request request_id=- Not Found: /organisation/loans/1/
+2026-08-15 13:43:25,197 WARNING django.request request_id=- Not Found: /organisation/loans/1/loeschen/
+2026-08-15 13:43:25,199 WARNING django.request request_id=- Not Found: /organisation/notes/1/
+2026-08-15 13:43:25,202 WARNING django.request request_id=- Not Found: /organisation/notes/1/loeschen/
+2026-08-15 13:43:25,206 WARNING django.request request_id=- Not Found: /organisation/labels/1/
+2026-08-15 13:43:25,209 WARNING django.request request_id=- Not Found: /organisation/labels/1/loeschen/
+2026-08-15 13:43:25,211 WARNING django.request request_id=- Not Found: /organisation/minifigures/1/
+2026-08-15 13:43:25,214 WARNING django.request request_id=- Not Found: /organisation/minifigures/1/loeschen/
 .................C:\Users\sonja\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\Lib\zipfile\__init__.py:1624: UserWarning: Duplicate name: 'private/repeated.txt'
   return self._open_to_write(zinfo, force_zip64=force_zip64)
-..............................
+...............................
 ----------------------------------------------------------------------
-Ran 187 tests in 153.999s
+Ran 192 tests in 155.788s
 
 OK
 Destroying test database for alias 'default'...
@@ -271,12 +280,12 @@ Destroying test database for alias 'default'...
 ================================================================================
 TEST SUMMARY
 ================================================================================
-Gesamt: 187
-Passed: 187
+Gesamt: 192
+Passed: 192
 Failed: 0
 Errors: 0
 Skipped: 0
-Laufzeit: 156.940 s
+Laufzeit: 159.139 s
 Status: PASS
 
 ================================================================================
@@ -284,7 +293,7 @@ NODE CHECK static\js\app.js
 ================================================================================
 Befehl: node --check D:\Video\BrickMissing-8-Django\static\js\app.js
 Exit-Code: 0
-Laufzeit: 0.045 s
+Laufzeit: 0.050 s
 (keine Ausgabe)
 
 ================================================================================
@@ -292,7 +301,7 @@ NODE CHECK static\js\labels.js
 ================================================================================
 Befehl: node --check D:\Video\BrickMissing-8-Django\static\js\labels.js
 Exit-Code: 0
-Laufzeit: 0.046 s
+Laufzeit: 0.050 s
 (keine Ausgabe)
 
 ================================================================================
@@ -300,7 +309,7 @@ NODE CHECK static\js\minifigure-inventory.js
 ================================================================================
 Befehl: node --check D:\Video\BrickMissing-8-Django\static\js\minifigure-inventory.js
 Exit-Code: 0
-Laufzeit: 0.043 s
+Laufzeit: 0.050 s
 (keine Ausgabe)
 
 ================================================================================
@@ -308,16 +317,16 @@ NODE CHECK static\service-worker.js
 ================================================================================
 Befehl: node --check D:\Video\BrickMissing-8-Django\static\service-worker.js
 Exit-Code: 0
-Laufzeit: 0.046 s
+Laufzeit: 0.050 s
 (keine Ausgabe)
 
 ================================================================================
 JAVASCRIPT DATEIEN
 ================================================================================
-PASS static\js\app.js (0.045 s) 
-PASS static\js\labels.js (0.046 s) 
-PASS static\js\minifigure-inventory.js (0.043 s) 
-PASS static\service-worker.js (0.046 s) 
+PASS static\js\app.js (0.050 s) 
+PASS static\js\labels.js (0.050 s) 
+PASS static\js\minifigure-inventory.js (0.050 s) 
+PASS static\service-worker.js (0.050 s) 
 
 ================================================================================
 URL AUDIT – ROUTE | NAME | VIEW
@@ -653,7 +662,6 @@ apps.catalog.forms.LegoSetForm | model=LegoSet | total_parts | NumberInput | req
 apps.catalog.forms.LegoSetForm | model=LegoSet | minifigures | NumberInput | required=False | choices=no | label=Minifiguren
 apps.catalog.forms.LegoSetForm | model=LegoSet | description | Textarea | required=False | choices=no | label=Beschreibung
 apps.catalog.forms.LegoSetForm | model=LegoSet | condition | Select | required=True | choices=yes | label=Kaufzustand
-apps.catalog.forms.LegoSetForm | model=LegoSet | completeness | Select | required=True | choices=yes | label=Vollständigkeit
 apps.catalog.forms.LegoSetForm | model=LegoSet | build_status | Select | required=True | choices=yes | label=Aufbaustatus
 apps.catalog.forms.LegoSetForm | model=LegoSet | favorite | CheckboxInput | required=False | choices=no | label=Favorit
 apps.catalog.forms.LegoSetForm | model=LegoSet | image_url | URLInput | required=False | choices=no | label=Bild-URL
@@ -766,8 +774,8 @@ admin.LogEntry | __str__=JA | kein sicherer Beispieldatensatz erzeugt
 auth.Permission | __str__=JA | kein sicherer Beispieldatensatz erzeugt
 auth.Group | __str__=JA | kein sicherer Beispieldatensatz erzeugt
 contenttypes.ContentType | __str__=JA | kein sicherer Beispieldatensatz erzeugt
-sessions.Session | __str__=GEERBT/NEIN | kein sicherer Beispieldatensatz erzeugt
-accounts.User | __str__=GEERBT/NEIN | kein sicherer Beispieldatensatz erzeugt
+sessions.Session | __str__=JA | kein sicherer Beispieldatensatz erzeugt
+accounts.User | __str__=JA | kein sicherer Beispieldatensatz erzeugt
 accounts.PendingEmailChange | __str__=GEERBT/NEIN | kein sicherer Beispieldatensatz erzeugt
 accounts.AccountSession | __str__=GEERBT/NEIN | kein sicherer Beispieldatensatz erzeugt
 accounts.RecoveryCode | __str__=GEERBT/NEIN | kein sicherer Beispieldatensatz erzeugt
@@ -850,8 +858,8 @@ localhost/127.0.0.1: apps\integrations\tests.py:54: "127.0.0.1", "::1", "10.0.0.
 localhost/127.0.0.1: apps\integrations\tests.py:67: "not-a-url", "https://127.0.0.1/a.png",
 localhost/127.0.0.1: apps\integrations\tests.py:72: "https://cdn.rebrickable.com/a.png", 302, "redirect", {"Location": "http://127.0.0.1/"}, io.BytesIO()
 object (...): apps\organizer\tests.py:234: self.assertNotContains(response, " object (")
-localhost/127.0.0.1: apps\organizer\tests.py:452: def test_configured_public_origin_is_used_without_localhost(self):
-localhost/127.0.0.1: apps\organizer\tests.py:455: self.assertNotContains(response, "127.0.0.1")
+localhost/127.0.0.1: apps\organizer\tests.py:479: def test_configured_public_origin_is_used_without_localhost(self):
+localhost/127.0.0.1: apps\organizer\tests.py:482: self.assertNotContains(response, "127.0.0.1")
 localhost/127.0.0.1: apps\data_portability\management\commands\migrate_legacy_brickmissing.py:97: host = str(cfg.get("HOST") or "localhost").casefold()
 localhost/127.0.0.1: apps\data_portability\management\commands\migrate_legacy_brickmissing.py:98: host = "loopback" if host in {"localhost", "127.0.0.1", "::1"} else host
 
@@ -905,9 +913,9 @@ ZUSAMMENFASSUNG
 ================================================================================
 CRITICAL: 0
 ERROR: 0
-WARNING: 37
+WARNING: 22
 PASS: 34
-INFO: 0
+INFO: 4
 
 ALLE FUNDE
 [PASS] DJANGO SYSTEM CHECK: Exit-Code 0
@@ -922,25 +930,10 @@ ALLE FUNDE
 [PASS] NODE CHECK static\js\minifigure-inventory.js: Exit-Code 0
 [PASS] NODE CHECK static\service-worker.js: Exit-Code 0
 [PASS] URL AUDIT: 279 URL-Patterns rekursiv erfasst.
-[WARNING] FORM AUDIT: Formular nicht parameterlos instanziierbar: AdminPasswordChangeForm
-  SetPasswordForm.__init__() missing 1 required positional argument: 'user'
-[WARNING] FORM AUDIT: Formular nicht parameterlos instanziierbar: AdminPasswordChangeForm
-  AdminPasswordChangeForm.__init__() missing 1 required positional argument: 'user'
-[WARNING] FORM AUDIT: Formular nicht parameterlos instanziierbar: PasswordChangeForm
-  SetPasswordForm.__init__() missing 1 required positional argument: 'user'
-[WARNING] FORM AUDIT: Formular nicht parameterlos instanziierbar: SetPasswordForm
-  SetPasswordForm.__init__() missing 1 required positional argument: 'user'
-[WARNING] FORM AUDIT: NumberInput ohne sichtbares min: LegoSetForm.purchase_price
-[WARNING] FORM AUDIT: NumberInput ohne sichtbares min: LegoSetForm.current_value
-[WARNING] FORM AUDIT: NumberInput ohne sichtbares min: PartForm.unit_price
-[WARNING] FORM AUDIT: NumberInput ohne sichtbares min: SetCopyForm.purchase_price
-[WARNING] FORM AUDIT: NumberInput ohne sichtbares min: SetInventoryItemForm.color_id
-[WARNING] FORM AUDIT: NumberInput ohne sichtbares min: OrderForm.goods_total
-[WARNING] FORM AUDIT: NumberInput ohne sichtbares min: OrderForm.shipping_cost
-[WARNING] FORM AUDIT: NumberInput ohne sichtbares min: OrderForm.total
-[WARNING] FORM AUDIT: NumberInput ohne sichtbares min: OrderItemForm.unit_price
-[WARNING] MODEL STRING AUDIT: Kein eigener __str__: sessions.Session
-[WARNING] MODEL STRING AUDIT: Kein eigener __str__: accounts.User
+[INFO] FORM AUDIT: SKIPPED: AdminPasswordChangeForm benötigt erwartungsgemäß einen Benutzer.
+[INFO] FORM AUDIT: SKIPPED: AdminPasswordChangeForm benötigt erwartungsgemäß einen Benutzer.
+[INFO] FORM AUDIT: SKIPPED: PasswordChangeForm benötigt erwartungsgemäß einen Benutzer.
+[INFO] FORM AUDIT: SKIPPED: SetPasswordForm benötigt erwartungsgemäß einen Benutzer.
 [WARNING] MODEL STRING AUDIT: Kein eigener __str__: accounts.PendingEmailChange
 [WARNING] MODEL STRING AUDIT: Kein eigener __str__: accounts.AccountSession
 [WARNING] MODEL STRING AUDIT: Kein eigener __str__: accounts.RecoveryCode

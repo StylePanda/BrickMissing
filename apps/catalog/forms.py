@@ -8,17 +8,18 @@ class LegoSetForm(forms.ModelForm):
     COMPLETENESS_CHOICES = (("vollständig", "Vollständig"), ("unvollständig", "Unvollständig"), ("unbekannt", "Unbekannt"))
     BUILD_STATUS_CHOICES = (("gebaut", "Aufgebaut"), ("aufgebaut", "Aufgebaut (bestehender Wert)"), ("zerlegt vollständig", "Zerlegt, vollständig"), ("zerlegt unvollständig", "Zerlegt, unvollständig"), ("in arbeit", "Im Aufbau"))
     condition = forms.ChoiceField(label="Kaufzustand", choices=CONDITION_CHOICES)
-    completeness = forms.ChoiceField(label="Vollständigkeit", choices=COMPLETENESS_CHOICES)
     build_status = forms.ChoiceField(label="Aufbaustatus", choices=BUILD_STATUS_CHOICES)
     class Meta:
         model = LegoSet
-        exclude = ("owner", "legacy_id", "deleted_at")
+        exclude = ("owner", "legacy_id", "deleted_at", "completeness")
         widgets = {
             "description": forms.Textarea(attrs={"rows": 3}),
             "notes": forms.Textarea(attrs={"rows": 3}),
             "purchase_date": forms.DateInput(attrs={"type": "date"}),
             "theme": forms.TextInput(attrs={"autocomplete": "off"}),
             "subtheme": forms.TextInput(attrs={"autocomplete": "off"}),
+            "purchase_price": forms.NumberInput(attrs={"min": "0", "step": "0.01"}),
+            "current_value": forms.NumberInput(attrs={"min": "0", "step": "0.01"}),
         }
         labels = {
             "set_number": "Setnummer", "name": "Name", "theme": "Themenwelt",
@@ -44,7 +45,10 @@ class PartForm(forms.ModelForm):
     class Meta:
         model = Part
         exclude = ("owner", "legacy_id", "deleted_at")
-        widgets = {"notes": forms.Textarea(attrs={"rows": 3})}
+        widgets = {
+            "notes": forms.Textarea(attrs={"rows": 3}),
+            "unit_price": forms.NumberInput(attrs={"min": "0", "step": "0.01"}),
+        }
         labels = {
             "lego_set": "Set-Zuordnung", "element_id": "Element-ID", "design_id": "Design-ID",
             "part_number": "Teilenummer", "name": "Name", "color": "Farbe",
@@ -60,6 +64,19 @@ class PartForm(forms.ModelForm):
             owner=owner, deleted_at__isnull=True
         )
 
+    def clean(self):
+        cleaned = super().clean()
+        quantity = cleaned.get("quantity")
+        owned = cleaned.get("owned_quantity")
+        status = cleaned.get("status")
+        if quantity is None or owned is None or status is None:
+            return cleaned
+        if status == Part.Status.MISSING and owned >= quantity and quantity > 0:
+            self.add_error("status", "Ein vollständig vorhandenes Teil kann nicht als fehlend gespeichert werden.")
+        if status in {Part.Status.FOUND, Part.Status.RECEIVED, Part.Status.INSTALLED}:
+            cleaned["owned_quantity"] = quantity
+        return cleaned
+
 
 class SetCopyForm(forms.ModelForm):
     condition = forms.ChoiceField(label="Zustand", choices=LegoSetForm.CONDITION_CHOICES)
@@ -68,6 +85,9 @@ class SetCopyForm(forms.ModelForm):
     class Meta:
         model = SetCopy
         exclude = ("owner", "lego_set", "legacy_id", "deleted_at")
+        widgets = {
+            "purchase_price": forms.NumberInput(attrs={"min": "0", "step": "0.01"})
+        }
 
 
 class SetInventoryItemForm(forms.ModelForm):

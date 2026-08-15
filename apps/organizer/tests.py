@@ -385,7 +385,7 @@ class LabelStudioTests(TestCase):
         other = users.objects.create(username="labels-other", email="labels-other@example.test")
         self.lego_set = LegoSet.objects.create(
             owner=self.user, set_number="7345-1", name="Transport Chopper", theme="Creator",
-            year=2012, total_parts=383,
+            year=2012, total_parts=383, image_url="https://example.test/set.png",
         )
         SetMinifigure.objects.create(
             owner=self.user, lego_set=self.lego_set, figure_number="fig-a", name="Pilot", quantity=2
@@ -416,6 +416,7 @@ class LabelStudioTests(TestCase):
                 self.assertEqual(self.client.get(url, {**common, "type": label_type}).status_code, 200)
         page = self.client.get(url, {**common, "type": "per_minifigure"})
         self.assertEqual(sum(slot is not None for slot in page.context["slots"]), 2)
+        self.assertContains(self.client.get(url, common), "label-set-image")
         self.assertNotContains(self.client.get(url, {**common, "images": 0}), "label-set-image")
         for target in ("set", "inventory", "missing", "edit", "bricklink", "rebrickable"):
             qr = self.client.get(
@@ -447,6 +448,32 @@ class LabelStudioTests(TestCase):
         )
         self.assertTemplateUsed(partial, "organizer/labels/preview.html")
         self.assertNotContains(partial, "<html")
+
+    def test_empty_and_multiple_set_preview_are_valid(self):
+        second = LegoSet.objects.create(
+            owner=self.user, set_number="7957-1", name="Sith Nightspeeder"
+        )
+        url = reverse("organizer:label_studio")
+        empty = self.client.get(
+            url,
+            {"selection": 1, "type": "full"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(empty.status_code, 200)
+        self.assertEqual(sum(slot is not None for slot in empty.context["slots"]), 0)
+        multiple = self.client.get(
+            url,
+            {
+                "selection": 1,
+                "type": "full",
+                "item": [self.lego_set.pk, second.pk],
+                "start": 3,
+            },
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(multiple.status_code, 200)
+        self.assertEqual(multiple.context["slots"][:2], [None, None])
+        self.assertEqual(sum(slot is not None for slot in multiple.context["slots"]), 2)
 
     @override_settings(PUBLIC_URL="https://brickmissing.example")
     def test_configured_public_origin_is_used_without_localhost(self):

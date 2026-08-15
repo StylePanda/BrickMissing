@@ -15,12 +15,23 @@ def set_completeness(lego_set):
         if not part.is_spare
     ]
     positions = inventory + minifigure_parts
-    if not positions:
-        return {"key": "unknown", "label": "Unbekannt", "required": 0, "owned": 0, "missing": 0}
     required = sum(item.required_quantity if hasattr(item, "required_quantity") else item.quantity for item in positions)
     owned = sum(min(item.owned_quantity, item.required_quantity if hasattr(item, "required_quantity") else item.quantity) for item in positions)
     missing = max(required - owned, 0)
     return {"key": "incomplete" if missing else "complete", "label": "Unvollständig" if missing else "Vollständig", "required": required, "owned": owned, "missing": missing}
+
+
+def stored_completeness_value(result):
+    return "vollständig" if result["missing"] == 0 else "unvollständig"
+
+
+def normalize_part_state(part):
+    """Keep terminal availability states and persisted quantities consistent."""
+    if part.status == Part.Status.MISSING:
+        part.owned_quantity = min(part.owned_quantity, max(part.quantity - 1, 0))
+    elif part.status in {Part.Status.FOUND, Part.Status.RECEIVED, Part.Status.INSTALLED}:
+        part.owned_quantity = part.quantity
+    return part
 
 
 @transaction.atomic
@@ -29,6 +40,7 @@ def update_part(part: Part, values: dict, actor, request_id=None) -> Part:
     old_status = locked.status
     for field, value in values.items():
         setattr(locked, field, value)
+    normalize_part_state(locked)
     locked.full_clean()
     locked.save()
     if locked.status != old_status:
