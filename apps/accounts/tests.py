@@ -398,13 +398,13 @@ class AccountFlowTests(TestCase):
         self.assertEqual(self.client.get(reverse("accounts:deactivate")).status_code, 405)
         self.assertEqual(
             self.client.post(
-                reverse("accounts:deactivate"), {"password": "wrong", "confirmation": "LÖSCHEN"}
+                reverse("accounts:deactivate"), {"password": "wrong", "confirmation": "DEAKTIVIEREN"}
             ).status_code,
             400,
         )
         response = self.client.post(
             reverse("accounts:deactivate"),
-            {"password": "A-very-long-password-123", "confirmation": "LÖSCHEN"},
+            {"password": "A-very-long-password-123", "confirmation": "DEAKTIVIEREN"},
         )
         self.assertRedirects(response, reverse("accounts:login"))
         user.refresh_from_db()
@@ -422,7 +422,7 @@ class AccountFlowTests(TestCase):
         self.assertEqual(
             client.post(
                 reverse("accounts:deactivate"),
-                {"password": "A-very-long-password-123", "confirmation": "LÖSCHEN"},
+                {"password": "A-very-long-password-123", "confirmation": "DEAKTIVIEREN"},
             ).status_code,
             403,
         )

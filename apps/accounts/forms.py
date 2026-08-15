@@ -49,14 +49,25 @@ class RebrickableApiKeyForm(forms.Form):
         return User.objects.normalize_email(self.cleaned_data["email"]).casefold()
 
 
-class AccountDeleteForm(forms.Form):
+class AccountDeactivateForm(forms.Form):
     password = forms.CharField(label="Aktuelles Passwort", widget=forms.PasswordInput)
-    confirmation = forms.CharField(label="Zur Bestätigung „LÖSCHEN“ eingeben")
+    confirmation = forms.CharField(label="Zur Bestätigung „DEAKTIVIEREN“ eingeben")
 
     def clean_confirmation(self):
         value = self.cleaned_data["confirmation"].strip().upper()
-        if value != "LÖSCHEN":
-            raise ValidationError("Bitte gib zur Bestätigung „LÖSCHEN“ ein.")
+        if value != "DEAKTIVIEREN":
+            raise ValidationError("Bitte gib zur Bestätigung „DEAKTIVIEREN“ ein.")
+        return value
+
+
+class AccountDeleteForm(forms.Form):
+    password = forms.CharField(label="Aktuelles Passwort", widget=forms.PasswordInput)
+    confirmation = forms.CharField(label="Zur Bestätigung „ACCOUNT LÖSCHEN“ eingeben")
+
+    def clean_confirmation(self):
+        value = " ".join(self.cleaned_data["confirmation"].strip().upper().split())
+        if value != "ACCOUNT LÖSCHEN":
+            raise ValidationError("Bitte gib zur Bestätigung „ACCOUNT LÖSCHEN“ ein.")
         return value
 
 

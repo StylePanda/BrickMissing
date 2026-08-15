@@ -1,4 +1,5 @@
 import tempfile
+from pathlib import Path
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -124,3 +125,25 @@ class PrivateDocumentTests(TestCase):
             self.assertEqual(self.client.post(reverse("media_library:delete", args=[document.pk])).status_code, 404)
             document.refresh_from_db()
             self.assertIsNone(document.deleted_at)
+
+    def test_permanent_delete_removes_database_record_and_physical_file(self):
+        with tempfile.TemporaryDirectory() as directory, override_settings(
+            MEDIA_ROOT=directory, PRIVATE_MEDIA_ROOT=directory
+        ):
+            document = PrivateDocument(
+                owner=self.owner, entity_type="other", entity_id="1", title="Permanent",
+                original_name="private.txt", mime_type="text/plain", size=6,
+            )
+            document.file.save(
+                "private.txt", SimpleUploadedFile("private.txt", b"secret"), save=True
+            )
+            path = Path(document.file.path)
+            self.client.force_login(self.owner)
+
+            response = self.client.post(
+                reverse("media_library:permanent_delete", args=[document.pk])
+            )
+
+            self.assertRedirects(response, reverse("media_library:list"))
+            self.assertFalse(PrivateDocument.objects.filter(pk=document.pk).exists())
+            self.assertFalse(path.exists())

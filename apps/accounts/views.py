@@ -25,7 +25,15 @@ from apps.audit.models import AuditEvent
 from apps.core.client_ip import client_ip
 from apps.core.rate_limit import limited
 
+from .account_deletion import (
+    AccountDeletionFileError,
+    delete_account_and_data,
+)
+from .account_deletion import (
+    anonymize_account as anonymize_account_service,
+)
 from .forms import (
+    AccountDeactivateForm,
     AccountDeleteForm,
     DeliverablePasswordResetForm,
     EmailChangeForm,
@@ -484,6 +492,21 @@ def delete_account(request):
 @login_required
 @require_POST
 def anonymize_account(request):
+    form = AccountDeactivateForm(request.POST)
+    if not form.is_valid() or not request.user.check_password(
+        form.cleaned_data.get("password", "")
+    ):
+        if form.is_valid():
+            form.add_error("password", "Das Passwort ist nicht korrekt.")
+        return render(request, "accounts/delete_account.html", {"form": form}, status=400)
+    anonymize_account_service(request.user, request_id=request.request_id)
+    logout(request)
+    return redirect("accounts:login")
+
+
+@login_required
+@require_POST
+def permanently_delete_account(request):
     form = AccountDeleteForm(request.POST)
     if not form.is_valid() or not request.user.check_password(
         form.cleaned_data.get("password", "")
@@ -492,26 +515,33 @@ def anonymize_account(request):
             form.add_error("password", "Das Passwort ist nicht korrekt.")
         return render(request, "accounts/delete_account.html", {"form": form}, status=400)
     user = request.user
-    with transaction.atomic():
-        AuditEvent.objects.create(
-            actor=user, target_user=user, action="account.anonymized", request_id=request.request_id
+    try:
+        delete_account_and_data(user, request_id=request.request_id)
+    except AccountDeletionFileError as exc:
+        if not exc.database_deleted:
+            form.add_error(None, str(exc))
+            return render(
+                request, "accounts/delete_account.html", {"form": form}, status=500
+            )
+        request.session.flush()
+        return render(
+            request,
+            "accounts/delete_account_result.html",
+            {"error": str(exc)},
+            status=500,
         )
-        marker = user.pk.hex
-        user.username = f"deleted-{marker}"
-        user.email = f"deleted-{marker}@invalid.local"
-        user.first_name = user.last_name = ""
-        user.is_active = user.is_staff = user.is_superuser = user.email_verified = False
-        user.deactivated_at = timezone.now()
-        user.totp_enabled = False
-        user.totp_secret_encrypted = ""
-        user.set_unusable_password()
-        user.groups.clear()
-        user.user_permissions.clear()
-        user.save()
-        for account_session in list(user.account_sessions.all()):
-            revoke_session(account_session)
-    logout(request)
+    request.session.flush()
+    messages.success(request, "Dein Account und deine persönlichen Daten wurden gelöscht.")
     return redirect("accounts:login")
+
+
+@login_required
+def deactivate_account(request):
+    return render(
+        request,
+        "accounts/deactivate_account.html",
+        {"form": AccountDeactivateForm()},
+    )
 
 
 @login_required

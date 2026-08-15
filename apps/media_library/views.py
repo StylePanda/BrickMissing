@@ -1,10 +1,14 @@
 from pathlib import Path
 
 from django.contrib.auth.decorators import login_required
-from django.http import FileResponse
+from django.http import FileResponse, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
+from apps.accounts.account_deletion import (
+    AccountDeletionFileError,
+    permanently_delete_private_document,
+)
 from apps.audit.models import AuditEvent
 
 from .forms import PrivateDocumentForm
@@ -72,6 +76,25 @@ def delete(request, pk):
         action="document.trashed",
         entity_type="document",
         entity_id=str(document.pk),
+        request_id=request.request_id,
+    )
+    return redirect("media_library:list")
+
+
+@login_required
+@require_POST
+def permanent_delete(request, pk):
+    document = get_object_or_404(PrivateDocument, pk=pk, owner=request.user)
+    try:
+        permanently_delete_private_document(document)
+    except AccountDeletionFileError:
+        return HttpResponse("Die private Datei konnte nicht sicher gelöscht werden.", status=500)
+    AuditEvent.objects.create(
+        actor=request.user,
+        target_user=request.user,
+        action="document.deleted",
+        entity_type="document",
+        entity_id=str(pk),
         request_id=request.request_id,
     )
     return redirect("media_library:list")
