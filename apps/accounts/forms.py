@@ -1,10 +1,12 @@
 from django import forms
+from django.conf import settings
 from django.contrib.auth.forms import AuthenticationForm, PasswordResetForm, UserCreationForm
 from django.contrib.auth.password_validation import validate_password
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 
 from apps.core.client_ip import client_ip
+from apps.core.email import public_base_url
 
 from .models import User
 
@@ -109,6 +111,24 @@ class DeliverablePasswordResetForm(PasswordResetForm):
         for user in super().get_users(email):
             if not user.has_placeholder_email and user.email_verified:
                 yield user
+
+    def save(self, *args, **kwargs):
+        request = kwargs.get("request")
+        base_url = public_base_url(request)
+        scheme, domain = base_url.split("://", 1)
+        kwargs["domain_override"] = domain
+        kwargs["use_https"] = scheme == "https"
+        extra_context = dict(kwargs.get("extra_email_context") or {})
+        extra_context.update(
+            {
+                "public_url": base_url,
+                "privacy_url": f"{base_url}/datenschutz/",
+                "imprint_url": f"{base_url}/impressum/",
+                "expiry_seconds": settings.PASSWORD_RESET_TIMEOUT,
+            }
+        )
+        kwargs["extra_email_context"] = extra_context
+        return super().save(*args, **kwargs)
 
 
 class VerifiedAuthenticationForm(AuthenticationForm):

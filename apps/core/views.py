@@ -4,7 +4,6 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
-from django.core.mail import send_mail
 from django.core.paginator import Paginator
 from django.db import connection
 from django.db.models import Count, Q
@@ -19,6 +18,7 @@ from apps.inventory.models import InventoryItem
 from apps.orders.models import Order
 from apps.organizer.models import Moc
 
+from .email import send_templated_email
 from .models import DataQualityIssue, Notification, RecentItem, SavedView
 
 
@@ -48,7 +48,12 @@ def test_email(request):
     if "@" not in recipient or any(char in recipient for char in "\r\n"):
         messages.error(request, "Ungültige Empfängeradresse.")
     else:
-        send_mail("BrickMissing – E-Mail-Test", "Die Django E-Mail-Konfiguration funktioniert.", None, [recipient], fail_silently=False)
+        send_templated_email(
+            to=[recipient],
+            subject="BrickMissing – E-Mail-Test",
+            template_name="test_email",
+            request=request,
+        )
         from apps.audit.models import AuditEvent
         recipient_hash = hashlib.sha256(recipient.casefold().encode("utf-8")).hexdigest()
         AuditEvent.objects.create(

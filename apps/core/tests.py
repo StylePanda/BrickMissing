@@ -203,14 +203,23 @@ class InterfaceQualityTests(TestCase):
                 self.assertIn(expected, rendered)
 
     def test_all_templates_keep_csp_safe_ui_contract(self):
-        forbidden = re.compile(
+        browser_forbidden = re.compile(
             r"javascript:|\son(?:click|change|submit|input|keydown|keyup|load)\s*=|<script(?![^>]*\bsrc=)|<style\b|\sstyle\s*=",
+            re.IGNORECASE,
+        )
+        email_forbidden = re.compile(
+            r"javascript:|\son(?:click|change|submit|input|keydown|keyup|load)\s*=|<script|<style\b",
             re.IGNORECASE,
         )
         templates = sorted((Path(settings.BASE_DIR) / "templates").rglob("*.html"))
         self.assertTrue(templates)
         for template in templates:
             with self.subTest(template=template.relative_to(settings.BASE_DIR)):
+                forbidden = (
+                    email_forbidden
+                    if template.parent.name == "emails"
+                    else browser_forbidden
+                )
                 self.assertIsNone(forbidden.search(template.read_text(encoding="utf-8")))
 
     def test_midnight_violet_assets_and_wide_layout_exist(self):

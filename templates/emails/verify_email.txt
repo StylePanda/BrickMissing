@@ -1,0 +1,11 @@
+{% extends "emails/base.txt" %}{% block content %}E-MAIL-ADRESSE BESTÄTIGEN
+
+Hallo {{ username }},
+
+willkommen bei BrickMissing. Bitte bestätige deine E-Mail-Adresse, damit du dein Konto verwenden kannst:
+
+{{ action_url }}
+
+Der Link ist {{ expiry_seconds }} Sekunden gültig.
+
+Wenn du dich nicht bei BrickMissing registriert hast, kannst du diese Nachricht ignorieren.{% endblock %}

@@ -1,3 +1,4 @@
+import re
 import time
 from datetime import timedelta
 
@@ -24,6 +25,13 @@ from .totp import code_for, decrypt_secret, encrypt_secret, generate_secret
 class AccountFlowTests(TestCase):
     def setUp(self):
         cache.clear()
+
+    def _action_url(self, message, path_fragment):
+        return next(
+            url
+            for url in re.findall(r"https?://[^\s]+", message.body)
+            if path_fragment in url
+        )
 
     def test_registration_never_creates_admin_and_sends_verification(self):
         response = self.client.post(
@@ -298,7 +306,7 @@ class AccountFlowTests(TestCase):
         user.refresh_from_db()
         self.assertEqual(user.email, "old@example.test")
         self.assertTrue(PendingEmailChange.objects.filter(user=user).exists())
-        url = mail.outbox[-1].body.splitlines()[3]
+        url = self._action_url(mail.outbox[-1], "/konto/profil/e-mail-bestaetigen/")
         response = self.client.get(url)
         self.assertRedirects(response, reverse("accounts:profile"))
         user.refresh_from_db()
@@ -314,7 +322,7 @@ class AccountFlowTests(TestCase):
         pending = create_email_change(self.client.request().wsgi_request, user, "new2@example.test")
         pending.expires_at = timezone.now() - timedelta(seconds=1)
         pending.save(update_fields=["expires_at"])
-        url = mail.outbox[-1].body.splitlines()[3]
+        url = self._action_url(mail.outbox[-1], "/konto/profil/e-mail-bestaetigen/")
         self.assertEqual(self.client.get(url).status_code, 400)
 
     def test_placeholder_email_never_receives_password_reset(self):

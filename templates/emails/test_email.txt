@@ -1,0 +1,5 @@
+{% extends "emails/base.txt" %}{% block content %}E-MAIL-TEST ERFOLGREICH
+
+Wenn du diese E-Mail siehst, funktioniert der HTML- und Plain-Text-Mailversand von BrickMissing.
+
+Dies ist eine ausdrücklich ausgelöste Testnachricht. Es sind keine weiteren Schritte erforderlich.{% endblock %}

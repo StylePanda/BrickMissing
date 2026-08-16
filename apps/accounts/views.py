@@ -352,7 +352,9 @@ def two_factor_disable(request):
 
 class AuditedPasswordResetView(PasswordResetView):
     template_name = "accounts/password_reset_form.html"
-    email_template_name = "accounts/password_reset_email.txt"
+    email_template_name = "emails/password_reset.txt"
+    html_email_template_name = "emails/password_reset.html"
+    subject_template_name = "emails/password_reset_subject.txt"
     success_url = reverse_lazy("accounts:password_reset_done")
     form_class = DeliverablePasswordResetForm
 

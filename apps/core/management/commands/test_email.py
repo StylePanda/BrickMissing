@@ -1,5 +1,6 @@
-from django.core.mail import send_mail
 from django.core.management.base import BaseCommand, CommandError
+
+from apps.core.email import send_templated_email
 
 
 class Command(BaseCommand):
@@ -12,7 +13,11 @@ class Command(BaseCommand):
         recipient = options["recipient"].strip()
         if "@" not in recipient or "\n" in recipient or "\r" in recipient:
             raise CommandError("A valid recipient address is required")
-        sent = send_mail("BrickMissing – E-Mail-Test", "Die Django E-Mail-Konfiguration funktioniert.", None, [recipient], fail_silently=False)
+        sent = send_templated_email(
+            to=[recipient],
+            subject="BrickMissing – E-Mail-Test",
+            template_name="test_email",
+        )
         if sent != 1:
             raise CommandError("Email backend did not accept the test message")
         self.stdout.write(self.style.SUCCESS("Test message accepted by email backend"))

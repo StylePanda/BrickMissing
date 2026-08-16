@@ -1,0 +1,11 @@
+{% extends "emails/base.txt" %}{% block content %}NEUE E-MAIL-ADRESSE BESTÄTIGEN
+
+Hallo {{ username }},
+
+für dein BrickMissing-Konto wurde eine neue E-Mail-Adresse hinterlegt. Deine bisherige Adresse bleibt aktiv, bis du die neue Adresse bestätigst:
+
+{{ action_url }}
+
+Der einmal verwendbare Link ist {{ expiry_seconds }} Sekunden gültig.
+
+Wenn du diese Änderung nicht angefordert hast, bestätige sie nicht und ändere vorsorglich dein Passwort.{% endblock %}

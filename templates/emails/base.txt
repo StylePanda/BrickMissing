@@ -1,0 +1,10 @@
+BRICKMISSING
+LEGO Collection Manager
+
+{% block content %}{% endblock %}
+
+---
+BrickMissing · stylepanda.me
+Datenschutz: {{ privacy_url }}
+Impressum: {{ imprint_url }}
+Unabhängige Anwendung zur Verwaltung privater LEGO-Sammlungen.
