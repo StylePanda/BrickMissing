@@ -1,0 +1,95 @@
+PHASE 12.1 – E-MAIL DESIGN POLISH + NOREPLY-HINWEIS
+Stand: 2026-08-16
+
+1. AUSGANGSSITUATION
+Phase 12 war funktional und versendete alle vier aktiven Django-Mailtypen als HTML
+plus Plain Text. Das reale Production-Rendering war jedoch zu grau/lavendelfarben.
+
+2. REALES MAILCLIENT-RENDERING
+Die Rueckmeldung aus dem echten Client-Test wurde als verbindliche Designbasis
+uebernommen. Die Architektur, SMTP-Anbindung, Token, Timeouts und Rate Limits wurden
+nicht veraendert.
+
+3. GEAENDERTE FARBEN
+Aussenflaeche #0b0812, Card #171020, Infoflaeche #21182e, Border #4c3568,
+Haupttext #f7f4fb, Sekundaertext #c9c2d4 und Website-Akzent #9b6cff.
+
+4. KONTRASTVERBESSERUNGEN
+Haupttext ist nahezu weiss; Hilfstexte und Footer sind heller. Card, Infoflaechen,
+Border, Links und CTA sind klar voneinander unterscheidbar.
+
+5. OUTLOOK-KOMPATIBILITAET
+Tabellenlayout bleibt erhalten. Kritische Flaechen verwenden explizite bgcolor- und
+background-color-Werte. CTA-Zellen besitzen bgcolor und mso-padding-alt. Kein Grid,
+Flexbox, JavaScript, Webfont oder externes Stylesheet.
+
+6. CTA-DESIGN
+Handlungsorientierte Mails verwenden #9b6cff, weissen Text, mindestens 44px Hoehe,
+horizontales Padding und einen weiterhin sichtbaren absoluten Fallback-Link.
+
+7. INFO-BOX
+Info- und Linkboxen verwenden #21182e mit #4c3568-Border und gut lesbarem Text. Sie
+sind visuell eindeutig von der Haupt-Card getrennt.
+
+8. FOOTER
+Footerabstaende und Kontrast wurden verbessert. Enthalten sind Branding, Legal-Links,
+zentraler No-Reply-Hinweis und der Hinweis auf die unabhaengige Anwendung.
+
+9. NO-REPLY-HINWEIS
+Zentral in base.html und base.txt:
+„Diese E-Mail wurde automatisch von BrickMissing ueber eine No-Reply-Adresse
+versendet. Bitte antworte nicht auf diese Nachricht.“
+Keine konkrete Absenderadresse ist im Template hartcodiert.
+
+10. HTML-VERSION
+Jede HTML-Mail erbt den Hinweis automatisch. Preheader bleibt unsichtbar; wichtige
+Farben sind inline und auf Table/TD-Ebene explizit gesetzt.
+
+11. PLAIN-TEXT-VERSION
+Jede TXT-Mail erbt denselben No-Reply-Hinweis sowie Datenschutz- und Impressumslinks
+automatisch aus base.txt.
+
+12. BETROFFENE MAILTYPEN
+- E-Mail-Verifikation
+- Neue E-Mail-Adresse bestaetigen
+- Passwort-Reset
+- Testmail (Webroute und Management Command)
+
+13. TESTS
+255 Tests ausgefuehrt, 255 bestanden, 0 fehlgeschlagen. Zusaetzliche Tests pruefen
+den zentralen Hinweis in HTML/TXT, alle aktiven Mailtypen, fehlende hartcodierte
+No-Reply-Adresse, Midnight-Violet-Farben, Outlook-CTA-Fallbacks, Legal-Links,
+Fallback-URLs und weiterhin fehlende Bilder, Tracker, Fonts und JavaScript.
+Django Check, Migration-Drift und Ruff: bestanden.
+
+14. GEAENDERTE DATEIEN
+- templates/emails/base.html
+- templates/emails/base.txt
+- templates/emails/verify_email.html
+- templates/emails/email_change.html
+- templates/emails/password_reset.html
+- templates/emails/test_email.html
+- apps/core/test_email_design.py
+- PHASE_12_1_EMAIL_DESIGN_POLISH_REPORT.txt
+
+15. MIGRATION NOETIG
+NEIN.
+
+16. COLLECTSTATIC NOETIG
+NEIN. Es wurden nur Django-Mailtemplates und Tests geaendert.
+
+17. SERVICE RESTART NOETIG
+JA. Der laufende Django-Prozess muss die aktualisierten Templates laden.
+
+18. DEPLOYMENT-SCHRITTE
+Nach separater Freigabe Release erstellen/verifizieren und scripts/deploy.sh mit
+absolutem Artefaktpfad ausfuehren. SMTP-/Legal-/PUBLIC_URL-Environment unveraendert
+beibehalten. Danach die Testmail gezielt in Outlook, Gmail und einem mobilen Client
+pruefen. In diesem Durchlauf erfolgte kein Deployment und kein Service-Neustart.
+
+19. FINAL STATUS
+Das Design ist dunkler und kontrastreicher. Alle aktiven HTML- und TXT-Mails enthalten
+zentral den No-Reply-Hinweis; Legal-Links und Sicherheitsflows bleiben erhalten.
+
+PHASE 12.1 EMAIL DESIGN POLISH:
+READY

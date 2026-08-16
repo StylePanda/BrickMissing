@@ -2,10 +2,10 @@
 {% block preheader %}Bestätige deine E-Mail-Adresse für BrickMissing.{% endblock %}
 {% block content %}
 <h1 style="margin:0 0 18px;font-size:28px;line-height:36px;color:#ffffff;">E-Mail-Adresse bestätigen</h1>
-<p style="margin:0 0 14px;font-size:16px;line-height:25px;color:#e5dff0;">Hallo {{ username }},</p>
-<p style="margin:0 0 22px;font-size:16px;line-height:25px;color:#e5dff0;">willkommen bei BrickMissing. Bitte bestätige deine E-Mail-Adresse, damit du dein Konto verwenden kannst.</p>
-<table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr><td style="border-radius:10px;background:#8b5cf6;"><a href="{{ action_url }}" style="display:inline-block;min-height:44px;line-height:44px;padding:0 22px;color:#ffffff;font-size:16px;font-weight:700;text-decoration:none;">E-Mail-Adresse bestätigen</a></td></tr></table>
-<p style="margin:22px 0 6px;font-size:14px;line-height:22px;color:#b9afcc;">Der Link ist {{ expiry_seconds }} Sekunden gültig. Falls der Button nicht funktioniert:</p>
-<p style="margin:0;padding:12px;background:#110d1b;border:1px solid #3a2c52;border-radius:8px;font-size:13px;line-height:20px;word-break:break-all;"><a href="{{ action_url }}" style="color:#c4a7ff;text-decoration:underline;word-break:break-all;">{{ action_url }}</a></p>
-<p style="margin:22px 0 0;font-size:14px;line-height:22px;color:#b9afcc;">Wenn du dich nicht bei BrickMissing registriert hast, kannst du diese Nachricht ignorieren.</p>
+<p style="margin:0 0 14px;font-size:16px;line-height:25px;color:#f7f4fb;">Hallo {{ username }},</p>
+<p style="margin:0 0 22px;font-size:16px;line-height:25px;color:#f7f4fb;">willkommen bei BrickMissing. Bitte bestätige deine E-Mail-Adresse, damit du dein Konto verwenden kannst.</p>
+<table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr><td bgcolor="#9b6cff" style="border-radius:10px;background-color:#9b6cff;mso-padding-alt:0 22px;"><a href="{{ action_url }}" style="display:inline-block;min-height:44px;line-height:44px;padding:0 22px;color:#ffffff;font-size:16px;font-weight:700;text-decoration:none;">E-Mail-Adresse bestätigen</a></td></tr></table>
+<p style="margin:22px 0 6px;font-size:14px;line-height:22px;color:#c9c2d4;">Der Link ist {{ expiry_seconds }} Sekunden gültig. Falls der Button nicht funktioniert, kopiere diesen Link in deinen Browser:</p>
+<p style="margin:0;padding:12px;background-color:#21182e;border:1px solid #4c3568;border-radius:8px;font-size:13px;line-height:20px;word-break:break-all;"><a href="{{ action_url }}" style="color:#cbb8ff;text-decoration:underline;word-break:break-all;">{{ action_url }}</a></p>
+<p style="margin:22px 0 0;font-size:14px;line-height:22px;color:#c9c2d4;">Wenn du dich nicht bei BrickMissing registriert hast, kannst du diese Nachricht ignorieren.</p>
 {% endblock %}

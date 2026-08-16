@@ -7,4 +7,8 @@ LEGO Collection Manager
 BrickMissing · stylepanda.me
 Datenschutz: {{ privacy_url }}
 Impressum: {{ imprint_url }}
+
+Diese E-Mail wurde automatisch von BrickMissing über eine No-Reply-Adresse versendet.
+Bitte antworte nicht auf diese Nachricht.
+
 Unabhängige Anwendung zur Verwaltung privater LEGO-Sammlungen.

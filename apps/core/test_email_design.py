@@ -1,5 +1,7 @@
 import re
+from pathlib import Path
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core import mail
 from django.core.management import call_command
@@ -33,6 +35,9 @@ class EmailDesignTests(TestCase):
 
     def _assert_common_mail_safety(self, message):
         html = self._html(message)
+        no_reply_notice = "Bitte antworte nicht auf diese Nachricht"
+        self.assertIn(no_reply_notice, html)
+        self.assertIn(no_reply_notice, message.body)
         self.assertIn("https://brickmissing.example/datenschutz/", html)
         self.assertIn("https://brickmissing.example/impressum/", html)
         self.assertNotIn("127.0.0.1", message.body + html)
@@ -41,6 +46,25 @@ class EmailDesignTests(TestCase):
         self.assertNotIn(self.user.password, message.body + html)
         self.assertNotIn("EMAIL_HOST_PASSWORD", message.body + html)
         return html
+
+    def test_no_reply_notice_is_central_and_contains_no_address(self):
+        templates = Path(settings.BASE_DIR) / "templates" / "emails"
+        html_base = (templates / "base.html").read_text(encoding="utf-8")
+        text_base = (templates / "base.txt").read_text(encoding="utf-8")
+        self.assertIn("Bitte antworte nicht auf diese Nachricht", html_base)
+        self.assertIn("Bitte antworte nicht auf diese Nachricht", text_base)
+        for template in templates.iterdir():
+            if template.is_file():
+                self.assertNotIn("noreply@", template.read_text(encoding="utf-8").lower())
+
+    def test_midnight_violet_colors_are_explicit_in_base_and_content(self):
+        templates = Path(settings.BASE_DIR) / "templates" / "emails"
+        base = (templates / "base.html").read_text(encoding="utf-8").lower()
+        verification = (templates / "verify_email.html").read_text(encoding="utf-8").lower()
+        for color in ("#0b0812", "#171020", "#4c3568", "#f7f4fb", "#9b6cff"):
+            self.assertIn(color, base + verification)
+        self.assertIn("#21182e", verification)
+        self.assertIn("mso-padding-alt", verification)
 
     def test_verification_email_has_text_html_cta_and_escaped_user(self):
         request = self.client.request().wsgi_request
