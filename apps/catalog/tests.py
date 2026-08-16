@@ -292,7 +292,11 @@ class CatalogFlowTests(TestCase):
         self.assertEqual(groups[0]["status"], Part.Status.MISSING)
         self.assertEqual(len(groups[0]["allocations"]), 4)
         self.assertContains(response, 'class="missing-group-row"', count=1)
-        self.assertContains(response, 'data-lightbox-image="https://example.test/part.png"', count=1)
+        self.assertContains(
+            response,
+            'data-lightbox-image="/integrationen/bild/?url=https%3A%2F%2Fexample.test%2Fpart.png"',
+            count=1,
+        )
         self.assertEqual({part.lego_set for part in groups[0]["allocations"]}, set(sets))
 
     def test_grouping_separates_colors_and_derives_all_group_statuses(self):

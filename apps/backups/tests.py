@@ -9,10 +9,11 @@ from decimal import Decimal
 from pathlib import Path
 from unittest.mock import patch
 
+from django.contrib.auth.models import Permission
 from django.core import serializers
 from django.core.files.base import ContentFile
 from django.db import DatabaseError, connection
-from django.test import TestCase, TransactionTestCase
+from django.test import TransactionTestCase
 from django.urls import reverse
 from django.utils import timezone
 
@@ -63,6 +64,7 @@ class BackupTests(TransactionTestCase):
             "user", "user@example.test", "A-long-safe-password-123",
             email_verified=True,
         )
+        self.staff.user_permissions.add(Permission.objects.get(codename="manage_backup"))
 
     def tearDown(self):
         self.settings_override.disable()
@@ -70,7 +72,49 @@ class BackupTests(TransactionTestCase):
 
     def test_non_staff_cannot_access_backups(self):
         self.client.force_login(self.user)
-        self.assertEqual(self.client.get(reverse("backups:list")).status_code, 302)
+        self.assertEqual(self.client.get(reverse("backups:list")).status_code, 403)
+
+    def test_backup_permission_matrix(self):
+        unprivileged_staff = User.objects.create_user(
+            "staff-no-backup",
+            "staff-no-backup@example.test",
+            "A-long-safe-password-123",
+            is_staff=True,
+            email_verified=True,
+        )
+        self.client.force_login(unprivileged_staff)
+        self.assertEqual(self.client.get(reverse("backups:list")).status_code, 403)
+        unprivileged_staff.user_permissions.add(
+            Permission.objects.get(codename="manage_backup")
+        )
+        self.assertEqual(self.client.get(reverse("backups:list")).status_code, 200)
+        superuser = User.objects.create_superuser(
+            "backup-superuser", "backup-superuser@example.test", "A-long-safe-password-123"
+        )
+        self.client.force_login(superuser)
+        self.assertEqual(self.client.get(reverse("backups:list")).status_code, 200)
+
+    def test_unprivileged_staff_cannot_manipulate_backup_urls(self):
+        artifact = create_backup(self.staff)
+        unprivileged = User.objects.create_user(
+            "blocked-staff",
+            "blocked-staff@example.test",
+            "A-long-safe-password-123",
+            is_staff=True,
+        )
+        self.client.force_login(unprivileged)
+        self.assertEqual(self.client.post(reverse("backups:create")).status_code, 403)
+        self.assertEqual(
+            self.client.get(reverse("backups:download", args=[artifact.pk])).status_code,
+            403,
+        )
+        self.assertEqual(
+            self.client.post(
+                reverse("backups:restore", args=[artifact.pk]),
+                {"password": "A-long-safe-password-123"},
+            ).status_code,
+            403,
+        )
 
     def test_encrypted_backup_integrity_and_download(self):
         artifact = create_backup(self.staff)

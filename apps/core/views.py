@@ -1,3 +1,5 @@
+import hashlib
+
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
@@ -48,7 +50,13 @@ def test_email(request):
     else:
         send_mail("BrickMissing – E-Mail-Test", "Die Django E-Mail-Konfiguration funktioniert.", None, [recipient], fail_silently=False)
         from apps.audit.models import AuditEvent
-        AuditEvent.objects.create(actor=request.user, action="email.test", details={"recipient": recipient}, request_id=request.request_id)
+        recipient_hash = hashlib.sha256(recipient.casefold().encode("utf-8")).hexdigest()
+        AuditEvent.objects.create(
+            actor=request.user,
+            action="email.test",
+            details={"recipient_present": True, "recipient_sha256": recipient_hash},
+            request_id=request.request_id,
+        )
         messages.success(request, "Testmail wurde an das konfigurierte Backend übergeben.")
     return redirect("backups:list")
 

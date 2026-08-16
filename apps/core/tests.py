@@ -1,13 +1,17 @@
+import hashlib
 import re
+from io import StringIO
 from pathlib import Path
 
 from django.conf import settings
+from django.core.management import call_command
 from django.template.loader import render_to_string
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.test.client import RequestFactory
 from django.urls import reverse
 
 from apps.accounts.models import User
+from apps.audit.models import AuditEvent
 from apps.catalog.models import LegoSet, Part
 from apps.inventory.models import InventoryItem
 from apps.organizer.models import Moc
@@ -31,6 +35,43 @@ class HealthAndHeadersTests(TestCase):
         self.assertIn("script-src 'self'", policy)
         self.assertNotIn("'unsafe-inline'", policy)
         self.assertNotIn("'unsafe-eval'", policy)
+
+
+class TestMailPrivacyTests(TestCase):
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_testmail_audit_hashes_recipient(self):
+        user = User.objects.create_user(
+            "mail-admin",
+            "mail-admin@example.test",
+            "A-long-safe-password-123",
+            is_staff=True,
+        )
+        self.client.force_login(user)
+        recipient = "private-recipient@example.test"
+        response = self.client.post(reverse("test_email"), {"recipient": recipient})
+        self.assertRedirects(
+            response, reverse("backups:list"), fetch_redirect_response=False
+        )
+        event = AuditEvent.objects.get(action="email.test")
+        self.assertNotIn(recipient, str(event.details))
+        self.assertEqual(
+            event.details["recipient_sha256"],
+            hashlib.sha256(recipient.encode("utf-8")).hexdigest(),
+        )
+
+
+class PrivacyProductionAuditTests(TestCase):
+    @override_settings(
+        EMAIL_HOST_PASSWORD="must-not-appear",  # noqa: S106 - inert test sentinel
+        SECRET_KEY="must-not-appear-secret",  # noqa: S106 - inert test sentinel
+        BRICKLINK_TOKEN="must-not-appear-token",  # noqa: S106 - inert test sentinel
+    )
+    def test_command_is_read_only_and_does_not_print_secrets(self):
+        output = StringIO()
+        call_command("privacy_production_audit", stdout=output)
+        text = output.getvalue()
+        self.assertIn("READ-ONLY", text)
+        self.assertNotIn("must-not-appear", text)
 
 
 class AdminInterfaceTests(TestCase):

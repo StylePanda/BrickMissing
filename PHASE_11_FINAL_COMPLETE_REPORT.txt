@@ -1,0 +1,201 @@
+PHASE 11 – FINALER RECHTLICHER/TECHNISCHER ABSCHLUSSBERICHT
+Stand: 2026-08-16
+
+1. EXECUTIVE SUMMARY
+
+Die technischen Datenschutzfunktionen und die für einen öffentlichen Betrieb benötigten
+Legal-Seiten sind implementiert. Impressum und Datenschutzerklärung sind öffentlich,
+konfigurationsbasiert, CSP-kompatibel und in das Midnight-Violet-Layout integriert.
+Es wurden keine Betreiberangaben, Provider, Standorte oder Fristen erfunden.
+
+Technischer Status: COMPLETE.
+Publikationsstatus: BLOCKED UNTIL OPERATOR DATA IS PROVIDED AND LEGALLY REVIEWED.
+
+2. BETREIBERKONFIGURATION
+
+Pflichtbasis:
+LEGAL_OPERATOR_NAME, LEGAL_OPERATOR_ADDRESS, LEGAL_OPERATOR_EMAIL,
+LEGAL_OPERATOR_COUNTRY.
+
+Optional:
+LEGAL_COMPANY_NAME, LEGAL_COMPANY_REGISTER_NUMBER,
+LEGAL_COMPANY_REGISTER_COURT, LEGAL_VAT_ID, LEGAL_AUTHORITY, LEGAL_CHAMBER,
+LEGAL_PROFESSION, LEGAL_MEDIA_OWNER.
+
+Development verwendet klar erkennbare Platzhalter. Production erhält keine erfundenen
+Defaults; privacy_final_check blockiert fehlende oder als Platzhalter erkannte Basisdaten.
+
+3. IMPRESSUM
+
+Route /impressum/, URL-Name legal:imprint, ohne Login erreichbar. Pflichtbasis wird
+dynamisch und HTML-escaped ausgegeben. Optionale Unternehmens-, Register-, UID-,
+Behörden-, Kammer-, Berufs- und Medieninhaberangaben erscheinen nur bei Konfiguration.
+
+4. DATENSCHUTZERKLÄRUNG
+
+Route /datenschutz/, URL-Name legal:privacy, ohne Login erreichbar. Die Erklärung basiert
+auf PHASE_11_PRIVACY_FACT_SHEET.txt und beschreibt konkret Accounts, Authentifizierung,
+2FA, Sessions, Audit, Fachinhalte, Uploads, Im-/Export, Löschung, Retention, Backups,
+Logs, E-Mail, optionale Integrationen, Bilder, Cookies, Storage, Empfänger und Rechte.
+
+5. RECHTSGRUNDLAGEN-MAPPING
+
+Art. 6 Abs. 1 lit. b DSGVO wird nur für die Bereitstellung angeforderter Account- und
+Dienstfunktionen genannt, soweit anwendbar. Art. 6 Abs. 1 lit. f wird für Sicherheit,
+Audit und Missbrauchsschutz genannt, soweit anwendbar. Keine pauschale Einwilligung und
+keine erfundene gesetzliche Pflicht werden behauptet. Konkrete Einordnung: LEGAL REVIEW
+RECOMMENDED.
+
+6. COOKIES
+
+Dokumentiert sind sessionid für Login/Session und csrftoken für CSRF-Schutz. Beide sind
+technisch erforderlich; Production setzt Secure, sessionid außerdem HttpOnly, beide
+SameSite=Lax. Kein Consent-Banner wurde eingeführt.
+
+7. BROWSER STORAGE
+
+localStorage enthält brickmissing-theme als Darstellungspräferenz. Der Service Worker
+cached statische Shell-Assets. In der aktiven Django-Oberfläche wurden keine weiteren
+personenbezogenen Browser-Speichermechanismen oder Tracking-Speicher erkannt.
+
+8. DRITTANBIETER
+
+SMTP wird als konfigurierbarer Dienst beschrieben. Rebrickable, BrickLink,
+BrickEconomy, Brickset und LEGO werden als optionale, nur bei Konfiguration oder
+bewusstem Aufruf verwendete Dienste beschrieben. Tatsächliche Anbieter und Verträge
+bleiben Betreiberangaben.
+
+9. EXTERNE BILDER
+
+Externe gespeicherte Bilder werden in den implementierten Templates über den
+BrickMissing Image Proxy geladen. Der Text beschreibt die Reduktion direkter
+Browserkontakte ohne eine technisch nicht haltbare Vollgarantie.
+
+10. ACCOUNTDATEN
+
+Benutzername, E-Mail, Rollen/Status, Zeitpunkte, Hashing, Verifikation, Reset, TOTP,
+Recovery Codes, Rate Limits, Audit und Legacybezug sind transparent beschrieben.
+
+11. ACCOUNT-LÖSCHUNG
+
+Deaktivierung und dauerhafte Löschung bleiben getrennt. Passwort, Bestätigungswort,
+POST, CSRF, Sessionbeendigung, relationale Integrität und physische Dateilöschung wurden
+nicht abgeschwächt.
+
+12. DATENEXPORT
+
+Der vollständige personenbezogene ZIP-Export bleibt owner-gebunden, reauth- und
+rate-limit-geschützt, speicherresident und frei von Passwort-Hashes, Sessions,
+Recovery Codes, TOTP/API-Secrets und Infrastrukturzugängen.
+
+13. SESSIONS
+
+Django-Session und AccountSession, User-Agent, Zeitpunkte, Widerruf sowie sichere
+Bereinigung abgelaufener/verwaister Sessions sind dokumentiert.
+
+14. RETENTION
+
+Konkrete technische Fristen werden dynamisch dargestellt. Backuprotation wird als
+Anzahl, nicht als erfundene Tagesfrist beschrieben. Nicht konfigurierte TTLs bleiben
+sichtbar offen. cleanup_expired_personal_data bleibt Dry-run per Default.
+
+15. PRIVATE DATEIEN
+
+Owner-gebundener Download, vollständiger Export, physische Account-Löschung und
+read-only Orphan-Audit bleiben erhalten.
+
+16. BACKUPS
+
+Verschlüsselung, Datenbank plus private Medien, Integritätsprüfung, Rotation,
+nicht-rückwirkende Löschung und notwendige erneute Löschmaßnahmen nach Restore sind
+transparent beschrieben. Keine sicherheitskritischen Implementierungsdetails wurden
+veröffentlicht.
+
+17. LOGS
+
+Anwendungs-, Gunicorn-/systemd-/journald-, Nginx- und Datenbanklogs werden als mögliche
+technische Quellen genannt. Tatsächlicher Umfang und Retention sind Publication-Tasks.
+
+18. ADMINRECHTE
+
+Backupaktionen verlangen is_staff plus backups.manage_backup; Superuser erhält die
+Permission implizit. Staff ohne Permission und normale Benutzer erhalten 403. Der
+Navigationslink wird nur mit Permission angezeigt. Restore verlangt zusätzlich Reauth.
+
+19. BETROFFENENRECHTE
+
+Auskunft, Berichtigung, Löschung, Einschränkung, Datenübertragbarkeit, Widerspruch soweit
+einschlägig, Widerruf tatsächlich erteilter Einwilligungen und Beschwerde sind genannt.
+Für die österreichische Datenschutzbehörde wird nur die offizielle Website dsb.gv.at
+verlinkt.
+
+20. REGISTRIERUNG
+
+Vor Absenden steht ein sichtbarer Hinweis auf die Kenntnisnahme der verlinkten
+Datenschutzerklärung. Es wurde keine sachlich unnötige Einwilligungscheckbox eingeführt.
+
+21. FOOTER
+
+base.html enthält auf normalen, Auth- und Fehlerseiten dauerhafte Links zu Impressum und
+Datenschutz. Der Footer ist responsive, hat 44-px-Touchziele und überlagert keine Inhalte.
+
+22. LEGAL ROUTES
+
+/impressum/ -> legal:imprint
+/datenschutz/ -> legal:privacy
+
+Beide Seiten sind ohne Login erreichbar und erhalten kein noindex. Admin-, Konto-,
+Daten- und Systemrouten sowie authentifizierte Antworten erhalten X-Robots-Tag:
+noindex, nofollow.
+
+23. TESTS
+
+Gezielte Legal-Tests: 9/9 bestanden.
+Vollständige Testsuite vor dem finalen Noindex-Zusatz: 242/242 bestanden.
+Finale vollständige Wiederholung: 243/243 bestanden, 0 Fehler, 0 Übersprungen.
+Geprüft wurden öffentliche Routen, Escaping, optionale Felder, Secret-Ausschluss,
+Footer/Auth/Register/Profile, Cookie-/Storage-Text, Trackingfreiheit und Finalcheck.
+
+24. MIGRATIONEN
+
+Neue Migration: backups.0002_backupartifact_manage_backup_permission.
+Keine Legal-Modelle und daher keine Legal-Migration erforderlich.
+makemigrations --check --dry-run: keine Änderungen erkannt.
+
+25. DEPLOYMENT
+
+Vor Deployment reale LEGAL_* Basiswerte und externe Betreiberfakten konfigurieren.
+Das vorhandene scripts/deploy.sh führt Installation, Django-Checks, Migrationsplan,
+migrate, privacy_final_check, collectstatic, Deployment-Check, atomaren Wechsel,
+Service-Neustart und Smoke-Test aus. privacy_final_check blockiert bei ERROR/CRITICAL.
+Kein Deployment wurde ausgeführt.
+
+26. OFFENE BETREIBERANGABEN
+
+Siehe PHASE_11_OPERATOR_INFORMATION_REQUIRED.txt. Aktuell fehlen reale Basisdaten,
+Hosting-/SMTP-/Standort-/Vertragsangaben und tatsächliche serverseitige Retentions.
+
+27. LEGAL REVIEW RECOMMENDED
+
+- konkrete Betreiberform und ECG-Impressumspflichten
+- Rechtsgrundlagen und berechtigte Interessen des tatsächlichen Betriebs
+- Auftragsverarbeiter, internationale Transfers und Verträge
+- gesetzliche oder vertragliche Aufbewahrungsgründe
+- Hosting-, Mail-, Backup- und Logkonfiguration
+- optionale Unternehmens-, Berufs-, Kammer-, UID- und Medienangaben
+- finale Formulierung der Rechtstexte vor öffentlicher Bereitstellung
+
+28. FINAL STATUS
+
+Alle technischen Abschlusskriterien sind implementiert. Reale Betreiberbasisdaten sind
+bewusst nicht erfunden und fehlen noch. Daher gilt:
+
+TECHNISCH COMPLETE
+PUBLICATION BLOCKED UNTIL OPERATOR DATA IS PROVIDED
+
+PHASE 11:
+NOT COMPLETE
+
+Nach Eintragung realer Betreiberangaben, rechtlicher Prüfung, erfolgreichem Production-
+privacy_final_check mit PHASE 11 STATUS: READY und Deployment kann der Status auf
+PHASE 11 COMPLETE gesetzt werden.

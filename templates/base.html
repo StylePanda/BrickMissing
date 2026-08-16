@@ -35,13 +35,13 @@
         <a href="{% url 'organizer:label_studio' %}"{% if request.resolver_match.url_name == 'label_studio' or request.resolver_match.url_name == 'label_set_qr' %} aria-current="page"{% endif %}>Etiketten & QR-Codes</a>
         <a href="{% url 'organizer:list' 'collections' %}"{% if request.resolver_match.namespace == 'organizer' and request.resolver_match.url_name != 'minifigure_list' and request.resolver_match.url_name != 'label_studio' and request.resolver_match.url_name != 'label_set_qr' %} aria-current="page"{% endif %}>Organisation</a>
         <a href="{% url 'catalog:trash' %}"{% if request.resolver_match.url_name == 'trash' %} aria-current="page"{% endif %}>Papierkorb</a>
-        {% if user.is_staff %}<a href="{% url 'backups:list' %}">Backups</a><a href="{% url 'admin:index' %}">Administration</a>{% endif %}
+        {% if perms.backups.manage_backup %}<a href="{% url 'backups:list' %}">Backups</a>{% endif %}{% if user.is_staff %}<a href="{% url 'admin:index' %}">Administration</a>{% endif %}
       </nav>
       <div class="user-menu"><a href="{% url 'accounts:profile' %}">{{ user.username }}</a><form method="post" action="{% url 'accounts:logout' %}">{% csrf_token %}<button class="link-button">Abmelden</button></form><button id="theme-toggle" class="ghost" type="button" aria-label="Farbschema wechseln">◐</button></div>
     {% endif %}
   </header>
   {% if messages %}<div class="messages" aria-live="polite" aria-atomic="true">{% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}</div>{% endif %}
   <main id="content" class="container">{% block content %}{% endblock %}</main>
-  <footer>BrickMissing {{ application_version }} · Deine Sammlung, übersichtlich organisiert.</footer>
+  <footer class="site-footer"><span>BrickMissing {{ application_version }} · Deine Sammlung, übersichtlich organisiert.</span><nav aria-label="Rechtliche Informationen"><a href="{% url 'legal:imprint' %}">Impressum</a><a href="{% url 'legal:privacy' %}">Datenschutz</a></nav></footer>
 </body>
 </html>

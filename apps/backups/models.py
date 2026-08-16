@@ -13,3 +13,4 @@ class BackupArtifact(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+        permissions = [("manage_backup", "Darf Backups verwalten")]

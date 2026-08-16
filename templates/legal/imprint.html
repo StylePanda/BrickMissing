@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% block title %}Impressum{% endblock %}{% block content %}
+<article class="panel legal-page">
+  <header><p class="eyebrow">Rechtliche Informationen</p><h1>Impressum</h1></header>
+  <section><h2>Betreiber</h2><address><strong>{{ operator_name }}</strong>
+{{ operator_address }}
+{{ operator_country }}</address><p>E-Mail: <a href="mailto:{{ operator_email }}">{{ operator_email }}</a></p></section>
+  {% if company_name or company_register_number or company_register_court or vat_id %}<section><h2>Unternehmensangaben</h2><dl>{% if company_name %}<dt>Unternehmen</dt><dd>{{ company_name }}</dd>{% endif %}{% if company_register_number %}<dt>Firmenbuchnummer</dt><dd>{{ company_register_number }}</dd>{% endif %}{% if company_register_court %}<dt>Firmenbuchgericht</dt><dd>{{ company_register_court }}</dd>{% endif %}{% if vat_id %}<dt>UID</dt><dd>{{ vat_id }}</dd>{% endif %}</dl></section>{% endif %}
+  {% if authority or chamber or profession %}<section><h2>Berufsrechtliche Angaben</h2><dl>{% if authority %}<dt>Zuständige Behörde</dt><dd>{{ authority }}</dd>{% endif %}{% if chamber %}<dt>Kammer oder Berufsverband</dt><dd>{{ chamber }}</dd>{% endif %}{% if profession %}<dt>Berufsbezeichnung</dt><dd>{{ profession }}</dd>{% endif %}</dl></section>{% endif %}
+  {% if media_owner %}<section><h2>Medieninhaber</h2><p>{{ media_owner }}</p></section>{% endif %}
+</article>
+{% endblock %}

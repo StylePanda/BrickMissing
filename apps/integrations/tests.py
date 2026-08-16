@@ -44,6 +44,13 @@ class IntegrationSecurityTests(TestCase):
         self.assertEqual(self.client.get(reverse("integrations:image_proxy"), {"url": "http://127.0.0.1/secret"}).status_code, 400)
         self.assertEqual(self.client.get(reverse("integrations:image_proxy"), {"url": "https://example.invalid/x.png"}).status_code, 400)
 
+    def test_templates_route_external_images_through_proxy(self):
+        external = "https://cdn.rebrickable.com/media/sets/100.jpg"
+        LegoSet.objects.create(owner=self.user, set_number="100", name="Proxy", image_url=external)
+        response = self.client.get(reverse("catalog:set_list"))
+        self.assertContains(response, reverse("integrations:image_proxy"))
+        self.assertNotContains(response, f'src="{external}"')
+
     @patch("apps.integrations.services.socket.getaddrinfo", return_value=[(2, 1, 6, "", ("127.0.0.1", 443))])
     def test_allowed_hostname_resolving_private_is_rejected(self, _lookup):
         with self.assertRaises(ValueError):
@@ -80,6 +87,32 @@ class IntegrationSecurityTests(TestCase):
                 {"url": "https://cdn.rebrickable.com/a.png"},
             )
             self.assertEqual(response.status_code, 400)
+
+    @patch(
+        "apps.integrations.services.socket.getaddrinfo",
+        return_value=[(2, 1, 6, "", ("8.8.8.8", 443))],
+    )
+    @patch("apps.integrations.services.urllib.request.build_opener")
+    def test_image_proxy_rejects_wrong_mime_and_timeout(self, opener, _lookup):
+        response = MagicMock()
+        response.__enter__.return_value = response
+        response.headers.get_content_type.return_value = "text/html"
+        opener.return_value.open.return_value = response
+        self.assertEqual(
+            self.client.get(
+                reverse("integrations:image_proxy"),
+                {"url": "https://cdn.rebrickable.com/a.png"},
+            ).status_code,
+            400,
+        )
+        opener.return_value.open.side_effect = urllib.error.URLError("timeout")
+        self.assertEqual(
+            self.client.get(
+                reverse("integrations:image_proxy"),
+                {"url": "https://cdn.rebrickable.com/a.png"},
+            ).status_code,
+            400,
+        )
 
     @patch("apps.integrations.views.rebrickable_minifigures")
     @patch("apps.integrations.views.rebrickable_set")

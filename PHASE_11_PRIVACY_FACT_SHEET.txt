@@ -1,0 +1,113 @@
+PHASE 11 – TECHNISCHE DATENSCHUTZ-FAKTENBASIS
+Stand: 2026-08-15
+Keine Datenschutzerklärung und keine rechtliche Bewertung.
+
+1. VERANTWORTLICHE TECHNISCHE ANWENDUNG
+BrickMissing 8 ist eine selbst betriebene Django-Anwendung zur Verwaltung einer
+LEGO-Sammlung. Production nutzt MariaDB/MySQL hinter Nginx/Gunicorn/systemd.
+
+2. GESPEICHERTE DATENKATEGORIEN
+Account-, Authentifizierungs-, Session-, Audit-, Sammlungs-, Teile-, Lager-,
+Bestell-, Organisations-, Integrations-, Import-, Dokument- und Backupdaten.
+
+3. ACCOUNTDATEN
+UUID, Benutzername, E-Mail, optionale Namen, Status/Rollen, Verifikationsstatus,
+Erstellungs-/Änderungs-/Loginzeit, Legacy-ID und Integrationsstatus.
+
+4. AUTHENTIFIZIERUNGSDATEN
+Passwort-Hash, verschlüsseltes TOTP-Secret, gehashte Recovery Codes,
+Verifikations-/E-Mail-Wechsel-Token-Digests und verschlüsselter Rebrickable-Key.
+Diese Geheimnisse fehlen im personenbezogenen Export.
+
+5. SESSIONDATEN
+Django DB-Session plus AccountSession mit Session-Key, User-Agent, Erstellungs- und
+Aktivitätszeit. Cleanup erkennt abgelaufene und verwaiste Sessions.
+
+6. IP-/AUDITDATEN
+AuditEvent kann IP, Request-ID, Aktion, Entity-Metadaten und minimierte Attribution
+enthalten. Testmail-Empfänger wird nur als SHA-256 plus recipient_present auditiert.
+
+7. BENUTZERINHALTE
+Sets/Teile, Mengen, Kauf-/Wertdaten, Lager, Bestellungen, Collections, MOCs,
+Minifiguren, Wishlist, Ausleihen, persönliche Notizen und gespeicherte Ansichten.
+
+8. PRIVATE DATEIEN
+PrivateDocument speichert Metadaten und Dateien unter PRIVATE_MEDIA_ROOT. Download
+ist owner-gebunden. Accountlöschung entfernt DB-Datensatz und physische Datei sicher.
+
+9. DATENEXPORT
+Login-, CSRF-, Rate-Limit- und reauth-geschützter ZIP-Export im Arbeitsspeicher.
+Er enthält ausschließlich eigene Daten und sichere eigene Dateien.
+
+10. ACCOUNTLÖSCHUNG
+Getrennte Deaktivierung/Anonymisierung und dauerhafte Löschung. Dauerhafte Löschung
+behandelt Sessions, Securitydaten, Fachinhalte, private Dateien, PROTECT-Beziehungen,
+Audit-Minimierung und geteilte Collections.
+
+11. COOKIES
+sessionid: Authentifizierung/Session, HttpOnly, SameSite=Lax, Production Secure.
+csrftoken: CSRF-Schutz, SameSite=Lax, Production Secure. Keine Tracking-Cookies im Code.
+
+12. BROWSER STORAGE
+localStorage: brickmissing-theme (Darstellungspräferenz). Service-Worker Cache:
+brickmissing-shell-v73, ausschließlich statische Shell-Dateien. Kein IndexedDB- oder
+sessionStorage-Einsatz im aktuellen Code gefunden.
+
+13. DRITTANBIETER
+Optional: SMTP-Provider, Rebrickable, BrickLink, BrickEconomy, Brickset und LEGO.
+Keine Analytics-, Werbe- oder externe JavaScript-/Font-Infrastruktur gefunden.
+
+14. EXTERNE BILDER
+Gespeicherte externe Bilder werden in Templates über den BrickMissing-Image-Proxy
+geladen. Proxy: HTTPS-Allowlist, DNS/IP-SSRF-Schutz, keine Redirects, MIME-/Größenlimit,
+Timeout, keine Credential-Weitergabe. Direkte externe Links bleiben Nutzeraktionen.
+
+15. SMTP
+Konfigurierbares Django-Mailbackend. Es verarbeitet Empfängeradresse und Mailinhalt.
+Tatsächlicher Provider, Region, Vertrag und Providerlogs sind Production-Fakten.
+
+16. REBRICKABLE
+Optionale Server-API für Set-/Teile-/Minifigurendaten. Persönlicher API-Key wird
+verschlüsselt gespeichert und nicht exportiert oder in Diagnoseausgaben angezeigt.
+
+17. BRICKLINK
+Optionale Preis-API über OAuth sowie direkte Nutzerlinks. Credentials kommen aus der
+Umgebung und werden nicht durch Privacy-Commands ausgegeben.
+
+18. LEGO
+Direkte, bewusst angeklickte Links zu Anleitungen/Pick a Brick können LEGO öffnen.
+
+19. BACKUPS
+BACKUP_ROOT standardmäßig var/backups. Backups sind Fernet-verschlüsselt,
+SHA-256-geprüft und enthalten Business-DB plus private Medien. Rotation erfolgt nach
+BACKUP_RETENTION_COUNT (Standard 10). Bestehende Backups werden durch Accountlöschung
+nicht rückwirkend geändert. Zugriff verlangt Staff plus backups.manage_backup;
+Restore verlangt zusätzlich Passwort-Reauth.
+
+20. LOGS
+Anwendung loggt auf Konsole; Gunicorn/systemd/journald und Nginx können technische
+Requestdaten protokollieren. Tatsächliche Aufbewahrung/Rotation ist serverseitig zu prüfen.
+
+21. ADMINZUGRIFFE
+Django Admin erfordert Staff und Modellpermissions. Backupverwaltung erfordert die
+separate Permission backups.manage_backup; Superuser besitzt sie implizit.
+
+22. SECURITY-MASSNAHMEN
+CSRF, owner-gebundene Querysets, CSP script-src 'self', sichere Cookieflags,
+HSTS in Production, Argon2, 2FA, Rate Limits, Audit, private Media-Auslieferung,
+SSRF-geschützter Proxy, verschlüsselte Backups und Secret-basierte Konfiguration.
+
+23. TECHNISCHE AUFBEWAHRUNG
+cleanup_expired_personal_data ist standardmäßig Dry-run. Abgelaufene Django-Sessions
+und verwaiste AccountSessions sind sicher anwendbar. PendingEmailChange, verwendete
+RecoveryCodes und ImportBatch benötigen explizite positive Betreiber-TTLs. Audit,
+Notifications, Legacydaten, Soft Deletes und private Dateien erfordern eine manuelle Policy.
+
+24. OFFENE BETREIBERENTSCHEIDUNGEN
+Konkrete TTLs für Token-/Importdaten; Audit-/Notification-/Soft-Delete-Retention;
+Backup-Auslaufzeit; Logaufbewahrung; Umgang mit Orphan-Dateien; externe Dienstwahl.
+
+25. OFFENE PRODUKTIONSDATEN
+SMTP-Provider/Region/Vertrag, Server-/DB-Standort, Nginx-/journald-/MariaDB-Logs,
+Logrotate, VM-/Provider-/Offsite-Backups, DNS/CDN/WAF/Cloudflare, aktive externe APIs,
+Image-Host-Allowlist sowie tatsächliche Admin-/Staff-/Permission-Zuweisungen.

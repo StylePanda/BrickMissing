@@ -45,6 +45,7 @@ python3 -m venv .venv
 .venv/bin/python manage.py makemigrations --check --dry-run
 .venv/bin/python manage.py migrate --plan
 .venv/bin/python manage.py migrate --noinput
+.venv/bin/python manage.py privacy_final_check
 .venv/bin/python manage.py collectstatic --noinput
 .venv/bin/python manage.py check --deploy
 

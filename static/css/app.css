@@ -118,6 +118,14 @@ ul, ol { margin-block: var(--space-4); }
 .container { width: min(var(--container-wide), calc(100% - 2 * clamp(16px, 2.5vw, 48px))); min-height: calc(100vh - 176px); margin: var(--space-8) auto var(--space-12); }
 .container > * + * { margin-top: var(--space-6); }
 footer { border-top: 1px solid var(--color-border-subtle); padding: var(--space-6); color: var(--color-text-muted); text-align: center; }
+.site-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--space-3) var(--space-6); }
+.site-footer nav { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-4); }
+.site-footer a { min-height: 44px; display: inline-flex; align-items: center; }
+.legal-page { width: min(920px, 100%); margin-inline: auto; }
+.legal-page > * + * { margin-top: var(--space-6); }
+.legal-page section { display: grid; gap: var(--space-3); }
+.legal-page h2 { margin-top: var(--space-2); }
+.legal-page address { font-style: normal; white-space: pre-line; }
 
 .page-head, .section-head, .row, .cluster { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
 .page-head { min-height: 56px; }

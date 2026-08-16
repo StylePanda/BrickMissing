@@ -28,7 +28,7 @@
     {% for group in page_obj %}
       <tr class="missing-group-row" data-part-group="{{ group.element_id }}|{{ group.color }}">
         <td><input form="missing-bulk-form" type="checkbox" name="item" value="{{ group.bulk_value }}" aria-label="Teilegruppe {{ group.name }} auswählen" data-selection-item></td>
-        <td>{% if group.image_url %}<button class="part-image-trigger compact-image" type="button" aria-label="Bild von {{ group.name }} vergrößern" data-lightbox-image="{{ group.image_url }}" data-lightbox-title="{{ group.name }}"><img src="{{ group.image_url }}" alt="{{ group.name }}" loading="lazy" data-image-fallback></button>{% else %}<span class="part-placeholder compact-image">Kein Bild</span>{% endif %}</td>
+        <td>{% if group.image_url %}<button class="part-image-trigger compact-image" type="button" aria-label="Bild von {{ group.name }} vergrößern" data-lightbox-image="{{ group.image_url|proxied_image_url }}" data-lightbox-title="{{ group.name }}"><img src="{{ group.image_url|proxied_image_url }}" alt="{{ group.name }}" loading="lazy" data-image-fallback></button>{% else %}<span class="part-placeholder compact-image">Kein Bild</span>{% endif %}</td>
         <td><strong>{{ group.name }}</strong>{% if group.is_minifigure %}<span class="badge">Minifigurenteil</span>{% endif %}<small>{{ group.part_number|default:group.element_id }} · Element {{ group.element_id }}{% if group.color %} · {{ group.color }}{% endif %}</small></td>
         <td>
           <div class="allocation-list">

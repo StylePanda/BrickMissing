@@ -1,0 +1,113 @@
+PHASE 11 – TECHNISCHER DATENSCHUTZ – ABSCHLUSSBERICHT
+Stand: 2026-08-15
+
+1. EXECUTIVE SUMMARY
+Der technische Privacy-Unterbau wurde um sicheren Dry-run-Cleanup, Sessionabgleich,
+explizite Backupberechtigung, minimiertes Testmail-Audit, konsequenten Image-Proxy,
+Read-only-Production-Audit und eine Faktenbasis ergänzt. Phase 11.2A/B bleibt erhalten.
+
+2. RETENTION
+cleanup_expired_personal_data läuft ohne --apply read-only. Standardmäßig werden nur
+abgelaufene Django-Sessions und AccountSession-Waisen als sicher bereinigbar erkannt.
+Optionale positive Environment-TTLs aktivieren Pending-/Recovery-/Import-Auswahl:
+- PENDING_EMAIL_RETENTION_DAYS
+- RECOVERY_CODE_RETENTION_DAYS
+- IMPORT_BATCH_RETENTION_DAYS
+Ohne Wert: MANUAL POLICY REQUIRED. Keine juristische Frist wurde festgelegt.
+
+3. SESSIONS
+Aktive, nicht abgelaufene Django-Sessions und passende AccountSession bleiben erhalten.
+Abgelaufene django_session sowie AccountSession ohne gültige Session werden erkannt;
+nur --apply löscht sie atomar.
+
+4. PENDING EMAIL / RECOVERY
+PendingEmailChange: nur used_at/expires_at älter als explizite TTL.
+RecoveryCode: nur verwendete Codes älter als explizite TTL. Aktive Codes bleiben.
+
+5. IMPORTS
+ImportBatch: nur älter als explizite TTL. LegacyArchiveRecord/LegacyImportRecord werden
+nicht automatisch gelöscht und bleiben MANUAL POLICY REQUIRED.
+
+6. AUDITEVENT
+Keine automatische Löschung. Security-, Login-/Reset-, Fach- und Delete-Historie
+benötigen Betreiberkategorien und Fristen. Audit-Integrität wurde nicht verändert.
+
+7. EXTERNE BILDER
+Direkte Template-Bildquellen aus image_url/photo_url wurden auf proxied_image_url
+umgestellt. Externe Links bei bewusstem Klick bleiben direkt.
+
+8. IMAGE PROXY
+Bestehend und verifiziert: erlaubte HTTPS-Hosts/Subdomains, DNS-Auflösung, globale
+IP-Prüfung, Redirect-Verbot, MIME-Allowlist PNG/JPEG/WebP, 5-MiB-Limit, 15-s-Timeout,
+kein Credential Forwarding. Response ist private gecacht und nosniff.
+
+9. BACKUP PERMISSIONS
+Neue Django-Permission backups.manage_backup. Liste, Erstellen, Download und Restore
+erfordern aktiven Staff plus Permission; Superuser ist erlaubt. Restore-Reauth bleibt.
+URL-/PK-Manipulation umgeht die serverseitige Prüfung nicht.
+
+10. BACKUP RETENTION
+BACKUP_RETENTION_COUNT bleibt unverändert Standard 10; Rotation markiert ältere
+Ready-Artefakte expired und löscht deren Datei. BACKUP_ROOT Standard var/backups.
+Verschlüsselung Fernet, Integrität SHA-256. Keine Zeitrotation implementiert, keine
+Backups gelöscht. BACKUP_RETENTION_DAYS bleibt offene Betreiberentscheidung.
+
+11. TESTMAIL
+Mailversand bleibt unverändert. Audit details enthält recipient_present und SHA-256
+der normalisierten Adresse, niemals die Klartextadresse.
+
+12. COOKIES/STORAGE
+Bestätigt: sessionid, csrftoken; keine neuen Anwendungscookies. localStorage nur
+brickmissing-theme. Service Worker Cache brickmissing-shell-v73 nur für statische Shell.
+
+13. PRODUCTION AUDIT
+privacy_production_audit zeigt read-only: DB-Backend, DEBUG, Session Engine/Cookieflags,
+CSRF-Flags, HSTS, PUBLIC_URL-Status, Backup Root/Count, Imagehosts und Mailbackend-Klasse.
+Keine Secret-Werte oder personenbezogenen Inhalte.
+
+14. PRIVACY FACT SHEET
+PHASE_11_PRIVACY_FACT_SHEET.txt enthält ausschließlich technische Fakten in 25 Kapiteln.
+
+15. GEÄNDERTE DATEIEN
+Siehe finalen git status. Hauptänderungen: Settings, Cleanup-/Audit-Commands,
+Backup Model/View/Migration/Tests, Testmail-Audit, Template-Filter, Bildtemplates,
+Integrations-/Core-Tests und technische Dokumente. Phase-11.2B-Dateien bleiben im Tree.
+
+16. NEUE MANAGEMENT COMMANDS
+- python manage.py cleanup_expired_personal_data
+- python manage.py cleanup_expired_personal_data --apply
+- python manage.py privacy_production_audit
+Bestehend aus 11.2A/B: audit_account_deletion, audit_orphan_private_files,
+audit_personal_data_export.
+
+17. TESTS
+Gezielte Privacy-/Regressionstests vor Gesamtlauf: 49/49 bestanden.
+Vollständige Django-Testsuite: 234/234 bestanden, 0 fehlgeschlagen.
+
+18. MIGRATION NÖTIG
+JA: backups.0002_backupartifact_manage_backup_permission.
+
+19. COLLECTSTATIC NÖTIG
+NEIN: keine statischen CSS-/JS-/Bilddateien geändert.
+
+20. SERVICE RESTART NÖTIG
+JA bei späterem freigegebenem Deployment: Python, Settings, Templates und Routing-
+abhängiges Rendering wurden geändert. Kein Restart in dieser Aufgabe.
+
+21. OFFENE BETREIBERENTSCHEIDUNGEN
+TTL-Werte, Audit-/Notification-/Legacy-/Soft-Delete-/Datei-Retention,
+Backup-Zeitpolicy, Logfristen, tatsächliche Drittanbieter und Verträge.
+
+22. PRODUCTION-PRÜFPUNKTE
+SMTP/Resend Region/Vertrag, Nginx/journald/logrotate, Standort, MariaDB-Logs,
+VM-/Provider-/Offsite-Backups, DNS/CDN/WAF/Cloudflare, externe APIs, Image-Allowlist,
+Admin-/Staff- und backups.manage_backup-Zuweisungen.
+
+23. RISIKEN
+Ohne konfigurierte TTLs bleiben fachlich unklare Kategorien bewusst bestehen.
+Image-Proxy ist netzwerkabhängig. Backup-Permission muss vor Nutzung gezielt vergeben
+werden. Backups enthalten gelöschte Daten bis zur bestehenden Rotation.
+
+24. NÄCHSTE SCHRITTE
+Betreiber entscheidet TTLs und Production-Fakten; nach Freigabe Migration ausführen,
+Permission gezielt vergeben und Read-only-Audits prüfen. Kein Deployment durchgeführt.

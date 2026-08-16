@@ -1,0 +1,31 @@
+PHASE 11 – OFFENE BETREIBERANGABEN
+Stand: 2026-08-16
+
+REQUIRED BEFORE PUBLICATION
+
+- LEGAL_OPERATOR_NAME: tatsächlicher Name des Betreibers
+- LEGAL_OPERATOR_ADDRESS: vollständige geografische/ladungsfähige Anschrift
+- LEGAL_OPERATOR_EMAIL: tatsächlich erreichbare Kontaktadresse
+- LEGAL_OPERATOR_COUNTRY: Betreiberland, für den geplanten Betrieb Österreich
+- tatsächlicher Hostingprovider und Server-/Datenbankstandort
+- tatsächlicher SMTP-Provider, Verarbeitungsregion und Vertrags-/AVV-Status
+- tatsächliche Aufbewahrung von Nginx-, journald-, Gunicorn- und MariaDB-Logs
+- tatsächliche Backup-Retention einschließlich VM-, Offsite- und Providerbackups
+- aktive externe APIs/Anbieter und deren Vertrags-/Datentransferbewertung
+- rechtliche Prüfung des konkreten Betreiber- und Betriebsmodells
+
+OPTIONAL / IF APPLICABLE
+
+- LEGAL_COMPANY_NAME
+- LEGAL_COMPANY_REGISTER_NUMBER
+- LEGAL_COMPANY_REGISTER_COURT
+- LEGAL_VAT_ID
+- LEGAL_AUTHORITY
+- LEGAL_CHAMBER
+- LEGAL_PROFESSION
+- LEGAL_MEDIA_OWNER
+- konkrete Betreiber-TTLs für PendingEmailChange, verwendete Recovery Codes und ImportBatch
+- Retention-Regeln für AuditEvents, Benachrichtigungen, Legacydaten und Soft-Deletes
+- DNS/CDN/WAF/Cloudflare-Konfiguration, falls eingesetzt
+
+Keine dieser Angaben wurde erfunden oder im Code fest hinterlegt.

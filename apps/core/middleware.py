@@ -59,6 +59,9 @@ class SecurityHeadersMiddleware:
         response.setdefault(
             "Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()"
         )
+        private_prefixes = ("/admin/", "/konto/", "/daten/", "/system/")
+        if request.user.is_authenticated or request.path.startswith(private_prefixes):
+            response.setdefault("X-Robots-Tag", "noindex, nofollow")
         return response
 
 

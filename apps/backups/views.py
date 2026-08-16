@@ -1,9 +1,11 @@
 import zipfile
+from functools import wraps
 
 from django.contrib import messages
-from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth import authenticate
+from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
+from django.core.exceptions import PermissionDenied
 from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -16,12 +18,23 @@ from .models import BackupArtifact
 from .services import _root, create_backup, restore_backup, verify_backup
 
 
-@staff_member_required
+def backup_manager_required(view):
+    @login_required
+    @wraps(view)
+    def protected(request, *args, **kwargs):
+        if not request.user.is_staff or not request.user.has_perm("backups.manage_backup"):
+            raise PermissionDenied
+        return view(request, *args, **kwargs)
+
+    return protected
+
+
+@backup_manager_required
 def backup_list(request):
     return render(request, "backups/list.html", {"backups": BackupArtifact.objects.all()})
 
 
-@staff_member_required
+@backup_manager_required
 @require_POST
 def backup_create(request):
     if limited(request, "staff-backup", 5, 3600, per_user=True):
@@ -32,7 +45,7 @@ def backup_create(request):
     return redirect("backups:list")
 
 
-@staff_member_required
+@backup_manager_required
 def backup_download(request, pk):
     artifact = get_object_or_404(BackupArtifact, pk=pk, status="ready")
     verify_backup(artifact)
@@ -40,7 +53,7 @@ def backup_download(request, pk):
     return FileResponse(path.open("rb"), as_attachment=True, filename=artifact.filename)
 
 
-@staff_member_required
+@backup_manager_required
 @require_POST
 def backup_restore(request, pk):
     if limited(request, "staff-restore", 3, 3600, per_user=True):
