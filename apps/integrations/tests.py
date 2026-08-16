@@ -8,7 +8,7 @@ from django.urls import reverse
 
 from apps.accounts.models import User
 from apps.accounts.totp import decrypt_secret, encrypt_secret
-from apps.catalog.models import LegoSet, Part
+from apps.catalog.models import LegoSet, Part, SetInventoryItem
 from apps.organizer.models import MinifigurePart, SetMinifigure
 
 from .services import (
@@ -131,6 +131,55 @@ class IntegrationSecurityTests(TestCase):
         self.assertRedirects(response, reverse("catalog:set_detail", args=[lego_set.pk]))
         self.assertEqual(SetMinifigure.objects.filter(owner=self.user).count(), 1)
         self.assertEqual(MinifigurePart.objects.count(), 1)
+
+    @patch("apps.integrations.views.rebrickable_minifigures")
+    @patch("apps.integrations.views.rebrickable_set")
+    def test_repeated_sync_is_idempotent_and_preserves_user_stock(self, set_api, fig_api):
+        lego_set = LegoSet.objects.create(owner=self.user, set_number="200-1", name="Alt")
+        set_api.return_value = (
+            {"name": "Neu", "num_parts": 2},
+            [{
+                "part": {"part_num": "3001", "name": "Brick"},
+                "color": {"id": 1, "name": "White"}, "quantity": 2,
+            }],
+        )
+        figure = {"set_num": "fig-2", "name": "Pilot", "quantity": 1}
+        component = {
+            "part": {"part_num": "973", "name": "Torso"},
+            "color": {"id": 5, "name": "Red"}, "quantity": 1,
+        }
+        fig_api.return_value = [(figure, [component])]
+        url = reverse("integrations:sync_rebrickable", args=[lego_set.pk])
+        self.client.post(url)
+        inventory = SetInventoryItem.objects.get(lego_set=lego_set)
+        inventory.owned_quantity = 1
+        inventory.save(update_fields=["owned_quantity"])
+        mini_part = MinifigurePart.objects.get()
+        mini_part.owned_quantity = 1
+        mini_part.save(update_fields=["owned_quantity"])
+        for _ in range(2):
+            self.client.post(url)
+        self.assertEqual(SetInventoryItem.objects.filter(lego_set=lego_set).count(), 1)
+        self.assertEqual(SetMinifigure.objects.filter(lego_set=lego_set).count(), 1)
+        self.assertEqual(MinifigurePart.objects.filter(minifigure__lego_set=lego_set).count(), 1)
+        inventory.refresh_from_db()
+        mini_part.refresh_from_db()
+        self.assertEqual((inventory.owned_quantity, mini_part.owned_quantity), (1, 1))
+
+    def test_sets_page_bulk_manifest_is_owned_active_valid_and_deterministic(self):
+        from django.utils import timezone
+
+        first = LegoSet.objects.create(owner=self.user, set_number="100-1", name="First")
+        second = LegoSet.objects.create(owner=self.user, set_number="200", name="Second")
+        LegoSet.objects.create(owner=self.user, set_number="invalid set", name="Invalid")
+        LegoSet.objects.create(
+            owner=self.user, set_number="300", name="Deleted", deleted_at=timezone.now()
+        )
+        response = self.client.get(reverse("catalog:set_list"))
+        self.assertEqual(response.context["sync_sets"], [first, second])
+        self.assertContains(response, "Alle Sets synchronisieren")
+        self.assertContains(response, reverse("integrations:sync_rebrickable", args=[first.pk]))
+        self.assertNotContains(response, str(self.foreign_set.pk))
 
     @patch("apps.integrations.views.rebrickable_instructions")
     def test_instruction_links_are_owned_and_rendered(self, remote):

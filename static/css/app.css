@@ -326,6 +326,12 @@ dd { margin: 0; }
 .inventory-stats span { color: var(--muted); }
 .inventory-stats strong { font-size: 1.5rem; }
 .inventory-progress { width: 100%; height: .75rem; margin-bottom: var(--space-4); accent-color: var(--accent); }
+.bulk-sync-dialog{width:min(92vw,680px);padding:var(--space-6);border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text)}
+.bulk-sync-dialog::backdrop{background:rgba(5,3,12,.78)}
+.bulk-sync-dialog form{display:grid;gap:var(--space-4)}
+.bulk-sync-progress{display:grid;gap:var(--space-3);padding:var(--space-4);border:1px solid var(--border);border-radius:var(--radius);background:var(--surface-raised)}
+.bulk-sync-progress progress{width:100%;height:.85rem;accent-color:var(--accent)}
+.bulk-sync-progress ul{max-height:10rem;overflow:auto;margin:0;color:var(--danger)}
 .inventory-table td { vertical-align: middle; }
 .inventory-table td:nth-child(2) small { display: block; margin-top: var(--space-1); color: var(--muted); }
 .part-image-trigger img, .minifigure-head img { width: 72px; height: 72px; object-fit: contain; border-radius: 10px; background: #fff; }

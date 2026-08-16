@@ -73,7 +73,7 @@ class MissingPartKindTests(TestCase):
         all_parts = self.client.get(url, {"kind": "all"})
         self.assertContains(all_parts, "Normaler Stein")
         self.assertContains(all_parts, "Sebulba-Kopf")
-        self.assertContains(all_parts, "9449 – Minifigur Sebulba")
+        self.assertContains(all_parts, "9449 – Podracer · Minifigur Sebulba")
         only_mini = self.client.get(url, {"kind": "minifigure"})
         self.assertContains(only_mini, "Sebulba-Kopf")
         self.assertNotContains(only_mini, "Normaler Stein")
@@ -303,7 +303,7 @@ class CatalogFlowTests(TestCase):
         lego_set = LegoSet.objects.create(owner=self.user, set_number="1", name="Statusset")
         Part.objects.create(owner=self.user, lego_set=lego_set, element_id="same", name="Black", color="Black", quantity=2, owned_quantity=0)
         Part.objects.create(owner=self.user, lego_set=lego_set, element_id="same", name="Red", color="Red", quantity=2, owned_quantity=1)
-        Part.objects.create(owner=self.user, lego_set=lego_set, element_id="full", name="Full", color="Red", quantity=2, owned_quantity=2, status=Part.Status.FOUND)
+        Part.objects.create(owner=self.user, lego_set=lego_set, element_id="full", name="Full", color="Red", quantity=3, owned_quantity=2, status=Part.Status.FOUND)
         response = self.client.get(reverse("catalog:missing_parts"))
         groups = response.context["page_obj"].object_list
         self.assertEqual(len(groups), 3)
@@ -416,7 +416,7 @@ class CatalogFlowTests(TestCase):
         for status, label in Part.Status.choices:
             records[status] = Part.objects.create(
                 owner=self.user, element_id=f"filter-{status}", name=f"Teil {label}",
-                quantity=2, owned_quantity=2, status=status,
+                quantity=2, owned_quantity=1, status=status,
             )
         for status, _label in Part.Status.choices:
             with self.subTest(status=status):
@@ -439,26 +439,121 @@ class CatalogFlowTests(TestCase):
             quantity=2, owned_quantity=0, status=Part.Status.ORDERED,
         )
         for value, expected in (
-            ("complete", complete), ("partial", partial), ("none", missing)
+            ("partial", partial), ("none", missing)
         ):
             with self.subTest(stock=value):
                 groups = self.client.get(url, {"stock": value}).context["page_obj"].object_list
                 allocations = [part for group in groups for part in group["allocations"]]
                 self.assertEqual(allocations, [expected])
+        self.assertFalse(
+            self.client.get(url, {"stock": "complete"}).context["page_obj"].object_list
+        )
+        self.assertFalse(any(
+            complete in group["allocations"]
+            for group in self.client.get(url).context["page_obj"].object_list
+        ))
 
     def test_group_workflow_status_is_mixed_not_derived_from_stock(self):
         lego_set = LegoSet.objects.create(owner=self.user, set_number="mix", name="Gemischt")
         Part.objects.create(
             owner=self.user, lego_set=lego_set, element_id="mix", name="Mix",
-            color="Black", quantity=1, owned_quantity=1, status=Part.Status.FOUND,
+            color="Black", quantity=2, owned_quantity=1, status=Part.Status.FOUND,
         )
         Part.objects.create(
             owner=self.user, lego_set=lego_set, element_id="mix", name="Mix",
-            color="Black", quantity=1, owned_quantity=1, status=Part.Status.INSTALLED,
+            color="Black", quantity=2, owned_quantity=1, status=Part.Status.INSTALLED,
         )
         group = self.client.get(reverse("catalog:missing_parts")).context["page_obj"].object_list[0]
         self.assertEqual((group["status"], group["status_label"]), ("mixed", "Gemischt"))
-        self.assertEqual((group["stock"], group["stock_label"]), ("complete", "Vollständig vorhanden"))
+        self.assertEqual((group["stock"], group["stock_label"]), ("partial", "Teilweise vorhanden"))
+
+    def test_missing_page_hides_complete_deleted_and_foreign_records(self):
+        visible = Part.objects.create(
+            owner=self.user, element_id="open", name="Offen", quantity=2, owned_quantity=1
+        )
+        Part.objects.create(
+            owner=self.user, element_id="complete", name="Erledigt", quantity=1,
+            owned_quantity=1, status=Part.Status.INSTALLED,
+        )
+        from django.utils import timezone
+        Part.objects.create(
+            owner=self.user, element_id="deleted", name="Gelöscht", quantity=1,
+            deleted_at=timezone.now(),
+        )
+        other = get_user_model().objects.create_user(
+            "integrity-other", "integrity-other@example.test", "Strong-password-123"
+        )
+        Part.objects.create(owner=other, element_id="foreign-open", name="Fremd", quantity=1)
+        groups = self.client.get(reverse("catalog:missing_parts")).context["page_obj"].object_list
+        allocations = [part for group in groups for part in group["allocations"]]
+        self.assertEqual(allocations, [visible])
+
+    def test_minifigure_parts_are_open_deduplicated_and_filterable(self):
+        lego_set = LegoSet.objects.create(owner=self.user, set_number="fig-1", name="Figurenset")
+        figure = SetMinifigure.objects.create(
+            owner=self.user, lego_set=lego_set, figure_number="fig-a", name="Figur"
+        )
+        canonical = MinifigurePart.objects.create(
+            minifigure=figure, part_number="973", element_id="97301", name="Torso",
+            color_id=1, color_name="White", quantity=2, owned_quantity=0,
+            image_url="https://cdn.rebrickable.com/torso.png",
+        )
+        MinifigurePart.objects.create(
+            minifigure=figure, part_number="973", element_id="97301", name="Torso alt",
+            color_id=1, color_name="White", quantity=1, owned_quantity=0,
+        )
+        MinifigurePart.objects.create(
+            minifigure=figure, part_number="3626", name="Kopf", color_name="Yellow",
+            quantity=1, owned_quantity=1,
+        )
+        response = self.client.get(reverse("catalog:missing_parts"), {"kind": "minifigure"})
+        groups = response.context["page_obj"].object_list
+        self.assertEqual(len(groups), 1)
+        self.assertEqual(groups[0]["allocations"], [canonical])
+        self.assertEqual((groups[0]["first_set"], groups[0]["color"], groups[0]["missing"]), ("fig-1", "White", 2))
+        self.assertContains(response, "Figurenset")
+        self.assertContains(response, "Figur")
+        self.assertContains(response, "https%3A%2F%2Fcdn.rebrickable.com%2Ftorso.png")
+        self.assertFalse(
+            self.client.get(reverse("catalog:missing_parts"), {"kind": "exclude_minifigure"}).context["page_obj"].object_list
+        )
+
+    def test_parallel_normal_representation_of_minifigure_part_is_not_shown_twice(self):
+        lego_set = LegoSet.objects.create(owner=self.user, set_number="fig-2", name="Doppelt")
+        figure = SetMinifigure.objects.create(
+            owner=self.user, lego_set=lego_set, figure_number="fig-b", name="Pilot"
+        )
+        MinifigurePart.objects.create(
+            minifigure=figure, part_number="973", element_id="97301", name="Torso",
+            color_id=1, color_name="Red", quantity=1,
+        )
+        Part.objects.create(
+            owner=self.user, lego_set=lego_set, part_number="973", element_id="97301",
+            name="Torso", color="Red", quantity=1,
+        )
+        groups = self.client.get(reverse("catalog:missing_parts")).context["page_obj"].object_list
+        self.assertEqual(len(groups), 1)
+        self.assertTrue(groups[0]["is_minifigure"])
+
+    def test_integrity_audit_is_read_only_and_reports_duplicates(self):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        lego_set = LegoSet.objects.create(owner=self.user, set_number="audit", name="Audit")
+        figure = SetMinifigure.objects.create(
+            owner=self.user, lego_set=lego_set, figure_number="fig-audit", name="Auditfigur"
+        )
+        for _ in range(2):
+            MinifigurePart.objects.create(
+                minifigure=figure, part_number="head", color_name="Yellow", name="Kopf"
+            )
+        before = MinifigurePart.objects.count()
+        output = StringIO()
+        call_command("audit_missing_parts_integrity", stdout=output)
+        self.assertIn("duplicate_minifigure_parts: 1", output.getvalue())
+        self.assertIn("audit_mode: read-only", output.getvalue())
+        self.assertEqual(MinifigurePart.objects.count(), before)
 
     def test_ajax_status_response_comes_from_reloaded_database_state(self):
         part = Part.objects.create(

@@ -9,11 +9,11 @@ from django.views.decorators.http import require_GET, require_POST
 
 from apps.accounts.totp import decrypt_secret
 from apps.audit.models import AuditEvent
-from apps.catalog.models import LegoSet, Part, SetInventoryItem
+from apps.catalog.models import LegoSet, Part
 from apps.core.rate_limit import limited
-from apps.organizer.models import MinifigurePart, SetMinifigure
 
 from .models import PriceObservation
+from .rebrickable_sync import synchronize_set
 from .services import (
     RebrickableError,
     brickeconomy_set,
@@ -32,74 +32,39 @@ from .services import (
 @require_POST
 @transaction.atomic
 def sync_rebrickable(request, pk):
-    if limited(request, "integration-rebrickable", 20, 3600, per_user=True):
+    json_response = request.headers.get("Accept") == "application/json"
+    limit = 250 if request.POST.get("bulk") == "1" else 20
+    if limited(request, "integration-rebrickable", limit, 3600, per_user=True):
+        if json_response:
+            return JsonResponse({"ok": False, "message": "Zu viele Synchronisationsanfragen."}, status=429)
         return HttpResponse("Rate limit exceeded", status=429)
     lego_set = get_object_or_404(LegoSet.objects.select_for_update(), pk=pk, owner=request.user, deleted_at__isnull=True)
     if not request.user.rebrickable_api_key_encrypted:
+        if json_response:
+            return JsonResponse({"ok": False, "message": "Rebrickable ist nicht eingerichtet."}, status=400)
         messages.error(request, "Bitte richte Rebrickable zuerst in deinen Kontoeinstellungen ein.")
         return redirect("catalog:set_detail", pk=pk)
     api_key = decrypt_secret(request.user.rebrickable_api_key_encrypted)
     try:
-        metadata, parts = rebrickable_set(lego_set.set_number, api_key)
+        result = synchronize_set(
+            lego_set, api_key, set_fetcher=rebrickable_set,
+            minifigure_fetcher=rebrickable_minifigures,
+        )
     except ValueError as exc:
+        if json_response:
+            return JsonResponse({"ok": False, "message": str(exc)}, status=400)
         messages.error(request, str(exc))
         return redirect("catalog:set_detail", pk=pk)
-    lego_set.name = metadata.get("name") or lego_set.name
-    lego_set.year = metadata.get("year") or lego_set.year
-    lego_set.total_parts = max(int(metadata.get("num_parts") or 0), 0)
-    lego_set.image_url = metadata.get("set_img_url") or lego_set.image_url
-    lego_set.save(update_fields=["name", "year", "total_parts", "image_url", "updated_at"])
-    for row in parts:
-        part = row.get("part") or {}
-        color = row.get("color") or {}
-        SetInventoryItem.objects.update_or_create(
-            lego_set=lego_set, part_number=str(part.get("part_num") or ""), color_id=color.get("id"), is_spare=bool(row.get("is_spare")),
-            defaults={"element_id": str(row.get("element_id") or ""), "name": part.get("name") or "Unbenannt", "color_name": color.get("name") or "", "required_quantity": max(int(row.get("quantity") or 0), 0), "image_url": part.get("part_img_url") or ""},
-        )
-    figure_count = component_count = 0
-    try:
-        figures = rebrickable_minifigures(lego_set.set_number, api_key)
-    except ValueError:
-        figures = []
+    if not result.minifigures_available:
         messages.warning(request, "Minifiguren konnten nicht synchronisiert werden.")
-    seen_figures = set()
-    for figure, components in figures:
-        number = str(figure.get("set_num") or "")[:100]
-        if not number:
-            continue
-        seen_figures.add(number)
-        minifigure, _ = SetMinifigure.objects.update_or_create(
-            owner=request.user, lego_set=lego_set, figure_number=number,
-            defaults={
-                "name": str(figure.get("name") or number)[:191],
-                "quantity": max(int(figure.get("quantity") or 1), 1),
-                "image_url": figure.get("set_img_url") or "",
-            },
-        )
-        figure_count += 1
-        seen_components = set()
-        for row in components:
-            part = row.get("part") or {}
-            color = row.get("color") or {}
-            part_number = str(part.get("part_num") or "")[:100]
-            key = (part_number, color.get("id"), bool(row.get("is_spare")))
-            if not part_number or key in seen_components:
-                continue
-            seen_components.add(key)
-            MinifigurePart.objects.update_or_create(
-                minifigure=minifigure, part_number=part_number,
-                color_id=color.get("id"), is_spare=bool(row.get("is_spare")),
-                defaults={
-                    "element_id": str(row.get("element_id") or "")[:100],
-                    "name": str(part.get("name") or part_number)[:191],
-                    "color_name": str(color.get("name") or "")[:100],
-                    "quantity": max(int(row.get("quantity") or 1), 1),
-                    "image_url": part.get("part_img_url") or "",
-                },
-            )
-            component_count += 1
-    AuditEvent.objects.create(actor=request.user, target_user=request.user, action="integration.rebrickable_sync", entity_type="set", entity_id=str(pk), details={"parts": len(parts), "minifigures": figure_count, "minifigure_parts": component_count}, request_id=request.request_id)
-    messages.success(request, f"Rebrickable: {len(parts)} Teile, {figure_count} Minifiguren und {component_count} Figuren-Teile synchronisiert.")
+    AuditEvent.objects.create(actor=request.user, target_user=request.user, action="integration.rebrickable_sync", entity_type="set", entity_id=str(pk), details={"parts": result.parts, "minifigures": result.minifigures, "minifigure_parts": result.minifigure_parts}, request_id=request.request_id)
+    messages.success(request, f"Rebrickable: {result.parts} Teile, {result.minifigures} Minifiguren und {result.minifigure_parts} Figuren-Teile synchronisiert.")
+    if json_response:
+        return JsonResponse({
+            "ok": True,
+            "set": {"id": str(lego_set.pk), "number": lego_set.set_number, "name": lego_set.name},
+            "counts": {"parts": result.parts, "minifigures": result.minifigures, "minifigure_parts": result.minifigure_parts},
+        })
     return redirect("catalog:set_detail", pk=pk)
 
 

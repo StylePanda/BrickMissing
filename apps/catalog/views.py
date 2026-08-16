@@ -11,6 +11,7 @@ from django.views.decorators.http import require_POST
 from apps.audit.models import AuditEvent
 from apps.core.rate_limit import limited
 from apps.core.services import record_recent
+from apps.integrations.services import normalize_rebrickable_set_number
 from apps.inventory.models import InventoryItem
 from apps.orders.models import Order
 from apps.organizer.models import MinifigurePart, Moc, SetMinifigure
@@ -74,9 +75,19 @@ def set_list(request):
     ordering = request.GET.get("sort", "-created_at")
     ordering = ordering if ordering in {"-created_at", "set_number", "name", "-year", "-current_value"} else "-created_at"
     queryset = queryset.order_by(ordering)
-    return render(
-        request, "catalog/set_list.html", {"page_obj": _page(request, queryset), "query": query, "theme": theme, "sort": ordering}
-    )
+    sync_sets = []
+    for lego_set in LegoSet.objects.filter(
+        owner=request.user, deleted_at__isnull=True
+    ).order_by("set_number", "pk"):
+        try:
+            normalize_rebrickable_set_number(lego_set.set_number)
+        except ValueError:
+            continue
+        sync_sets.append(lego_set)
+    return render(request, "catalog/set_list.html", {
+        "page_obj": _page(request, queryset), "query": query, "theme": theme,
+        "sort": ordering, "sync_sets": sync_sets,
+    })
 
 
 @login_required
@@ -223,6 +234,7 @@ def missing_parts(request):
     queryset = Part.objects.filter(
         owner=request.user,
         deleted_at__isnull=True,
+        quantity__gt=F("owned_quantity"),
     ).select_related("lego_set")
     query = request.GET.get("q", "").strip()
     selected_colors = [value for value in request.GET.getlist("color") if value]
@@ -333,10 +345,28 @@ def missing_parts(request):
             minifigure_parts = minifigure_parts.filter(quantity=1)
         elif rarity == "multiple":
             minifigure_parts = minifigure_parts.filter(quantity__gte=2)
+        minifigure_parts = minifigure_parts.filter(
+            quantity__gt=F("owned_quantity")
+        ).order_by(
+            "minifigure_id", "part_number", "color_id", "is_spare",
+            "-quantity", "-owned_quantity", "pk",
+        )
+        seen_minifigure_parts = set()
         for part in minifigure_parts:
+            identity = (part.element_id or part.part_number).strip().casefold()
+            duplicate_key = (
+                part.minifigure.lego_set_id,
+                part.minifigure_id,
+                identity,
+                part.color_id if part.color_id is not None else part.color_name.strip().casefold(),
+                part.is_spare,
+            )
+            if duplicate_key in seen_minifigure_parts:
+                continue
+            seen_minifigure_parts.add(duplicate_key)
             missing = part.missing_quantity
             stock_key = (
-                "complete" if missing == 0 else "partial" if part.owned_quantity else "missing"
+                "complete" if missing == 0 else "partial" if part.owned_quantity else "none"
             )
             groups.append(
                 {
@@ -352,8 +382,8 @@ def missing_parts(request):
                     "allocations": [part],
                     "statuses": set(),
                     "cost": 0,
-                    "status": "none",
-                    "status_label": "Kein Workflowstatus",
+                    "status": Part.Status.MISSING,
+                    "status_label": Part.Status.MISSING.label,
                     "stock": stock_key,
                     "stock_label": stock_state(part.quantity, part.owned_quantity)[1],
                     "first_set": part.minifigure.lego_set.set_number,
@@ -361,6 +391,36 @@ def missing_parts(request):
                     "is_minifigure": True,
                 }
             )
+    minifigure_origins = {
+        (
+            part.minifigure.lego_set_id,
+            (part.element_id or part.part_number).strip().casefold(),
+            part.color_name.strip().casefold(),
+        )
+        for group in groups if group.get("is_minifigure")
+        for part in group["allocations"]
+    }
+    normalized_groups = []
+    for group in groups:
+        if not group.get("is_minifigure"):
+            allocations = [
+                part for part in group["allocations"]
+                if (
+                    part.lego_set_id,
+                    (part.element_id or part.design_id or part.part_number).strip().casefold(),
+                    part.color.strip().casefold(),
+                ) not in minifigure_origins
+            ]
+            if not allocations:
+                continue
+            group["allocations"] = allocations
+            group["required"] = sum(part.quantity for part in allocations)
+            group["owned"] = sum(part.owned_quantity for part in allocations)
+            group["missing"] = sum(part.missing_quantity for part in allocations)
+            group["statuses"] = {part.status for part in allocations}
+            group["cost"] = sum(part.unit_price * part.quantity for part in allocations)
+        normalized_groups.append(group)
+    groups = normalized_groups
     for group in groups:
         if not group.get("is_minifigure"):
             group["status"], group["status_label"] = group_workflow_status(group["statuses"])
@@ -373,7 +433,10 @@ def missing_parts(request):
             )
             group["bulk_value"] = ",".join(str(item.pk) for item in group["allocations"])
     if status:
-        groups = [group for group in groups if not group.get("is_minifigure")]
+        groups = [
+            group for group in groups
+            if not group.get("is_minifigure") or status == Part.Status.MISSING
+        ]
     if stock != "all":
         groups = [group for group in groups if group["stock"] == stock]
     if minimum.isdigit():
