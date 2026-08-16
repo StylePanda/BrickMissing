@@ -1,3 +1,4 @@
+import csv
 import hashlib
 import io
 import json
@@ -109,6 +110,97 @@ class ImportExportTests(TestCase):
         response = self.client.get(reverse("data_portability:export_csv"))
         body = response.content.decode("utf-8-sig").splitlines()
         self.assertEqual(body, ["elementId,quantity", "300321,18"])
+
+    def test_missing_csv_exports_only_active_owned_missing_status_rows(self):
+        Part.objects.create(
+            owner=self.user,
+            element_id="missing-zero",
+            name="Missing zero",
+            quantity=2,
+            owned_quantity=0,
+            status=Part.Status.MISSING,
+        )
+        Part.objects.create(
+            owner=self.user,
+            element_id="missing-partial",
+            name="Missing partial",
+            quantity=2,
+            owned_quantity=1,
+            status=Part.Status.MISSING,
+        )
+        for status in (
+            Part.Status.FOUND,
+            Part.Status.ORDERED,
+            Part.Status.SHIPPED,
+            Part.Status.RECEIVED,
+            Part.Status.INSTALLED,
+        ):
+            Part.objects.create(
+                owner=self.user,
+                element_id=f"excluded-{status}",
+                name=f"Excluded {status}",
+                quantity=2,
+                owned_quantity=0,
+                status=status,
+            )
+        Part.objects.create(
+            owner=self.user,
+            element_id="soft-deleted",
+            name="Soft deleted",
+            quantity=2,
+            owned_quantity=0,
+            status=Part.Status.MISSING,
+            deleted_at=timezone.now(),
+        )
+        other = get_user_model().objects.create_user(
+            "csv-other",
+            "csv-other@example.test",
+            "A-very-long-password-123",
+            email_verified=True,
+        )
+        Part.objects.create(
+            owner=other,
+            element_id="foreign-missing",
+            name="Foreign",
+            quantity=2,
+            owned_quantity=0,
+            status=Part.Status.MISSING,
+        )
+
+        response = self.client.get(reverse("data_portability:export_csv"))
+        rows = list(csv.reader(io.StringIO(response.content.decode("utf-8-sig"))))
+
+        self.assertEqual(
+            rows,
+            [
+                ["elementId", "quantity"],
+                ["missing-partial", "1"],
+                ["missing-zero", "2"],
+            ],
+        )
+
+    def test_missing_csv_aggregation_ignores_same_element_in_other_statuses(self):
+        for status, quantity, owned_quantity in (
+            (Part.Status.MISSING, 5, 1),
+            (Part.Status.MISSING, 3, 2),
+            (Part.Status.FOUND, 40, 0),
+            (Part.Status.RECEIVED, 30, 0),
+        ):
+            Part.objects.create(
+                owner=self.user,
+                element_id="shared-element",
+                name=f"Shared {status}",
+                quantity=quantity,
+                owned_quantity=owned_quantity,
+                status=status,
+            )
+
+        response = self.client.get(reverse("data_portability:export_csv"))
+
+        self.assertEqual(
+            response.content.decode("utf-8-sig").splitlines(),
+            ["elementId,quantity", "shared-element,5"],
+        )
 
     def test_adversarial_import_matrix_never_returns_500(self):
         cases = [

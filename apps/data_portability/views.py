@@ -80,7 +80,10 @@ def export_missing_csv(request):
     writer = csv.writer(output, lineterminator="\n")
     writer.writerow(["elementId", "quantity"])
     records = Part.objects.filter(
-        owner=request.user, deleted_at__isnull=True, quantity__gt=F("owned_quantity")
+        owner=request.user,
+        status=Part.Status.MISSING,
+        deleted_at__isnull=True,
+        quantity__gt=F("owned_quantity"),
     ).exclude(element_id="").values("element_id").annotate(
         export_quantity=Sum(F("quantity") - F("owned_quantity"))
     ).order_by("element_id")
