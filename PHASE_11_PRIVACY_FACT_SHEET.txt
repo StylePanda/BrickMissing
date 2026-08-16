@@ -85,8 +85,9 @@ nicht rückwirkend geändert. Zugriff verlangt Staff plus backups.manage_backup;
 Restore verlangt zusätzlich Passwort-Reauth.
 
 20. LOGS
-Anwendung loggt auf Konsole; Gunicorn/systemd/journald und Nginx können technische
-Requestdaten protokollieren. Tatsächliche Aufbewahrung/Rotation ist serverseitig zu prüfen.
+Anwendung loggt auf Konsole. Production-Fakten: Nginx rotiert täglich mit rotate 14;
+MariaDB general_log und slow_query_log sind OFF. Für journald wurde keine ausdrückliche
+MaxRetentionSec festgestellt; die tatsächliche Begrenzung folgt der Serverkonfiguration.
 
 21. ADMINZUGRIFFE
 Django Admin erfordert Staff und Modellpermissions. Backupverwaltung erfordert die
@@ -98,16 +99,19 @@ HSTS in Production, Argon2, 2FA, Rate Limits, Audit, private Media-Auslieferung,
 SSRF-geschützter Proxy, verschlüsselte Backups und Secret-basierte Konfiguration.
 
 23. TECHNISCHE AUFBEWAHRUNG
-cleanup_expired_personal_data ist standardmäßig Dry-run. Abgelaufene Django-Sessions
-und verwaiste AccountSessions sind sicher anwendbar. PendingEmailChange, verwendete
-RecoveryCodes und ImportBatch benötigen explizite positive Betreiber-TTLs. Audit,
-Notifications, Legacydaten, Soft Deletes und private Dateien erfordern eine manuelle Policy.
+cleanup_expired_personal_data ist standardmäßig Dry-run. Defaults: PendingEmailChange
+30 Tage, verwendete RecoveryCodes 90 Tage, ImportBatch 30 Tage, Security-Audit 365 Tage,
+Fach-Audit 180 Tage, gelesene Notifications 90 Tage, Soft Deletes und soft-gelöschte
+PrivateDocuments 30 Tage. Legacydaten bleiben mit LEGACY_DATA_RETENTION_DAYS=0 bewusst
+unbegrenzt als Idempotenzledger/Migrationsnachweis. Details: PHASE_11_RETENTION_POLICY.txt.
 
-24. OFFENE BETREIBERENTSCHEIDUNGEN
-Konkrete TTLs für Token-/Importdaten; Audit-/Notification-/Soft-Delete-Retention;
-Backup-Auslaufzeit; Logaufbewahrung; Umgang mit Orphan-Dateien; externe Dienstwahl.
+24. BETREIBERENTSCHEIDUNGEN
+Anwendungs-TTLs sind vollständig definiert und per Environment überschreibbar. Production
+verwendet BACKUP_RETENTION_COUNT=7. Journald besitzt keine festgestellte explizite
+MaxRetentionSec; diese begründete Serverausnahme wird im Production-Audit ausgewiesen.
 
-25. OFFENE PRODUKTIONSDATEN
-SMTP-Provider/Region/Vertrag, Server-/DB-Standort, Nginx-/journald-/MariaDB-Logs,
-Logrotate, VM-/Provider-/Offsite-Backups, DNS/CDN/WAF/Cloudflare, aktive externe APIs,
-Image-Host-Allowlist sowie tatsächliche Admin-/Staff-/Permission-Zuweisungen.
+25. PRODUKTIONSKONTROLLE
+privacy_production_audit gibt Legal-Basisstatus, Retentionwerte, Backupanzahl sowie
+anonymisierte Staff-/Superuser-/Backup-Permission-Zahlen aus. SMTP-Provider/Region,
+Verträge, Infrastrukturstandorte sowie externe Providerbackups bleiben außerhalb des
+Repositories geführte Betriebsunterlagen; der Command gibt keine Secrets aus.

@@ -96,8 +96,10 @@ Bereinigung abgelaufener/verwaister Sessions sind dokumentiert.
 14. RETENTION
 
 Konkrete technische Fristen werden dynamisch dargestellt. Backuprotation wird als
-Anzahl, nicht als erfundene Tagesfrist beschrieben. Nicht konfigurierte TTLs bleiben
-sichtbar offen. cleanup_expired_personal_data bleibt Dry-run per Default.
+Anzahl, nicht als erfundene Tagesfrist beschrieben. Alle relevanten TTLs besitzen
+dokumentierte, per Environment ueberschreibbare Defaults; Legacy-Nachweisdaten sind
+mit Frist 0 begruendet unbefristet ausgenommen. cleanup_expired_personal_data bleibt
+Dry-run per Default.
 
 15. PRIVATE DATEIEN
 
@@ -170,12 +172,12 @@ migrate, privacy_final_check, collectstatic, Deployment-Check, atomaren Wechsel,
 Service-Neustart und Smoke-Test aus. privacy_final_check blockiert bei ERROR/CRITICAL.
 Kein Deployment wurde ausgeführt.
 
-26. OFFENE BETREIBERANGABEN
+26. BETREIBERANGABEN
 
-Siehe PHASE_11_OPERATOR_INFORMATION_REQUIRED.txt. Aktuell fehlen reale Basisdaten,
-Hosting-/SMTP-/Standort-/Vertragsangaben und tatsächliche serverseitige Retentions.
+Siehe PHASE_11_OPERATOR_INFORMATION_REQUIRED.txt. Die vier Legal-Basisfelder sind in
+Production konfiguriert; ihre Werte werden in Berichten und Audits nicht ausgegeben.
 
-27. LEGAL REVIEW RECOMMENDED
+27. RECHTLICHE BETREIBERPRÜFUNG
 
 - konkrete Betreiberform und ECG-Impressumspflichten
 - Rechtsgrundlagen und berechtigte Interessen des tatsächlichen Betriebs
@@ -187,15 +189,8 @@ Hosting-/SMTP-/Standort-/Vertragsangaben und tatsächliche serverseitige Retenti
 
 28. FINAL STATUS
 
-Alle technischen Abschlusskriterien sind implementiert. Reale Betreiberbasisdaten sind
-bewusst nicht erfunden und fehlen noch. Daher gilt:
-
-TECHNISCH COMPLETE
-PUBLICATION BLOCKED UNTIL OPERATOR DATA IS PROVIDED
+Dieser Zwischenbericht wird durch PHASE_11_FINAL_REPORT.txt ersetzt. Retention und
+Betreiberbasis sind inzwischen technisch vollständig definiert.
 
 PHASE 11:
-NOT COMPLETE
-
-Nach Eintragung realer Betreiberangaben, rechtlicher Prüfung, erfolgreichem Production-
-privacy_final_check mit PHASE 11 STATUS: READY und Deployment kann der Status auf
-PHASE 11 COMPLETE gesetzt werden.
+COMPLETE

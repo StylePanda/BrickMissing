@@ -15,13 +15,11 @@ def env_list(name: str, default: str = "") -> list[str]:
     return [item.strip() for item in os.getenv(name, default).split(",") if item.strip()]
 
 
-def env_optional_positive_int(name: str) -> int | None:
-    value = os.getenv(name, "").strip()
-    if not value:
-        return None
+def env_nonnegative_int(name: str, default: int) -> int:
+    value = os.getenv(name, str(default)).strip()
     parsed = int(value)
-    if parsed <= 0:
-        raise ValueError(f"{name} must be a positive integer")
+    if parsed < 0:
+        raise ValueError(f"{name} must be a non-negative integer")
     return parsed
 
 
@@ -124,9 +122,19 @@ BACKUP_ROOT = BASE_DIR / "var" / "backups"
 BACKUP_ENCRYPTION_KEY = os.getenv("BACKUP_ENCRYPTION_KEY", SECRET_KEY)
 TOTP_ENCRYPTION_KEY = os.getenv("TOTP_ENCRYPTION_KEY", SECRET_KEY)
 BACKUP_RETENTION_COUNT = int(os.getenv("BACKUP_RETENTION_COUNT", "10"))
-PENDING_EMAIL_RETENTION_DAYS = env_optional_positive_int("PENDING_EMAIL_RETENTION_DAYS")
-RECOVERY_CODE_RETENTION_DAYS = env_optional_positive_int("RECOVERY_CODE_RETENTION_DAYS")
-IMPORT_BATCH_RETENTION_DAYS = env_optional_positive_int("IMPORT_BATCH_RETENTION_DAYS")
+PENDING_EMAIL_RETENTION_DAYS = env_nonnegative_int("PENDING_EMAIL_RETENTION_DAYS", 30)
+RECOVERY_CODE_RETENTION_DAYS = env_nonnegative_int("RECOVERY_CODE_RETENTION_DAYS", 90)
+IMPORT_BATCH_RETENTION_DAYS = env_nonnegative_int("IMPORT_BATCH_RETENTION_DAYS", 30)
+AUDIT_SECURITY_RETENTION_DAYS = env_nonnegative_int("AUDIT_SECURITY_RETENTION_DAYS", 365)
+AUDIT_ACTIVITY_RETENTION_DAYS = env_nonnegative_int("AUDIT_ACTIVITY_RETENTION_DAYS", 180)
+NOTIFICATION_RETENTION_DAYS = env_nonnegative_int("NOTIFICATION_RETENTION_DAYS", 90)
+SOFT_DELETE_RETENTION_DAYS = env_nonnegative_int("SOFT_DELETE_RETENTION_DAYS", 30)
+PRIVATE_DOCUMENT_DELETED_RETENTION_DAYS = env_nonnegative_int(
+    "PRIVATE_DOCUMENT_DELETED_RETENTION_DAYS", 30
+)
+# 0 deliberately means indefinite retention. Legacy import records are the
+# idempotency ledger and archived source rows are migration evidence.
+LEGACY_DATA_RETENTION_DAYS = env_nonnegative_int("LEGACY_DATA_RETENTION_DAYS", 0)
 LEGAL_OPERATOR_NAME = os.getenv("LEGAL_OPERATOR_NAME", "").strip()
 LEGAL_OPERATOR_ADDRESS = os.getenv("LEGAL_OPERATOR_ADDRESS", "").strip()
 LEGAL_OPERATOR_EMAIL = os.getenv("LEGAL_OPERATOR_EMAIL", "").strip()

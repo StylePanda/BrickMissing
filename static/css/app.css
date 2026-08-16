@@ -125,7 +125,7 @@ footer { border-top: 1px solid var(--color-border-subtle); padding: var(--space-
 .legal-page > * + * { margin-top: var(--space-6); }
 .legal-page section { display: grid; gap: var(--space-3); }
 .legal-page h2 { margin-top: var(--space-2); }
-.legal-page address { font-style: normal; white-space: pre-line; }
+.legal-page address { display: grid; gap: var(--space-1); font-style: normal; }
 
 .page-head, .section-head, .row, .cluster { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
 .page-head { min-height: 56px; }

@@ -71,6 +71,9 @@ class PrivacyProductionAuditTests(TestCase):
         call_command("privacy_production_audit", stdout=output)
         text = output.getvalue()
         self.assertIn("READ-ONLY", text)
+        self.assertIn("Security-Audit Retention Tage", text)
+        self.assertIn("Staff Anzahl", text)
+        self.assertIn("Legal Basis Status", text)
         self.assertNotIn("must-not-appear", text)
 
 

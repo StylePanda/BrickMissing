@@ -80,6 +80,38 @@ class Command(BaseCommand):
         for label, passed in required_template_checks.items():
             add("PASS" if passed else "ERROR", label)
 
+        retention_settings = (
+            "PENDING_EMAIL_RETENTION_DAYS",
+            "RECOVERY_CODE_RETENTION_DAYS",
+            "IMPORT_BATCH_RETENTION_DAYS",
+            "AUDIT_SECURITY_RETENTION_DAYS",
+            "AUDIT_ACTIVITY_RETENTION_DAYS",
+            "NOTIFICATION_RETENTION_DAYS",
+            "SOFT_DELETE_RETENTION_DAYS",
+            "PRIVATE_DOCUMENT_DELETED_RETENTION_DAYS",
+            "LEGACY_DATA_RETENTION_DAYS",
+        )
+        missing_retention = [
+            name for name in retention_settings if not isinstance(getattr(settings, name, None), int)
+        ]
+        add(
+            "ERROR" if missing_retention else "PASS",
+            "Retention-Policy vollständig definiert",
+            ", ".join(missing_retention),
+        )
+        cleanup_source = (
+            Path(settings.BASE_DIR)
+            / "apps"
+            / "accounts"
+            / "management"
+            / "commands"
+            / "cleanup_expired_personal_data.py"
+        ).read_text(encoding="utf-8")
+        add(
+            "ERROR" if "MANUAL POLICY REQUIRED" in cleanup_source else "PASS",
+            "Keine unbegründeten MANUAL POLICY REQUIRED Kategorien",
+        )
+
         backup_permission = "manage_backup" in dict(BackupArtifact._meta.permissions)
         add("PASS" if backup_permission else "ERROR", "Backup Permission backups.manage_backup")
 

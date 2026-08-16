@@ -1,9 +1,10 @@
 {% extends "base.html" %}{% block title %}Impressum{% endblock %}{% block content %}
 <article class="panel legal-page">
   <header><p class="eyebrow">Rechtliche Informationen</p><h1>Impressum</h1></header>
-  <section><h2>Betreiber</h2><address><strong>{{ operator_name }}</strong>
-{{ operator_address }}
-{{ operator_country }}</address><p>E-Mail: <a href="mailto:{{ operator_email }}">{{ operator_email }}</a></p></section>
+  <section><h2>Betreiber / Medieninhaber</h2><address><strong>{{ operator_name }}</strong><span>{{ operator_address }}</span><span>{{ operator_country }}</span></address></section>
+  <section><h2>Kontakt</h2><p>E-Mail: <a href="mailto:{{ operator_email }}">{{ operator_email }}</a></p></section>
+  <section><h2>Inhaltliche Ausrichtung</h2><p>BrickMissing ist eine private, nichtkommerzielle Webanwendung zur Verwaltung einer persönlichen LEGO-Sammlung. Die Website informiert über und unterstützt die Organisation von Sets, Teilen, Fehlteilen, Inventar und zugehörigen Sammlungsdaten.</p></section>
+  <section><h2>Rechtliche Hinweise</h2><p>Die Betreiber- und Kontaktangaben werden zur Erfüllung der für diesen Webauftritt einschlägigen Informations- und Offenlegungspflichten bereitgestellt. Optionale Unternehmens- oder berufsrechtliche Angaben werden nur angezeigt, wenn sie für den konkreten Betreiber tatsächlich gelten und konfiguriert sind.</p><p>BrickMissing ist ein unabhängiges Projekt und steht in keiner Verbindung zur LEGO Gruppe. LEGO® ist eine Marke der LEGO Gruppe.</p></section>
   {% if company_name or company_register_number or company_register_court or vat_id %}<section><h2>Unternehmensangaben</h2><dl>{% if company_name %}<dt>Unternehmen</dt><dd>{{ company_name }}</dd>{% endif %}{% if company_register_number %}<dt>Firmenbuchnummer</dt><dd>{{ company_register_number }}</dd>{% endif %}{% if company_register_court %}<dt>Firmenbuchgericht</dt><dd>{{ company_register_court }}</dd>{% endif %}{% if vat_id %}<dt>UID</dt><dd>{{ vat_id }}</dd>{% endif %}</dl></section>{% endif %}
   {% if authority or chamber or profession %}<section><h2>Berufsrechtliche Angaben</h2><dl>{% if authority %}<dt>Zuständige Behörde</dt><dd>{{ authority }}</dd>{% endif %}{% if chamber %}<dt>Kammer oder Berufsverband</dt><dd>{{ chamber }}</dd>{% endif %}{% if profession %}<dt>Berufsbezeichnung</dt><dd>{{ profession }}</dd>{% endif %}</dl></section>{% endif %}
   {% if media_owner %}<section><h2>Medieninhaber</h2><p>{{ media_owner }}</p></section>{% endif %}

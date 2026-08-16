@@ -53,6 +53,17 @@ class LegalPageTests(TestCase):
         self.assertContains(response, "Beispiel GmbH")
         self.assertContains(response, "ATU00000000")
 
+    def test_imprint_contains_structured_private_project_information(self):
+        response = self.client.get(reverse("legal:imprint"))
+        for text in (
+            "Betreiber / Medieninhaber",
+            "Kontakt",
+            "Inhaltliche Ausrichtung",
+            "private, nichtkommerzielle Webanwendung",
+            "unabhängiges Projekt",
+        ):
+            self.assertContains(response, text)
+
     @override_settings(
         SECRET_KEY="do-not-render-secret",  # noqa: S106
         EMAIL_HOST_PASSWORD="do-not-render-mail-secret",  # noqa: S106
@@ -82,6 +93,14 @@ class LegalPageTests(TestCase):
         privacy = self.client.get(reverse("legal:privacy"))
         for text in ("sessionid", "csrftoken", "brickmissing-theme", "Service-Worker-Cache"):
             self.assertContains(privacy, text)
+        for text in (
+            "Security-AuditEvents",
+            "Gelesene Benachrichtigungen",
+            "Soft-gelöschte Sets",
+            "Legacy-Migrationsdaten",
+            "Nginx täglich",
+        ):
+            self.assertContains(privacy, text)
         self.assertNotContains(privacy, "cookie-consent")
         self.assertNotContains(privacy, "googletagmanager.com")
 
@@ -91,6 +110,17 @@ class LegalPageTests(TestCase):
         value = output.getvalue()
         self.assertIn("READ-ONLY", value)
         self.assertIn("PHASE 11 STATUS: READY", value)
+
+    @override_settings(
+        SETTINGS_MODULE="config.settings.production",
+        SESSION_COOKIE_SECURE=True,
+        CSRF_COOKIE_SECURE=True,
+        SECURE_HSTS_SECONDS=3600,
+    )
+    def test_privacy_final_check_is_ready_with_production_security(self):
+        output = StringIO()
+        call_command("privacy_final_check", stdout=output)
+        self.assertIn("PHASE 11 STATUS: READY", output.getvalue())
 
     @override_settings(LEGAL_OPERATOR_NAME="", DEBUG=False)
     def test_privacy_final_check_blocks_missing_production_operator_data(self):

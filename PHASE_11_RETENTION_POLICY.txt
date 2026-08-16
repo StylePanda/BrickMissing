@@ -1,0 +1,98 @@
+PHASE 11 – VERBINDLICHE TECHNISCHE RETENTION-POLICY
+Stand: 2026-08-16
+
+Alle Fristen sind Betreiberentscheidungen für den konkreten Betrieb, keine behaupteten
+gesetzlichen Mindestfristen. Positive Tageswerte sind per Environment überschreibbar.
+Der Cleanup ist immer Dry-run, solange --apply nicht ausdrücklich gesetzt wird.
+
+1. DJANGO SESSIONS
+Zweck: Anmeldung; personenbezogen: ja; Abhängigkeit: Django-Sessionbackend; aktiv:
+bis expire_date; löschbar: nach Ablauf; automatisch: AUTO-SAFE; Frist: expire_date;
+Begründung: abgelaufene Sessions sind funktionslos; Account-Löschung: sofort widerrufen.
+
+2. ACCOUNTSESSION
+Zweck: eigene Geräte-/Sitzungsverwaltung; personenbezogen: ja; Abhängigkeit: gültige
+Django-Session; aktiv: solange die Session existiert; automatisch: AUTO-SAFE bei
+Verwaisung; Frist: unmittelbar nach Wegfall; Account-Löschung: sofort gelöscht.
+
+3. PENDINGEMAILCHANGE
+Zweck: sichere E-Mail-Änderung; personenbezogen: ja; aktiv: bis Verwendung/Ablauf;
+automatisch: ja; Frist: PENDING_EMAIL_RETENTION_DAYS, Default 30 Tage nach Verwendung
+oder Ablauf; Account-Löschung: sofort gelöscht.
+
+4. RECOVERYCODE
+Zweck: 2FA-Wiederherstellung; personenbezogen: ja, nur Hash; aktive unbenutzte Codes
+bleiben erhalten; automatisch: nur verwendete Codes; Frist:
+RECOVERY_CODE_RETENTION_DAYS, Default 90 Tage nach Verwendung; Account-Löschung: sofort.
+
+5. IMPORTBATCH
+Zweck: Importvorschau/-bericht; personenbezogen: potenziell; aktive Nutzung: kurzfristig;
+automatisch: ja; Frist: IMPORT_BATCH_RETENTION_DAYS, Default 30 Tage; Account-Löschung:
+CASCADE.
+
+6. AUDITEVENT – SECURITY
+Zweck: Account-/Login-/Passwort-/E-Mail-/2FA-/Session-/Export-/Backup-Sicherheit;
+personenbezogen: ja/minimiert; automatisch: ja; Frist:
+AUDIT_SECURITY_RETENTION_DAYS, Default 365 Tage; Datenschutzbegründung: längere
+Missbrauchs- und Vorfallsnachvollziehbarkeit; Account-Löschung: Attribution, IP und
+Details werden minimiert, danach normale Retention.
+
+7. AUDITEVENT – FACHAKTIVITÄT
+Zweck: fachliche Nachvollziehbarkeit; personenbezogen: ja/minimiert; automatisch: ja;
+Frist: AUDIT_ACTIVITY_RETENTION_DAYS, Default 180 Tage; Datenschutzbegründung:
+kürzere Aufbewahrung als Securitydaten; Account-Löschung: minimiert.
+
+8. NOTIFICATION
+Zweck: Benutzerhinweise; personenbezogen: potenziell; ungelesen: keine automatische
+Löschung; gelesen: automatisch nach NOTIFICATION_RETENTION_DAYS, Default 90 Tage nach
+read_at; Account-Löschung: CASCADE.
+
+9. SOFT-DELETED LEGOSSET, SETCOPY, PART, ORDER, MOC
+Zweck: Papierkorb/Wiederherstellung; personenbezogen: benutzerbezogen; aktiv:
+Wiederherstellungsfrist; automatisch: ja; Frist: SOFT_DELETE_RETENTION_DAYS, Default
+30 Tage ab deleted_at; Abhängigkeiten: Django on_delete-Regeln behandeln abhängige
+Datensätze konsistent; Account-Löschung: CASCADE beziehungsweise Löschstrategie.
+
+10. PRIVATEDOCUMENT UND PHYSISCHE DATEI
+Aktive Dokumente werden nicht automatisch gelöscht. Soft-gelöschte Dokumente werden
+nach PRIVATE_DOCUMENT_DELETED_RETENTION_DAYS, Default 30 Tage, endgültig gelöscht.
+Datensatz und physische Datei werden gemeinsam über den bestehenden Quarantäne-Lifecycle
+entfernt. Path-Traversal, Pfade außerhalb PRIVATE_MEDIA_ROOT und Symlinks werden
+abgelehnt; fehlende Dateien sind nicht fatal. Fremde Eigentümerdaten werden nicht über
+owner-basierte Benutzeraktionen erreicht. Account-Löschung: sofortiger sicherer Lifecycle.
+
+11. LEGACYIMPORTRECORD UND LEGACYARCHIVERECORD
+Zweck: Import-Idempotenz, Reconciliation und verlustfreier Migrationsnachweis;
+personenbezogen: LegacyArchiveRecord potenziell ja; technische Abhängigkeit:
+Doppelimport-Schutz. LEGACY_DATA_RETENTION_DAYS=0 bedeutet die begründete Standardpolicy
+„unbegrenzt erhalten“. Ein positiver Betreiberwert aktiviert Löschung nach dieser Frist
+nur, wenn die Legacyquelle endgültig außer Betrieb ist und kein Reimport mehr zulässig
+sein soll. Account-Löschung: owner-Archive werden gelöscht; Importledger bleibt ohne
+direkte Accountzuordnung beziehungsweise SET_NULL erhalten.
+
+12. BACKUP-METADATEN UND BACKUP-DATEIEN
+Zweck: Wiederherstellung; personenbezogen: Backupinhalt ja; automatisch: Rotation nach
+BACKUP_RETENTION_COUNT. Production-Fakt: 7 Stände. Keine Tagesfrist. Account-Löschung
+ändert vorhandene verschlüsselte Stände nicht rückwirkend; Löschmaßnahmen sind nach
+Restore erneut anzuwenden.
+
+13. TEMPORÄRE PERSONENBEZOGENE EXPORTE
+ZIP wird im Arbeitsspeicher erstellt und als Response gesendet; keine dauerhafte
+Serverdatei und daher keine nachgelagerte Retention.
+
+14. RATE-LIMIT-DATEN
+Zweck: Missbrauchsschutz; personenbezogen: Schlüssel können Nutzer/IP-Bezug haben;
+automatisch: Cache-TTL der jeweiligen Schutzfunktion; keine dauerhafte Fachablage;
+Account-Löschung: läuft selbstständig aus.
+
+15. E-MAIL-VERIFIKATION UND PASSWORTRESET
+Zweck: Kontosicherheit; personenbezogen: ja; Verifikationstoken wird nicht im Klartext
+protokolliert, Passwortreset nutzt Django-Tokenlogik; Fristen:
+EMAIL_VERIFICATION_TIMEOUT und PASSWORD_RESET_TIMEOUT; verbrauchte PendingEmailChange-
+Datensätze folgen der oben genannten Retention; Account-Löschung invalidiert den Bezug.
+
+16. SERVERLOGS
+Nginx: tägliche Rotation, rotate 14. MariaDB: general_log OFF, slow_query_log OFF.
+journald: keine festgestellte explizite MaxRetentionSec; dies ist eine dokumentierte
+serverseitige Ausnahme und keine unbekannte Anwendungspolicy. Empfehlung: eine zum
+Betrieb passende MaxRetentionSec nach Kapazitäts- und Incident-Anforderungen festlegen.

@@ -36,6 +36,14 @@ def privacy(request):
             "pending_email_retention_days": settings.PENDING_EMAIL_RETENTION_DAYS,
             "recovery_code_retention_days": settings.RECOVERY_CODE_RETENTION_DAYS,
             "import_batch_retention_days": settings.IMPORT_BATCH_RETENTION_DAYS,
+            "audit_security_retention_days": settings.AUDIT_SECURITY_RETENTION_DAYS,
+            "audit_activity_retention_days": settings.AUDIT_ACTIVITY_RETENTION_DAYS,
+            "notification_retention_days": settings.NOTIFICATION_RETENTION_DAYS,
+            "soft_delete_retention_days": settings.SOFT_DELETE_RETENTION_DAYS,
+            "private_document_deleted_retention_days": (
+                settings.PRIVATE_DOCUMENT_DELETED_RETENTION_DAYS
+            ),
+            "legacy_data_retention_days": settings.LEGACY_DATA_RETENTION_DAYS,
         }
     )
     return render(request, "legal/privacy.html", context)
