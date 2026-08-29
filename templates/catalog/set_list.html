@@ -2,6 +2,7 @@
 {% block title %}Sets{% endblock %}
 {% block content %}
 {% include "components/save_view.html" with saved_view_area="sets" %}
+<p class="no-print"><button type="button" data-bulk-sync-open>Alle Set-Inventare aktualisieren</button></p>
 <div class="page-head"><div><p class="eyebrow">Sammlung</p><h1>Sets</h1></div><div class="actions"><button type="button" data-bulk-sync-open{% if not sync_sets %} disabled{% endif %}>Alle Sets synchronisieren</button><a class="button" href="{% url 'catalog:set_create' %}">Set hinzufügen</a><a class="button primary" href="{% url 'catalog:set_create' %}?preset=neu">Neu gekauftes Set hinzufügen</a></div></div>
 <p class="no-print"><a class="button" href="{% url 'catalog:set_batch_import' %}">Mehrere neue Sets hinzufügen</a></p>
 <form class="filters" method="get"><input name="q" value="{{ query }}" aria-label="Sets suchen" placeholder="Setnummer, Name oder Themenwelt"><input name="theme" value="{{ theme }}" aria-label="Themenwelt filtern" placeholder="Themenwelt"><select name="sort" aria-label="Sortierung"><option value="-created_at">Neueste zuerst</option><option value="set_number"{% if sort == 'set_number' %} selected{% endif %}>Setnummer</option><option value="name"{% if sort == 'name' %} selected{% endif %}>Name</option><option value="-year"{% if sort == '-year' %} selected{% endif %}>Jahr</option><option value="-current_value"{% if sort == '-current_value' %} selected{% endif %}>Wert</option></select><button>Suchen</button></form>

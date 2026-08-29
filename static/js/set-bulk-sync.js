@@ -1,8 +1,8 @@
 (() => {
   "use strict";
-  const openButton = document.querySelector("[data-bulk-sync-open]");
+  const openButtons = [...document.querySelectorAll("[data-bulk-sync-open]")];
   const dialog = document.querySelector("[data-bulk-sync-dialog]");
-  if (!openButton || !dialog) return;
+  if (!openButtons.length || !dialog) return;
   const startButton = dialog.querySelector("[data-bulk-sync-start]");
   const cancelButton = dialog.querySelector("[data-bulk-sync-cancel]");
   const progress = dialog.querySelector("[data-bulk-sync-progress]");
@@ -13,11 +13,11 @@
   const sets = [...document.querySelectorAll("[data-sync-url]")];
   const csrfToken = document.cookie.split("; ").find((row) => row.startsWith("csrftoken="))?.split("=")[1] || "";
   let running = false;
-  openButton.addEventListener("click", () => dialog.showModal());
+  openButtons.forEach((button) => button.addEventListener("click", () => dialog.showModal()));
   startButton.addEventListener("click", async () => {
     if (running) return;
     running = true;
-    openButton.disabled = true;
+    openButtons.forEach((button) => { button.disabled = true; });
     startButton.disabled = true;
     cancelButton.disabled = true;
     progress.hidden = false;

@@ -1,7 +1,12 @@
+from decimal import Decimal
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
+from apps.accounts.totp import encrypt_secret
+from apps.core.models import SavedView
 from apps.organizer.models import MinifigurePart, SetMinifigure
 
 from .colors import color_category
@@ -686,3 +691,57 @@ class BatchSetImportTests(TestCase):
         LegoSet.objects.create(owner=self.user, set_number="10300-1", name="Existing")
         response = self.client.post(reverse("catalog:set_batch_import_one"), {"set_number": "10300"})
         self.assertEqual(response.json()["status"], "existing")
+
+    @patch("apps.integrations.rebrickable_sync.synchronize_set")
+    @patch("apps.integrations.services.rebrickable_minifigures")
+    @patch("apps.integrations.services.rebrickable_set")
+    def test_batch_import_saves_purchase_metadata_and_built_status(self, _set_api, _fig_api, sync):
+        from apps.integrations.rebrickable_sync import SyncResult
+
+        self.user.rebrickable_api_key_encrypted = encrypt_secret("batch-key")  # noqa: S106
+        self.user.save(update_fields=["rebrickable_api_key_encrypted"])
+        sync.return_value = SyncResult(0, 0, 0)
+        response = self.client.post(reverse("catalog:set_batch_import_one"), {
+            "set_number": "10300", "purchase_date": "2026-08-29", "purchase_price": "169,99",
+            "condition": "neu", "notes": "Müller",
+        })
+        self.assertEqual(response.status_code, 200)
+        lego_set = LegoSet.objects.get(owner=self.user, set_number="10300-1")
+        self.assertEqual((lego_set.purchase_date.isoformat(), lego_set.purchase_price, lego_set.build_status), ("2026-08-29", Decimal("169.99"), "gebaut"))
+
+    def test_batch_import_rejects_invalid_metadata_without_creating_set(self):
+        response = self.client.post(reverse("catalog:set_batch_import_one"), {"set_number": "10301", "purchase_date": "not-a-date"})
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(LegoSet.objects.filter(owner=self.user, set_number="10301-1").exists())
+
+
+class MissingSavedViewsTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.user = user_model.objects.create_user("views", "views@example.test", "A-long-safe-password-123")
+        self.other = user_model.objects.create_user("otherviews", "otherviews@example.test", "A-long-safe-password-123")
+        self.client.force_login(self.user)
+
+    def test_saved_view_is_visible_and_load_restores_get_filters(self):
+        item = SavedView.objects.create(owner=self.user, area="missing_parts", name="Bestellt Schwarz", path="/fehlteile/", configuration={"query": "q=Brick&status=ordered&color=Black&sort=-missing"})
+        response = self.client.get(reverse("catalog:missing_parts"))
+        self.assertContains(response, "Gespeicherte Ansichten")
+        self.assertContains(response, "Bestellt Schwarz")
+        loaded = self.client.get(reverse("saved_view_load", args=[item.pk]))
+        self.assertEqual(loaded.status_code, 302)
+        self.assertIn("q=Brick&status=ordered&color=Black&sort=-missing", loaded["Location"])
+        filtered = self.client.get(loaded["Location"])
+        self.assertEqual(filtered.context["status"], "ordered")
+        self.assertEqual(filtered.context["selected_colors"], ["Black"])
+        self.assertEqual(filtered.context["sort"], "-missing")
+
+    def test_saved_view_owner_isolation_and_delete_are_safe(self):
+        foreign = SavedView.objects.create(owner=self.other, area="missing_parts", name="Fremd", path="/fehlteile/", configuration={"query": "status=ordered"})
+        self.assertNotContains(self.client.get(reverse("catalog:missing_parts")), "Fremd")
+        self.assertEqual(self.client.get(reverse("saved_view_load", args=[foreign.pk])).status_code, 404)
+        self.assertEqual(self.client.post(reverse("saved_view_delete", args=[foreign.pk])).status_code, 404)
+        own = SavedView.objects.create(owner=self.user, area="missing_parts", name="Eigen", path="/fehlteile/", configuration={})
+        self.assertEqual(self.client.get(reverse("saved_view_delete", args=[own.pk])).status_code, 405)
+        deleted = self.client.post(reverse("saved_view_delete", args=[own.pk]), {"next": "/fehlteile/"})
+        self.assertEqual(deleted.status_code, 302)
+        self.assertFalse(SavedView.objects.filter(pk=own.pk).exists())

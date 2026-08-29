@@ -1,4 +1,6 @@
 import uuid
+from datetime import date
+from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -10,6 +12,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from apps.audit.models import AuditEvent
+from apps.core.models import SavedView
 from apps.core.rate_limit import limited
 from apps.core.services import record_recent
 from apps.integrations.services import normalize_rebrickable_set_number
@@ -245,6 +248,31 @@ def batch_set_import_preview(request):
     return JsonResponse({"ok": True, "sets": previews, "invalid": invalid, "duplicates": duplicate_count})
 
 
+def _batch_purchase_metadata(data):
+    """Validate the whitelisted purchase fields for one batch row."""
+    raw_date = (data.get("purchase_date") or "").strip()
+    purchase_date = None
+    if raw_date:
+        try:
+            purchase_date = date.fromisoformat(raw_date)
+        except ValueError as exc:
+            raise ValueError("Kaufdatum ist ungültig.") from exc
+    raw_price = (data.get("purchase_price") or "").strip().replace(",", ".")
+    try:
+        purchase_price = Decimal(raw_price) if raw_price else Decimal("0")
+    except (InvalidOperation, ValueError) as exc:
+        raise ValueError("Kaufpreis ist ungültig.") from exc
+    if purchase_price < 0 or purchase_price.as_tuple().exponent < -2:
+        raise ValueError("Kaufpreis ist ungültig.")
+    condition = data.get("condition") or "neu"
+    if condition not in {"neu", "gebraucht"}:
+        raise ValueError("Zustand ist ungültig.")
+    notes = (data.get("notes") or "").strip()
+    if len(notes) > 10000:
+        raise ValueError("Notizen sind zu lang.")
+    return {"purchase_date": purchase_date, "purchase_price": purchase_price, "condition": condition, "notes": notes}
+
+
 @login_required
 @require_POST
 @transaction.atomic
@@ -265,7 +293,16 @@ def batch_set_import_one(request):
         return JsonResponse({"ok": True, "status": "existing", "set": {"number": number, "id": str(existing.pk)}})
     if not request.user.rebrickable_api_key_encrypted:
         return JsonResponse({"ok": False, "status": "error", "message": "Rebrickable ist nicht eingerichtet."}, status=400)
-    lego_set = LegoSet.objects.create(owner=request.user, set_number=number, name=number, condition="neu")
+    try:
+        metadata = _batch_purchase_metadata(request.POST)
+    except ValueError as exc:
+        return JsonResponse({"ok": False, "status": "error", "message": str(exc)}, status=400)
+    lego_set = LegoSet.objects.create(
+        owner=request.user, set_number=number, name=number,
+        condition=metadata["condition"], purchase_date=metadata["purchase_date"],
+        purchase_price=metadata["purchase_price"], notes=metadata["notes"],
+        build_status="gebaut",
+    )
     try:
         result = synchronize_set(
             lego_set,
@@ -560,6 +597,7 @@ def missing_parts(request):
             "sets": LegoSet.objects.filter(owner=request.user, deleted_at__isnull=True).order_by("set_number"),
             "part_kind": part_kind,
             "rarity": rarity,
+            "saved_views": SavedView.objects.filter(owner=request.user, area="missing_parts").order_by("name"),
         },
     )
 

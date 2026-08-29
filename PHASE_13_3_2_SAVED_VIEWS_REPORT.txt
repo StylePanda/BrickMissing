@@ -1,0 +1,136 @@
+PHASE 13.3.2 – SAVED MISSING-PARTS VIEWS UX + LOAD FIX
+
+1. Root Cause
+=============
+SavedView persistierte bereits korrekt, aber die Fehlteile-Seite bot keine eigene
+Liste mit Ladeaktionen. Die zentrale Ansichtenseite war der einzige sichtbare Einstieg;
+dadurch war das erneute Anwenden im Fehlteile-Kontext praktisch nicht auffindbar.
+Zusätzlich verwendete das gemeinsame details-Panel großzügige globale Abstände.
+
+2. Bestehende Saved-View-Architektur
+====================================
+SavedView liegt in apps.core.models mit owner, area, name, path und JSON configuration.
+Die bestehende POST-Route /ansichten/ speichert bzw. benennt Ansichten, die vorhandene
+POST-Delete-Route löscht owner-scoped. Gespeichert wird die bestehende URL-Query als
+configuration.query; es wurde keine zweite Filterengine eingeführt.
+
+3. Load-/Apply-Fix
+==================
+Neue GET-Route /ansichten/<id>/laden/ prüft Login und owner=request.user und leitet auf
+den gespeicherten path mit configuration.query weiter. Ungültige JSON-Strukturen werden
+defensiv als leere Konfiguration behandelt.
+
+4. Wiederhergestellte Filter
+============================
+Da die bestehende Fehlteile-Seite ihre GET-Parameter selbst verarbeitet, werden Suche,
+Status, Bestand, Farbe, Set, Teileart, Seltenheit, Sortierung und weitere tatsächlich
+gespeicherte Parameter unverändert wiederhergestellt.
+
+5. URL-/GET-Verhalten
+=====================
+Laden erzeugt eine normale Fehlteile-URL mit Querystring. Reload, Bookmark sowie Back/
+Forward bleiben damit stabil; keine Session-Filterlogik wurde eingeführt.
+
+6. Delete
+=========
+Löschen bleibt POST-only mit CSRF und owner-scoped 404-Verhalten. Die Fehlteile-Liste
+übergibt next=/fehlteile/ und erhält nach erfolgreichem Löschen eine verständliche
+Erfolgsmeldung.
+
+7. Owner Isolation
+==================
+Die Fehlteile-Seite erhält ausschließlich SavedView.objects.filter(owner=request.user,
+area="missing_parts"). Laden und Löschen fremder IDs liefern 404.
+
+8. Save-Verhalten
+=================
+Die bestehende Speicherung über components/save_view.html bleibt erhalten. Namen werden
+weiterhin durch die zentrale Route validiert; die vorhandene Unique-Logik für owner,
+area und name bleibt unverändert. Leere Namen bleiben verständlich abgewiesen.
+
+9. Neue UX
+==========
+Auf /fehlteile/ befindet sich nun ein kompakter Bereich „Gespeicherte Ansichten“ mit
+Laden- und Löschen-Aktionen. Bei leerer Liste erscheint „Noch keine gespeicherten
+Ansichten.“. Darunter bleibt „Aktuelle Ansicht speichern“ als natives details/summary-
+Element vorhanden.
+
+10. Closed-State CSS
+====================
+Das gemeinsame Panel erhielt save-view-details mit reduziertem Padding, einer 24px-
+Summary-Höhe und ohne min-height/unnötigen Bottom-Whitespace. Die Höhe bleibt auto.
+
+11. Open-State CSS
+==================
+Das geöffnete Formular verwendet kompakte 10px-Abstände und eine inline-flexible
+Anordnung für Name und Speichern-Button. Es wird kein großes äußeres Padding ergänzt.
+
+12. Responsive
+==============
+Unter 640px umbrechen gespeicherte Zeilen und das Speichern-Formular vertikal. Es gibt
+keine neue horizontale Scrollfläche; Labels und native Controls bleiben tastaturbedienbar.
+
+13. Security
+============
+LoginRequired, POST-only, CSRF und sichere Redirect-Prüfung für next bleiben aktiv.
+Gespeicherte Pfade werden nur aus owner-eigenen Daten verwendet.
+
+14. Geänderte Dateien
+=====================
+- apps/core/views.py
+- config/urls.py
+- apps/catalog/views.py
+- apps/catalog/tests.py
+- templates/catalog/missing_parts.html
+- templates/components/save_view.html
+- static/css/app.css
+
+15. Migration JA/NEIN
+======================
+NEIN. Es wurden keine Models oder Datenbankfelder geändert.
+
+16. Tests
+=========
+Neue Tests prüfen Sichtbarkeit eigener Ansichten, Filter-Wiederherstellung über die
+bestehende GET-Struktur, fremde Load-/Delete-IDs, POST-only-Löschen und Redirect nach
+Löschung. Bestehende SavedView-Tests bleiben erhalten.
+
+17. Vollständige Testergebnisse
+==============================
+manage.py check: erfolgreich.
+makemigrations --check --dry-run: No changes detected.
+apps.catalog, apps.core, apps.integrations, apps.organizer: 174 Tests erfolgreich.
+Gesamtsuite: 313 Tests erfolgreich.
+python -m ruff check .: erfolgreich.
+node --check der geänderten Batch-/Bulk-JavaScript-Dateien: erfolgreich.
+git diff --check: erfolgreich (nur Zeilenendenwarnungen).
+
+18. collectstatic JA/NEIN
+=========================
+JA bei Deployment, da static/css/app.css geändert wurde; hier nicht ausgeführt.
+
+19. Restart JA/NEIN
+===================
+JA bei Deployment der Python-/Template-Änderungen; hier nicht ausgeführt.
+
+20. Production-Testplan
+=======================
+1. Auf /fehlteile/ eine Ansicht mit Suche, Status, Farbe und Sortierung speichern.
+2. Prüfen, dass sie unter „Gespeicherte Ansichten“ erscheint.
+3. Laden klicken und URL, sichtbare Controls sowie Ergebnisliste prüfen.
+4. Seite neu laden und Browser Zurück/Vorwärts testen.
+5. Ansicht löschen und Erfolgsmeldung prüfen.
+6. Mit zweitem Benutzer sicherstellen, dass fremde Ansichten weder erscheinen noch
+   über eine manipulierte ID geladen/gelöscht werden können.
+7. Details geschlossen/geöffnet auf Desktop und Mobilgerät prüfen.
+
+21. Bekannte Einschränkungen
+============================
+Die zentrale SavedView-Seite /ansichten/ bleibt für andere Bereiche unverändert. Die
+Darstellung verwendet die vorhandene Query-Konfiguration; historische ungültige JSON-
+Konfigurationen werden beim Laden defensiv als leer behandelt. Eine echte visuelle
+Browser-Pixelmessung wurde nicht eingeführt.
+
+22. Final Status
+================
+PHASE 13.3.2: READY

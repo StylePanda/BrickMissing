@@ -56,7 +56,7 @@ def sync_rebrickable(request, pk):
         messages.error(request, str(exc))
         return redirect("catalog:set_detail", pk=pk)
     pending = set(request.session.get("newly_purchased_pending", []))
-    if str(lego_set.pk) in pending:
+    if str(lego_set.pk) in pending and request.POST.get("bulk") != "1":
         initialize_newly_purchased_inventory(lego_set)
         pending.discard(str(lego_set.pk))
         request.session["newly_purchased_pending"] = list(pending)

@@ -144,7 +144,23 @@ def saved_views(request):
 @require_POST
 def saved_view_delete(request, pk):
     get_object_or_404(SavedView, pk=pk, owner=request.user).delete()
+    next_url = request.POST.get("next", "")
+    if next_url.startswith("/") and not next_url.startswith("//"):
+        messages.success(request, "Ansicht wurde gelöscht.")
+        return redirect(next_url)
     return redirect("saved_views")
+
+
+@login_required
+@require_GET
+def saved_view_load(request, pk):
+    item = get_object_or_404(SavedView, pk=pk, owner=request.user)
+    configuration = item.configuration if isinstance(item.configuration, dict) else {}
+    query = configuration.get("query", "")
+    target = item.path
+    if query:
+        target = f"{target}?{query}"
+    return redirect(target)
 
 
 @login_required

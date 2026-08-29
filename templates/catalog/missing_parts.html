@@ -7,6 +7,7 @@
 </div>
 <p class="no-print"><a class="button" href="{% url 'organizer:label_studio' %}?type=missing_parts">Fehlteile-Etiketten drucken</a></p>
 {% include "components/save_view.html" with saved_view_area="missing_parts" %}
+<section class="panel saved-views no-print"><h2>Gespeicherte Ansichten</h2>{% for item in saved_views %}<div class="saved-view-row"><strong>{{ item.name }}</strong><span><a class="button" href="{% url 'saved_view_load' item.pk %}">Laden</a><form method="post" action="{% url 'saved_view_delete' item.pk %}" class="inline-form">{% csrf_token %}<input type="hidden" name="next" value="/fehlteile/"><button class="danger" type="submit">Löschen</button></form></span></div>{% empty %}<p class="muted">Noch keine gespeicherten Ansichten.</p>{% endfor %}</section>
 <form method="get" class="filters missing-filters">
   <label>Suche<input type="search" name="q" value="{{ query }}" placeholder="Teil, Element-ID, Farbe oder Set"></label>
   <label>Status<select name="status"><option value="">Alle Status</option>{% for value,label in statuses %}<option value="{{ value }}"{% if value == status %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>

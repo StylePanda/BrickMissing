@@ -206,6 +206,30 @@ class IntegrationSecurityTests(TestCase):
             self.assertEqual((response.status_code, response.json()["ok"]), (200, True))
         self.assertEqual(order, ["301-1", "302-1"])
 
+    @patch("apps.integrations.views.rebrickable_minifigures", return_value=[])
+    @patch("apps.integrations.views.rebrickable_set")
+    def test_global_bulk_reload_is_sequential_owner_scoped_and_not_new_purchase(self, set_api, _fig_api):
+        first = LegoSet.objects.create(owner=self.user, set_number="305-1", name="First")
+        second = LegoSet.objects.create(owner=self.user, set_number="306-1", name="Second")
+        foreign = LegoSet.objects.create(owner=self.other, set_number="307-1", name="Foreign")
+        item = SetInventoryItem.objects.create(lego_set=first, part_number="3001", color_id=1, name="Brick", required_quantity=2, owned_quantity=1)
+        SetInventoryItem.objects.create(lego_set=second, part_number="3001", color_id=1, name="Brick", required_quantity=1, owned_quantity=1)
+        order = []
+        def payload(set_number, _key):
+            order.append(set_number)
+            return {"name": set_number, "num_parts": 1}, [{"part": {"part_num": "3001", "name": "Brick"}, "color": {"id": 1, "name": "White"}, "quantity": 1}]
+        set_api.side_effect = payload
+        session = self.client.session
+        session["newly_purchased_pending"] = [str(first.pk)]
+        session.save()
+        for lego_set in (first, second):
+            response = self.client.post(reverse("integrations:sync_rebrickable", args=[lego_set.pk]), {"bulk": "1"}, HTTP_ACCEPT="application/json")
+            self.assertEqual(response.status_code, 200)
+        item.refresh_from_db()
+        self.assertEqual(order, ["305-1", "306-1"])
+        self.assertEqual(item.owned_quantity, 1)
+        self.assertEqual(self.client.post(reverse("integrations:sync_rebrickable", args=[foreign.pk])).status_code, 404)
+
     @patch(
         "apps.integrations.views.rebrickable_minifigures",
         side_effect=RebrickableError("rate limited", "rate_limit", status_code=429),
