@@ -13,7 +13,7 @@ from apps.catalog.models import LegoSet, Part
 from apps.core.rate_limit import limited
 
 from .models import PriceObservation
-from .rebrickable_sync import synchronize_set
+from .rebrickable_sync import initialize_newly_purchased_inventory, synchronize_set
 from .services import (
     RebrickableError,
     brickeconomy_set,
@@ -55,6 +55,12 @@ def sync_rebrickable(request, pk):
             return JsonResponse({"ok": False, "message": str(exc)}, status=400)
         messages.error(request, str(exc))
         return redirect("catalog:set_detail", pk=pk)
+    pending = set(request.session.get("newly_purchased_pending", []))
+    if str(lego_set.pk) in pending:
+        initialize_newly_purchased_inventory(lego_set)
+        pending.discard(str(lego_set.pk))
+        request.session["newly_purchased_pending"] = list(pending)
+        request.session.modified = True
     if not result.minifigures_available:
         messages.warning(request, "Minifiguren konnten nicht synchronisiert werden.")
     AuditEvent.objects.create(actor=request.user, target_user=request.user, action="integration.rebrickable_sync", entity_type="set", entity_id=str(pk), details={"parts": result.parts, "minifigures": result.minifigures, "minifigure_parts": result.minifigure_parts}, request_id=request.request_id)

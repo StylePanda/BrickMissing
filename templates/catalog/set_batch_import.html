@@ -1,0 +1,8 @@
+{% extends "base.html" %}{% load static %}
+{% block title %}Mehrere neue Sets hinzufügen{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="eyebrow">Sammlung</p><h1>Mehrere neue Sets hinzufügen</h1><p class="muted">Setnummern zeilenweise, mit Komma, Semikolon oder Leerzeichen getrennen.</p></div></div>
+<form data-batch-form method="post" action="{% url 'catalog:set_batch_preview' %}">{% csrf_token %}<label for="batch-set-numbers">Setnummern</label><textarea id="batch-set-numbers" name="set_numbers" rows="10" required></textarea><div class="form-actions"><a class="button" href="{% url 'catalog:set_list' %}">Abbrechen</a><button class="primary" type="submit" data-batch-preview>Prüfen</button></div></form>
+<section data-batch-preview-area hidden><h2>Vorschau</h2><p data-batch-message class="muted"></p><div data-batch-rows></div><div class="form-actions"><button type="button" class="primary" data-batch-import disabled>Ausgewählte importieren</button></div><div data-batch-progress hidden><progress data-batch-progress-bar value="0" max="1"></progress><p data-batch-progress-text></p></div><div data-batch-summary role="status"></div></section>
+<script src="{% static 'js/set-batch-import.js' %}" defer></script>
+{% endblock %}

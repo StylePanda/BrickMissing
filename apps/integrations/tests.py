@@ -12,6 +12,7 @@ from apps.accounts.totp import decrypt_secret, encrypt_secret
 from apps.catalog.models import LegoSet, Part, SetInventoryItem
 from apps.organizer.models import MinifigurePart, SetMinifigure
 
+from .rebrickable_sync import initialize_newly_purchased_inventory
 from .services import (
     RebrickableError,
     _external_json,
@@ -235,6 +236,61 @@ class IntegrationSecurityTests(TestCase):
         self.assertContains(response, "Alle Sets synchronisieren")
         self.assertContains(response, reverse("integrations:sync_rebrickable", args=[first.pk]))
         self.assertNotContains(response, str(self.foreign_set.pk))
+
+    @patch("apps.integrations.views.rebrickable_minifigures")
+    @patch("apps.integrations.views.rebrickable_set")
+    def test_newly_purchased_sync_initializes_only_marked_set(self, set_api, fig_api):
+        lego_set = LegoSet.objects.create(owner=self.user, set_number="401-1", name="Neu")
+        other = LegoSet.objects.create(owner=self.user, set_number="402-1", name="Normal")
+        set_api.return_value = ({"name": "Neu", "num_parts": 2}, [{
+            "part": {"part_num": "3001", "name": "Brick"},
+            "color": {"id": 1, "name": "White"}, "quantity": 2,
+        }])
+        fig_api.return_value = []
+        SetInventoryItem.objects.create(lego_set=lego_set, part_number="3001", color_id=1, name="Brick", required_quantity=2)
+        SetInventoryItem.objects.create(lego_set=other, part_number="3001", color_id=1, name="Brick", required_quantity=2)
+        session = self.client.session
+        session["newly_purchased_pending"] = [str(lego_set.pk)]
+        session.save()
+        self.client.post(reverse("integrations:sync_rebrickable", args=[lego_set.pk]))
+        self.assertEqual(SetInventoryItem.objects.get(lego_set=lego_set).owned_quantity, 2)
+        self.assertEqual(SetInventoryItem.objects.get(lego_set=other).owned_quantity, 0)
+
+    @patch("apps.integrations.views.rebrickable_minifigures", return_value=[])
+    @patch("apps.integrations.views.rebrickable_set")
+    def test_reload_updates_requirements_without_duplicate_or_user_state_loss(self, set_api, _fig_api):
+        lego_set = LegoSet.objects.create(owner=self.user, set_number="403-1", name="Reload")
+        item = SetInventoryItem.objects.create(
+            lego_set=lego_set, part_number="3001", element_id="e1", color_id=1, name="Brick",
+            color_name="White", required_quantity=3, owned_quantity=1,
+        )
+        Part.objects.create(
+            owner=self.user, lego_set=lego_set, element_id="e1", part_number="3001",
+            name="Brick", color="White", quantity=3, owned_quantity=1,
+            status=Part.Status.ORDERED, notes="keep",
+        )
+        set_api.return_value = ({"name": "Reload", "num_parts": 2}, [{
+            "part": {"part_num": "3001", "name": "Brick"},
+            "color": {"id": 1, "name": "White"}, "element_id": "e1", "quantity": 2,
+        }, {
+            "part": {"part_num": "3002", "name": "New"},
+            "color": {"id": 1, "name": "White"}, "quantity": 1,
+        }])
+        self.client.post(reverse("integrations:sync_rebrickable", args=[lego_set.pk]))
+        item.refresh_from_db()
+        mirror = Part.objects.get(lego_set=lego_set, part_number="3001")
+        self.assertEqual((item.required_quantity, item.owned_quantity), (2, 1))
+        self.assertEqual((mirror.quantity, mirror.owned_quantity, mirror.status, mirror.notes), (2, 1, Part.Status.ORDERED, "keep"))
+        self.assertEqual(SetInventoryItem.objects.filter(lego_set=lego_set).count(), 2)
+
+    def test_newly_purchased_initializer_covers_minifigure_and_parts(self):
+        lego_set = LegoSet.objects.create(owner=self.user, set_number="404-1", name="Mini")
+        figure = SetMinifigure.objects.create(owner=self.user, lego_set=lego_set, figure_number="fig-1", name="Fig", quantity=2)
+        component = MinifigurePart.objects.create(minifigure=figure, part_number="973", name="Torso", quantity=2)
+        initialize_newly_purchased_inventory(lego_set)
+        figure.refresh_from_db()
+        component.refresh_from_db()
+        self.assertEqual((figure.owned_quantity, component.owned_quantity), (2, 2))
 
     @patch("apps.integrations.views.rebrickable_instructions")
     def test_instruction_links_are_owned_and_rendered(self, remote):

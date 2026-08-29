@@ -156,6 +156,10 @@ def set_edit(request, pk=None):
         instance = form.save(commit=False)
         instance.owner = request.user
         instance.save()
+        if request.POST.get("newly_purchased") == "1":
+            pending = set(request.session.get("newly_purchased_pending", []))
+            pending.add(str(instance.pk))
+            request.session["newly_purchased_pending"] = list(pending)
         AuditEvent.objects.create(
             actor=request.user,
             target_user=request.user,
@@ -185,8 +189,95 @@ def set_edit(request, pk=None):
             "theme_suggestions": suggestions("theme"),
             "subtheme_suggestions": suggestions("subtheme"),
             "rebrickable_connected": request.user.has_rebrickable_api_key,
+            "newly_purchased": request.GET.get("preset") == "neu",
         },
     )
+
+
+def parse_batch_set_numbers(raw):
+    """Normalize newline/comma/semicolon/whitespace separated set numbers."""
+    import re
+
+    values = [value.strip() for value in re.split(r"[\s,;]+", raw or "") if value.strip()]
+    normalized = []
+    invalid = []
+    for value in values:
+        if not re.fullmatch(r"\d+(?:-\d+)?", value):
+            invalid.append(value)
+            continue
+        try:
+            candidate = normalize_rebrickable_set_number(value)
+        except ValueError:
+            invalid.append(value)
+            continue
+        if candidate not in normalized:
+            normalized.append(candidate)
+    return normalized, invalid, len(values) - len(normalized) - len(invalid)
+
+
+@login_required
+def batch_set_import(request):
+    return render(request, "catalog/set_batch_import.html")
+
+
+@login_required
+@require_POST
+def batch_set_import_preview(request):
+    from apps.accounts.totp import decrypt_secret
+    from apps.integrations.services import rebrickable_set_metadata
+
+    numbers, invalid, duplicate_count = parse_batch_set_numbers(request.POST.get("set_numbers"))
+    previews = []
+    api_key = decrypt_secret(request.user.rebrickable_api_key_encrypted) if request.user.rebrickable_api_key_encrypted else ""
+    for number in numbers:
+        existing = LegoSet.objects.filter(owner=request.user, active_set_number=number, deleted_at__isnull=True).first()
+        if existing:
+            previews.append({"number": number, "status": "existing", "name": existing.name})
+            continue
+        if not api_key:
+            previews.append({"number": number, "status": "error", "message": "Rebrickable ist nicht eingerichtet."})
+            continue
+        try:
+            data = rebrickable_set_metadata(number, api_key)
+            previews.append({"number": number, "status": "ready", "name": data.get("name", ""), "data": data})
+        except ValueError as exc:
+            previews.append({"number": number, "status": "not_found" if getattr(exc, "code", "") == "not_found" else "error", "message": str(exc)})
+    return JsonResponse({"ok": True, "sets": previews, "invalid": invalid, "duplicates": duplicate_count})
+
+
+@login_required
+@require_POST
+@transaction.atomic
+def batch_set_import_one(request):
+    from apps.accounts.totp import decrypt_secret
+    from apps.integrations.rebrickable_sync import (
+        initialize_newly_purchased_inventory,
+        synchronize_set,
+    )
+    from apps.integrations.services import rebrickable_minifigures, rebrickable_set
+
+    try:
+        number = normalize_rebrickable_set_number(request.POST.get("set_number", ""))
+    except ValueError as exc:
+        return JsonResponse({"ok": False, "status": "invalid", "message": str(exc)}, status=400)
+    existing = LegoSet.objects.filter(owner=request.user, active_set_number=number, deleted_at__isnull=True).first()
+    if existing:
+        return JsonResponse({"ok": True, "status": "existing", "set": {"number": number, "id": str(existing.pk)}})
+    if not request.user.rebrickable_api_key_encrypted:
+        return JsonResponse({"ok": False, "status": "error", "message": "Rebrickable ist nicht eingerichtet."}, status=400)
+    lego_set = LegoSet.objects.create(owner=request.user, set_number=number, name=number, condition="neu")
+    try:
+        result = synchronize_set(
+            lego_set,
+            decrypt_secret(request.user.rebrickable_api_key_encrypted),
+            set_fetcher=rebrickable_set,
+            minifigure_fetcher=rebrickable_minifigures,
+        )
+    except ValueError as exc:
+        lego_set.delete()
+        return JsonResponse({"ok": False, "status": "error", "message": str(exc)}, status=400)
+    initialize_newly_purchased_inventory(lego_set)
+    return JsonResponse({"ok": True, "status": "imported", "set": {"number": number, "name": lego_set.name}, "counts": result.__dict__})
 
 
 @login_required

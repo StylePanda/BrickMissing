@@ -7,6 +7,7 @@ from apps.organizer.models import MinifigurePart, SetMinifigure
 from .colors import color_category
 from .models import LegoSet, Part, SetInventoryItem
 from .services import set_completeness
+from .views import parse_batch_set_numbers
 
 
 class CompletenessAndColorTests(TestCase):
@@ -50,6 +51,12 @@ class CompletenessAndColorTests(TestCase):
         for color, expected in cases.items():
             with self.subTest(color=color):
                 self.assertEqual(color_category(color), expected)
+
+    def test_batch_set_number_parser_normalizes_and_deduplicates(self):
+        numbers, invalid, duplicates = parse_batch_set_numbers("10300, 10300-1; 75367\nnot-a-set 42171")
+        self.assertEqual(numbers, ["10300-1", "75367-1", "42171-1"])
+        self.assertEqual(invalid, ["not-a-set"])
+        self.assertEqual(duplicates, 1)
 
 
 class MissingPartKindTests(TestCase):
@@ -661,3 +668,21 @@ class CatalogFlowTests(TestCase):
         for label in ("Suche", "Status", "Farbe", "Set", "Teileart", "Seltenheit", "Sortierung"):
             self.assertContains(response, label)
         self.assertContains(response, 'class="table-wrap missing-worktable"')
+
+
+class BatchSetImportTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user("batch", "batch@example.test", "A-long-safe-password-123")
+        self.client.force_login(self.user)
+
+    def test_batch_page_and_preview_are_owner_protected_post_endpoints(self):
+        self.assertEqual(self.client.get(reverse("catalog:set_batch_import")).status_code, 200)
+        response = self.client.post(reverse("catalog:set_batch_preview"), {"set_numbers": "10300 10300"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["duplicates"], 1)
+
+    def test_batch_import_one_is_post_only_and_idempotent(self):
+        self.assertEqual(self.client.get(reverse("catalog:set_batch_import_one"), {"set_number": "10300"}).status_code, 405)
+        LegoSet.objects.create(owner=self.user, set_number="10300-1", name="Existing")
+        response = self.client.post(reverse("catalog:set_batch_import_one"), {"set_number": "10300"})
+        self.assertEqual(response.json()["status"], "existing")
