@@ -1,3 +1,4 @@
+import uuid
 from collections import OrderedDict
 
 from django.conf import settings
@@ -6,7 +7,7 @@ from django.db import models, transaction
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from apps.accounts.totp import qr_svg
 from apps.audit.models import AuditEvent
@@ -465,41 +466,51 @@ def _label_data(request, lego_set, qr_target):
 
 
 @login_required
-@require_GET
+@require_http_methods(["GET", "POST"])
 def label_studio(request):
+    params = request.POST if request.method == "POST" else request.GET
     own_sets = (
         LegoSet.objects.filter(owner=request.user, deleted_at__isnull=True)
         .prefetch_related("inventory_items", "minifigures_inventory__parts")
         .order_by("set_number")
     )
-    query = request.GET.get("q", "").strip()
+    query = params.get("q", "").strip()
     visible_sets = own_sets
     if query:
         visible_sets = visible_sets.filter(
             models.Q(set_number__icontains=query) | models.Q(name__icontains=query)
         )
-    label_type = request.GET.get("type", "full")
+    visible_sets = list(visible_sets)
+    label_type = params.get("type", "full")
     if label_type not in LABEL_TYPES:
         label_type = "full"
-    qr_target = request.GET.get("qr_target", "set")
+    qr_target = params.get("qr_target", "set")
     if qr_target not in QR_TARGETS:
         qr_target = "set"
     capacity = 189 if label_type == "per_minifigure" else 8
     columns = 7 if label_type == "per_minifigure" else 2
     rows = 27 if label_type == "per_minifigure" else 4
     try:
-        start = min(max(int(request.GET.get("start", 1)), 1), capacity)
+        start = min(max(int(params.get("start", 1)), 1), capacity)
     except (TypeError, ValueError):
         start = 1
-    selected_ids = request.GET.getlist("item")
-    if "selection" not in request.GET:
+    selected_ids = []
+    for value in params.getlist("item"):
+        try:
+            selected_ids.append(str(uuid.UUID(value)))
+        except (AttributeError, TypeError, ValueError):
+            continue
+    if "selection" not in params:
         selected_sets = list(own_sets)
         selected_ids = [str(lego_set.pk) for lego_set in selected_sets]
     else:
         selected_sets = list(own_sets.filter(pk__in=selected_ids))
-    checked_text = request.GET.get("checked_text", "DURCHSUCHT").strip()[:40] or "DURCHSUCHT"
+        selected_ids = [str(lego_set.pk) for lego_set in selected_sets]
+    visible_ids = {str(lego_set.pk) for lego_set in visible_sets}
+    hidden_selected_ids = [value for value in selected_ids if value not in visible_ids]
+    checked_text = params.get("checked_text", "DURCHSUCHT").strip()[:40] or "DURCHSUCHT"
     try:
-        checked_count = min(max(int(request.GET.get("checked_count", 8)), 1), 100)
+        checked_count = min(max(int(params.get("checked_count", 8)), 1), 100)
     except (TypeError, ValueError):
         checked_count = 8
     labels = []
@@ -520,6 +531,7 @@ def label_studio(request):
     context = {
             "sets": visible_sets,
             "selected_ids": set(selected_ids),
+            "hidden_selected_ids": hidden_selected_ids,
             "query": query,
             "label_type": label_type,
             "label_types": LABEL_TYPES,
@@ -531,7 +543,7 @@ def label_studio(request):
                  "column": ((value - 1) % columns) + 1}
                 for value in range(1, capacity + 1)
             ],
-            "show_images": request.GET.get("images", "1") != "0",
+            "show_images": params.get("images", "1") != "0",
             "checked_text": checked_text,
             "checked_count": checked_count,
             "slots": slots,

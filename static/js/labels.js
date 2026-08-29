@@ -42,7 +42,17 @@
     if (!studio || studio.dataset.ready) return;
     studio.dataset.ready = "true";
     const form = studio.querySelector("[data-label-form]");
-    const buildUrl = () => `${form.action || window.location.pathname}?${new URLSearchParams(new FormData(form))}`;
+    const endpoint = form.action || window.location.pathname;
+    function buildHistoryUrl(formData) {
+      const url = new URL(window.location.pathname, window.location.origin);
+      ["type", "q", "start", "images", "qr_target", "checked_text", "checked_count"]
+        .forEach((name) => {
+          const values = formData.getAll(name);
+          const value = values.at(-1);
+          if (value) url.searchParams.set(name, name === "q" ? value.slice(0, 100) : value);
+        });
+      return `${url.pathname}${url.search}`;
+    }
     async function refresh({full = false} = {}) {
       controller?.abort();
       controller = new AbortController();
@@ -51,7 +61,10 @@
       setLoading(preview, true);
       const timeout = window.setTimeout(() => controller.abort(), 8000);
       try {
-        const response = await fetch(buildUrl(), {
+        const formData = new FormData(form);
+        const response = await fetch(endpoint, {
+          method: "POST",
+          body: formData,
           signal: controller.signal,
           headers: full ? {} : {"X-Requested-With": "XMLHttpRequest"},
         });
@@ -72,7 +85,7 @@
           if (!replacement) throw new Error("Die Serverantwort enthält keine Etikettenvorschau.");
           studio.querySelector("[data-label-preview]").replaceWith(replacement);
         }
-        window.history.replaceState({}, "", buildUrl());
+        window.history.replaceState({}, "", buildHistoryUrl(formData));
       } catch (error) {
         if (error.name === "AbortError" && current !== sequence) return;
         const status = studio.querySelector("[data-label-status]");
@@ -113,7 +126,11 @@
         activeStudio?.querySelector("[data-label-form]")?.dispatchEvent(new Event("change", {bubbles: true}));
       });
     }
-    form.querySelector("[data-label-select-none]")?.addEventListener("click", () => { form.querySelectorAll('input[name="item"]').forEach((item) => { item.checked = false; }); refresh(); });
+    form.querySelector("[data-label-select-none]")?.addEventListener("click", () => {
+      form.querySelectorAll('input[type="checkbox"][name="item"]').forEach((item) => { item.checked = false; });
+      form.querySelectorAll("[data-label-preserved-item]").forEach((item) => item.remove());
+      refresh();
+    });
     const printButton = document.querySelector("[data-label-print]");
     if (printButton && !printButton.dataset.labelsReady) {
       printButton.dataset.labelsReady = "true";

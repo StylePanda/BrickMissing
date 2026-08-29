@@ -1,7 +1,10 @@
+from pathlib import Path
 from unittest.mock import patch
+from urllib.parse import urlencode
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.test import TestCase, override_settings
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -232,7 +235,7 @@ class OrganizerOwnershipTests(TestCase):
             404,
         )
 
-    def test_read_only_label_routes_reject_post_and_label_qr_has_quiet_zone(self):
+    def test_read_only_label_resource_routes_reject_post_and_qr_has_quiet_zone(self):
         label = LabelTemplate.objects.create(owner=self.first, name="Methods")
         item = InventoryItem.objects.create(
             owner=self.first, part_number="3001", name="Brick", quantity=1
@@ -243,7 +246,6 @@ class OrganizerOwnershipTests(TestCase):
             reverse("organizer:label_preview", args=[label.pk]),
             reverse("organizer:label_print_css", args=[label.pk]),
             reverse("organizer:label_qr", args=[label.pk, item.pk]),
-            reverse("organizer:label_studio"),
             reverse("organizer:label_set_qr", args=[lego_set.pk]),
         )
         for url in urls:
@@ -626,11 +628,136 @@ class LabelStudioTests(TestCase):
         )
         self.assertEqual(sum(slot is not None for slot in checked.context["slots"]), 3)
         self.assertContains(checked, "GEPRÜFT")
-        partial = self.client.get(
+        partial = self.client.post(
             url, {**common, "type": "full"}, HTTP_X_REQUESTED_WITH="XMLHttpRequest"
         )
         self.assertTemplateUsed(partial, "organizer/labels/preview.html")
         self.assertNotContains(partial, "<html")
+
+    def test_get_post_preview_full_refresh_and_csrf_protection(self):
+        url = reverse("organizer:label_studio")
+        get_response = self.client.get(url)
+        self.assertEqual(get_response.status_code, 200)
+        self.assertContains(get_response, 'method="post"')
+        self.assertContains(get_response, "csrfmiddlewaretoken")
+
+        preview = self.client.post(
+            url,
+            {"selection": 1, "type": "full", "item": self.lego_set.pk},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(preview.status_code, 200)
+        self.assertTemplateUsed(preview, "organizer/labels/preview.html")
+        self.assertNotContains(preview, "<html")
+
+        full = self.client.post(
+            url,
+            {"selection": 1, "type": "collected", "item": self.lego_set.pk},
+        )
+        self.assertEqual(full.status_code, 200)
+        self.assertTemplateUsed(full, "organizer/label_studio.html")
+        self.assertContains(full, "data-label-studio")
+        self.assertEqual(full.context["label_type"], "collected")
+
+        csrf_client = Client(enforce_csrf_checks=True)
+        csrf_client.force_login(self.user)
+        denied = csrf_client.post(
+            url,
+            {"selection": 1, "type": "full", "item": self.lego_set.pk},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(denied.status_code, 403)
+        csrf_client.get(url)
+        token = csrf_client.cookies["csrftoken"].value
+        allowed = csrf_client.post(
+            url,
+            {
+                "csrfmiddlewaretoken": token,
+                "selection": 1,
+                "type": "full",
+                "item": self.lego_set.pk,
+            },
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(allowed.status_code, 200)
+
+    def test_large_post_selection_images_type_switch_invalid_ids_and_owner_scope(self):
+        additional_sets = [
+            LegoSet(
+                owner=self.user,
+                set_number=f"LARGE-{number:03d}",
+                name=f"Large collection {number}",
+                image_url=f"https://example.test/large-{number}.png",
+            )
+            for number in range(110)
+        ]
+        LegoSet.objects.bulk_create(additional_sets)
+        selected_sets = [self.lego_set, *additional_sets]
+        selected_ids = [str(lego_set.pk) for lego_set in selected_sets]
+        legacy_query = urlencode(
+            [("selection", "1"), ("type", "full")]
+            + [("item", value) for value in selected_ids]
+        )
+        self.assertGreater(len(legacy_query), 4094)
+
+        url = reverse("organizer:label_studio")
+        submitted_ids = [*selected_ids, str(self.foreign_pk), "not-a-uuid", "999"]
+        common = {"selection": 1, "type": "full", "item": submitted_ids}
+        without_images = self.client.post(
+            url,
+            {**common, "images": "0"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(without_images.status_code, 200)
+        self.assertEqual(
+            sum(slot is not None for slot in without_images.context["slots"]),
+            len(selected_sets),
+        )
+        self.assertEqual(len(without_images.context["selected_ids"]), len(selected_sets))
+        self.assertNotContains(without_images, 'class="label-set-image"')
+        self.assertNotContains(without_images, "Geheimes Set")
+
+        with_images = self.client.post(
+            url,
+            {**common, "images": ["0", "1"]},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(with_images.status_code, 200)
+        self.assertContains(
+            with_images,
+            'class="label-set-image"',
+            count=len(selected_sets),
+        )
+
+        switched = self.client.post(
+            url,
+            {**common, "type": "collected", "images": "1", "q": "Transport"},
+        )
+        self.assertEqual(switched.status_code, 200)
+        self.assertTemplateUsed(switched, "organizer/label_studio.html")
+        self.assertContains(switched, "data-label-studio")
+        self.assertEqual(switched.context["label_type"], "collected")
+        self.assertEqual(len(switched.context["selected_ids"]), len(selected_sets))
+        self.assertContains(
+            switched,
+            "data-label-preserved-item",
+            count=len(selected_sets) - 1,
+        )
+
+    def test_javascript_posts_formdata_and_never_puts_selection_in_history(self):
+        source = (Path(settings.BASE_DIR) / "static" / "js" / "labels.js").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('method: "POST"', source)
+        self.assertIn("body: formData", source)
+        self.assertNotIn("URLSearchParams(new FormData(form))", source)
+        history_builder = source.split("function buildHistoryUrl", 1)[1].split(
+            "async function refresh", 1
+        )[0]
+        self.assertNotIn('"item"', history_builder)
+        for invariant in ("AbortController", "sequence", "180", "aria-busy"):
+            with self.subTest(invariant=invariant):
+                self.assertIn(invariant, source)
 
     def test_empty_and_multiple_set_preview_are_valid(self):
         second = LegoSet.objects.create(
