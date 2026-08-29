@@ -1,5 +1,6 @@
 import io
 import json
+import threading
 import urllib.error
 from unittest.mock import MagicMock, patch
 
@@ -14,11 +15,14 @@ from apps.organizer.models import MinifigurePart, SetMinifigure
 from .services import (
     RebrickableError,
     _external_json,
+    _rebrickable_json,
+    _RebrickableRateLimiter,
     brickeconomy_set,
     bricklink_price,
     brickset_set,
     lego_pick_a_brick_url,
     normalize_rebrickable_set_number,
+    rebrickable_minifigures,
     rebrickable_set,
     rebrickable_set_metadata,
     validated_image_url,
@@ -135,7 +139,13 @@ class IntegrationSecurityTests(TestCase):
     @patch("apps.integrations.views.rebrickable_minifigures")
     @patch("apps.integrations.views.rebrickable_set")
     def test_repeated_sync_is_idempotent_and_preserves_user_stock(self, set_api, fig_api):
-        lego_set = LegoSet.objects.create(owner=self.user, set_number="200-1", name="Alt")
+        lego_set = LegoSet.objects.create(
+            owner=self.user,
+            set_number="200-1",
+            name="Alt",
+            build_status="in Bau",
+            notes="Persönliche Set-Notiz",
+        )
         set_api.return_value = (
             {"name": "Neu", "num_parts": 2},
             [{
@@ -157,6 +167,10 @@ class IntegrationSecurityTests(TestCase):
         mini_part = MinifigurePart.objects.get()
         mini_part.owned_quantity = 1
         mini_part.save(update_fields=["owned_quantity"])
+        minifigure = SetMinifigure.objects.get()
+        minifigure.owned_quantity = 1
+        minifigure.notes = "Persönliche Figuren-Notiz"
+        minifigure.save(update_fields=["owned_quantity", "notes"])
         for _ in range(2):
             self.client.post(url)
         self.assertEqual(SetInventoryItem.objects.filter(lego_set=lego_set).count(), 1)
@@ -164,7 +178,48 @@ class IntegrationSecurityTests(TestCase):
         self.assertEqual(MinifigurePart.objects.filter(minifigure__lego_set=lego_set).count(), 1)
         inventory.refresh_from_db()
         mini_part.refresh_from_db()
+        minifigure.refresh_from_db()
+        lego_set.refresh_from_db()
         self.assertEqual((inventory.owned_quantity, mini_part.owned_quantity), (1, 1))
+        self.assertEqual((minifigure.owned_quantity, minifigure.notes), (1, "Persönliche Figuren-Notiz"))
+        self.assertEqual((lego_set.build_status, lego_set.notes), ("in Bau", "Persönliche Set-Notiz"))
+
+    @patch("apps.integrations.views.rebrickable_minifigures", return_value=[])
+    @patch("apps.integrations.views.rebrickable_set")
+    def test_bulk_sync_endpoints_are_processed_sequentially(self, set_api, _fig_api):
+        first = LegoSet.objects.create(owner=self.user, set_number="301-1", name="First")
+        second = LegoSet.objects.create(owner=self.user, set_number="302-1", name="Second")
+        order = []
+
+        def set_payload(set_number, _api_key):
+            order.append(set_number)
+            return {"name": set_number, "num_parts": 0}, []
+
+        set_api.side_effect = set_payload
+        for lego_set in (first, second):
+            response = self.client.post(
+                reverse("integrations:sync_rebrickable", args=[lego_set.pk]),
+                {"bulk": "1"},
+                HTTP_ACCEPT="application/json",
+            )
+            self.assertEqual((response.status_code, response.json()["ok"]), (200, True))
+        self.assertEqual(order, ["301-1", "302-1"])
+
+    @patch(
+        "apps.integrations.views.rebrickable_minifigures",
+        side_effect=RebrickableError("rate limited", "rate_limit", status_code=429),
+    )
+    @patch("apps.integrations.views.rebrickable_set")
+    def test_exhausted_minifigure_rate_limit_fails_bulk_item(self, set_api, _fig_api):
+        lego_set = LegoSet.objects.create(owner=self.user, set_number="303-1", name="Set")
+        set_api.return_value = ({"name": "Set", "num_parts": 0}, [])
+        response = self.client.post(
+            reverse("integrations:sync_rebrickable", args=[lego_set.pk]),
+            {"bulk": "1"},
+            HTTP_ACCEPT="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(response.json()["ok"])
 
     def test_sets_page_bulk_manifest_is_owned_active_valid_and_deterministic(self):
         from django.utils import timezone
@@ -194,6 +249,210 @@ class IntegrationSecurityTests(TestCase):
                 reverse("integrations:instructions", args=[self.foreign_set.pk])
             ).status_code,
             404,
+        )
+
+
+class RebrickableRateLimitTests(TestCase):
+    class FakeTime:
+        def __init__(self):
+            self.now = 0.0
+            self.sleeps = []
+            self.lock = threading.Lock()
+
+        def monotonic(self):
+            with self.lock:
+                return self.now
+
+        def sleep(self, delay):
+            with self.lock:
+                self.sleeps.append(delay)
+                self.now += delay
+
+    @staticmethod
+    def response(payload):
+        response = MagicMock()
+        response.__enter__.return_value = response
+        data = json.dumps(payload).encode()
+        response.headers = {"Content-Length": str(len(data))}
+        response.read.return_value = data
+        return response
+
+    @staticmethod
+    def http_error(status, retry_after=None):
+        headers = {} if retry_after is None else {"Retry-After": retry_after}
+        return urllib.error.HTTPError(
+            "https://rebrickable.com/api/v3/lego/sets/100-1/",
+            status,
+            "controlled test error",
+            headers,
+            io.BytesIO(),
+        )
+
+    def timed_limiter(self):
+        fake_time = self.FakeTime()
+        limiter = _RebrickableRateLimiter(
+            1.05, clock=fake_time.monotonic, sleeper=fake_time.sleep
+        )
+        return fake_time, limiter
+
+    @patch("apps.integrations.services.urllib.request.build_opener")
+    def test_two_requests_respect_minimum_interval(self, opener):
+        fake_time, limiter = self.timed_limiter()
+        opener.return_value.open.side_effect = [self.response({"id": 1}), self.response({"id": 2})]
+        with patch("apps.integrations.services._rebrickable_rate_limiter", limiter):
+            self.assertEqual(_rebrickable_json("colors/?page_size=1", "key")["id"], 1)  # noqa: S106
+            self.assertEqual(_rebrickable_json("colors/?page_size=1", "key")["id"], 2)  # noqa: S106
+        self.assertEqual(fake_time.sleeps, [1.05])
+
+    @patch("apps.integrations.services.urllib.request.build_opener")
+    def test_429_retry_after_is_respected(self, opener):
+        fake_time, limiter = self.timed_limiter()
+        opener.return_value.open.side_effect = [
+            self.http_error(429, "2"),
+            self.response({"ok": True}),
+        ]
+        with (
+            patch("apps.integrations.services._rebrickable_rate_limiter", limiter),
+            patch("apps.integrations.services.time.sleep", fake_time.sleep),
+        ):
+            result = _rebrickable_json("sets/100-1/", "key")  # noqa: S106
+        self.assertTrue(result["ok"])
+        self.assertEqual(fake_time.sleeps, [2.0])
+        self.assertEqual(opener.return_value.open.call_count, 2)
+
+    @patch("apps.integrations.services.urllib.request.build_opener")
+    def test_429_without_retry_after_uses_fallback(self, opener):
+        fake_time, limiter = self.timed_limiter()
+        opener.return_value.open.side_effect = [
+            self.http_error(429),
+            self.response({"ok": True}),
+        ]
+        with (
+            patch("apps.integrations.services._rebrickable_rate_limiter", limiter),
+            patch("apps.integrations.services.time.sleep", fake_time.sleep),
+        ):
+            _rebrickable_json("sets/100-1/", "key")  # noqa: S106
+        self.assertEqual(fake_time.sleeps, [2])
+
+    @patch("apps.integrations.services.urllib.request.build_opener")
+    def test_429_retry_then_success_returns_normal_payload(self, opener):
+        fake_time, limiter = self.timed_limiter()
+        opener.return_value.open.side_effect = [
+            self.http_error(429, "invalid"),
+            self.response({"results": [1]}),
+        ]
+        with (
+            patch("apps.integrations.services._rebrickable_rate_limiter", limiter),
+            patch("apps.integrations.services.time.sleep", fake_time.sleep),
+        ):
+            result = _rebrickable_json("sets/100-1/parts/?page_size=1000", "key")  # noqa: S106
+        self.assertEqual(result, {"results": [1]})
+
+    @patch("apps.integrations.services.urllib.request.build_opener")
+    def test_permanent_429_stops_after_five_retries(self, opener):
+        fake_time, limiter = self.timed_limiter()
+        opener.return_value.open.side_effect = [self.http_error(429) for _ in range(6)]
+        with (
+            patch("apps.integrations.services._rebrickable_rate_limiter", limiter),
+            patch("apps.integrations.services.time.sleep", fake_time.sleep),
+            self.assertRaises(RebrickableError) as raised,
+        ):
+            _rebrickable_json("sets/100-1/", "key")  # noqa: S106
+        self.assertEqual(fake_time.sleeps, [2, 5, 10, 20, 40])
+        self.assertEqual(opener.return_value.open.call_count, 6)
+        self.assertEqual(raised.exception.code, "rate_limit")
+        self.assertEqual(raised.exception.status_code, 429)
+        self.assertTrue(raised.exception.rate_limit)
+
+    @patch("apps.integrations.services.urllib.request.build_opener")
+    def test_401_and_403_remain_authentication_errors(self, opener):
+        for status in (401, 403):
+            with self.subTest(status=status):
+                fake_time, limiter = self.timed_limiter()
+                opener.return_value.open.side_effect = self.http_error(status)
+                with (
+                    patch("apps.integrations.services._rebrickable_rate_limiter", limiter),
+                    self.assertRaises(RebrickableError) as raised,
+                ):
+                    _rebrickable_json("sets/100-1/", "key")  # noqa: S106
+                self.assertEqual(raised.exception.code, "authentication")
+                self.assertEqual(raised.exception.status_code, status)
+
+    @patch("apps.integrations.services.urllib.request.build_opener")
+    def test_404_remains_not_found(self, opener):
+        fake_time, limiter = self.timed_limiter()
+        opener.return_value.open.side_effect = self.http_error(404)
+        with (
+            patch("apps.integrations.services._rebrickable_rate_limiter", limiter),
+            self.assertRaises(RebrickableError) as raised,
+        ):
+            _rebrickable_json("sets/missing/", "key")  # noqa: S106
+        self.assertEqual(raised.exception.code, "not_found")
+        self.assertEqual(raised.exception.status_code, 404)
+
+    @patch("apps.integrations.services.urllib.request.build_opener")
+    def test_network_error_is_unavailable(self, opener):
+        fake_time, limiter = self.timed_limiter()
+        opener.return_value.open.side_effect = urllib.error.URLError("timeout")
+        with (
+            patch("apps.integrations.services._rebrickable_rate_limiter", limiter),
+            self.assertRaises(RebrickableError) as raised,
+        ):
+            _rebrickable_json("sets/100-1/", "key")  # noqa: S106
+        self.assertEqual(raised.exception.code, "unavailable")
+        self.assertIsNone(raised.exception.status_code)
+
+    @patch("apps.integrations.services.urllib.request.build_opener")
+    def test_successful_request_has_no_regression(self, opener):
+        fake_time, limiter = self.timed_limiter()
+        opener.return_value.open.return_value = self.response({"set_num": "100-1"})
+        with patch("apps.integrations.services._rebrickable_rate_limiter", limiter):
+            result = _rebrickable_json("sets/100-1/", "key")  # noqa: S106
+        self.assertEqual(result["set_num"], "100-1")
+        self.assertEqual(opener.return_value.open.call_count, 1)
+        self.assertEqual(fake_time.sleeps, [])
+
+    def test_rate_limiter_serializes_threads(self):
+        fake_time, limiter = self.timed_limiter()
+        barrier = threading.Barrier(3)
+        completed = []
+
+        def worker():
+            barrier.wait()
+            limiter.wait()
+            completed.append(True)
+
+        threads = [threading.Thread(target=worker) for _ in range(2)]
+        for thread in threads:
+            thread.start()
+        barrier.wait()
+        for thread in threads:
+            thread.join(timeout=1)
+        self.assertEqual(completed, [True, True])
+        self.assertEqual(fake_time.sleeps, [1.05])
+
+    @patch("apps.integrations.services._rebrickable_json")
+    def test_sync_request_flow_remains_three_plus_one_per_minifigure(self, remote):
+        def payload(path, _api_key):
+            if path.endswith("/minifigs/?page_size=1000"):
+                return {"results": [{"set_num": "fig-1"}, {"set_num": "fig-2"}]}
+            if "/parts/" in path:
+                return {"results": []}
+            return {"set_num": "100-1"}
+
+        remote.side_effect = payload
+        rebrickable_set("100-1", "key")  # noqa: S106
+        rebrickable_minifigures("100-1", "key")  # noqa: S106
+        self.assertEqual(remote.call_count, 5)
+        self.assertEqual(
+            [call.args[0] for call in remote.call_args_list],
+            [
+                "sets/100-1/",
+                "sets/100-1/parts/?page_size=1000",
+                "sets/100-1/minifigs/?page_size=1000",
+                "minifigs/fig-1/parts/?page_size=1000",
+                "minifigs/fig-2/parts/?page_size=1000",
+            ],
         )
 
 
@@ -281,7 +540,6 @@ class PricingParityTests(TestCase):
             urllib.error.URLError("timeout"),
             urllib.error.HTTPError("https://rebrickable.com", 401, "", {}, io.BytesIO()),
             urllib.error.HTTPError("https://rebrickable.com", 403, "", {}, io.BytesIO()),
-            urllib.error.HTTPError("https://rebrickable.com", 429, "", {}, io.BytesIO()),
             urllib.error.HTTPError("https://rebrickable.com", 500, "", {}, io.BytesIO()),
         ]
         for error in error_cases:

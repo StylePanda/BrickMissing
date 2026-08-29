@@ -1,4 +1,3 @@
-import time
 from dataclasses import dataclass
 
 from django.db import transaction
@@ -39,16 +38,6 @@ def _upsert_reference(model, lookup, defaults):
     return instance
 
 
-def _fetch_with_retry(fetcher, set_number, api_key):
-    for attempt in range(2):
-        try:
-            return fetcher(set_number, api_key)
-        except RebrickableError as exc:
-            if attempt or exc.code not in {"rate_limit", "unavailable"}:
-                raise
-            time.sleep(0.25)
-
-
 @transaction.atomic
 def synchronize_set(
     lego_set, api_key, *, set_fetcher=rebrickable_set,
@@ -56,7 +45,7 @@ def synchronize_set(
 ):
     """Refresh Rebrickable reference data while preserving all user-owned state."""
     lego_set = LegoSet.objects.select_for_update().get(pk=lego_set.pk)
-    metadata, parts = _fetch_with_retry(set_fetcher, lego_set.set_number, api_key)
+    metadata, parts = set_fetcher(lego_set.set_number, api_key)
     lego_set.name = metadata.get("name") or lego_set.name
     lego_set.year = metadata.get("year") or lego_set.year
     lego_set.total_parts = _nonnegative(metadata.get("num_parts"))
@@ -92,8 +81,13 @@ def synchronize_set(
         part_count += 1
 
     try:
-        figures = _fetch_with_retry(minifigure_fetcher, lego_set.set_number, api_key)
+        figures = minifigure_fetcher(lego_set.set_number, api_key)
         minifigures_available = True
+    except RebrickableError as exc:
+        if exc.code == "rate_limit":
+            raise
+        figures = []
+        minifigures_available = False
     except ValueError:
         figures = []
         minifigures_available = False

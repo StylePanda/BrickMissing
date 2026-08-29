@@ -3,8 +3,11 @@ import hashlib
 import hmac
 import ipaddress
 import json
+import logging
+import re
 import secrets
 import socket
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -12,11 +15,52 @@ import urllib.request
 
 from django.conf import settings
 
+logger = logging.getLogger(__name__)
+
+
+class ExternalAPIError(ValueError):
+    def __init__(
+        self, message, *, error_type="unavailable", status_code=None, retry_after=None
+    ):
+        super().__init__(message)
+        self.error_type = error_type
+        self.status_code = status_code
+        self.retry_after = retry_after
+        self.rate_limit = error_type == "rate_limit"
+
+
+class _RebrickableRateLimiter:
+    def __init__(self, interval, *, clock=time.monotonic, sleeper=time.sleep):
+        self.interval = interval
+        self.clock = clock
+        self.sleeper = sleeper
+        self.lock = threading.Lock()
+        self.last_request_started = None
+
+    def wait(self):
+        with self.lock:
+            now = self.clock()
+            if self.last_request_started is not None:
+                target = self.last_request_started + self.interval
+                while (delay := target - now) > 0:
+                    self.sleeper(delay)
+                    now = self.clock()
+            self.last_request_started = now
+
+
+_rebrickable_rate_limiter = _RebrickableRateLimiter(
+    settings.REBRICKABLE_MIN_REQUEST_INTERVAL_SECONDS
+)
+_REBRICKABLE_BACKOFF_SECONDS = (2, 5, 10, 20, 40)
+
 
 class RebrickableError(ValueError):
-    def __init__(self, message, code="unavailable"):
+    def __init__(self, message, code="unavailable", *, status_code=None, retry_after=None):
         super().__init__(message)
         self.code = code
+        self.status_code = status_code
+        self.retry_after = retry_after
+        self.rate_limit = code == "rate_limit"
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -24,30 +68,82 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
+def _retry_after_seconds(value):
+    value = str(value or "").strip()
+    if not re.fullmatch(r"\d+", value):
+        return None
+    return float(value)
+
+
 def fetch_json(url, headers=None, limit=5 * 1024 * 1024):
     parsed = urllib.parse.urlsplit(url)
     if parsed.scheme != "https" or parsed.hostname not in {"rebrickable.com", "www.brickeconomy.com"}:
         raise ValueError("Nicht freigegebene Datenquelle")
+    is_rebrickable_api = (
+        parsed.hostname == "rebrickable.com" and parsed.path.startswith("/api/v3/")
+    )
     request = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "BrickMissing/8.0", **(headers or {})})  # noqa: S310 -- exact HTTPS host checked above
-    try:
-        with urllib.request.build_opener(NoRedirect).open(request, timeout=20) as response:
-            if int(response.headers.get("Content-Length", 0) or 0) > limit:
-                raise ValueError("Antwort ist zu groß")
-            payload = response.read(limit + 1)
-            if len(payload) > limit:
-                raise ValueError("Antwort ist zu groß")
-            result = json.loads(payload)
-            if not isinstance(result, dict):
-                raise ValueError("Ungültige API-Antwort")
-            return result
-    except urllib.error.HTTPError as exc:
-        if exc.code == 429:
-            raise ValueError("Externe API Rate Limit erreicht") from exc
-        if exc.code in {401, 403}:
-            raise ValueError("Externe API Authentifizierung fehlgeschlagen") from exc
-        raise ValueError(f"Externe API antwortete mit HTTP {exc.code}") from exc
-    except (urllib.error.URLError, json.JSONDecodeError) as exc:
-        raise ValueError("Externe Datenquelle ist nicht erreichbar oder ungültig") from exc
+    max_retries = min(settings.REBRICKABLE_MAX_RETRIES, 5) if is_rebrickable_api else 0
+    for attempt in range(max_retries + 1):
+        if is_rebrickable_api:
+            _rebrickable_rate_limiter.wait()
+        try:
+            with urllib.request.build_opener(NoRedirect).open(request, timeout=20) as response:
+                if int(response.headers.get("Content-Length", 0) or 0) > limit:
+                    raise ValueError("Antwort ist zu groß")
+                payload = response.read(limit + 1)
+                if len(payload) > limit:
+                    raise ValueError("Antwort ist zu groß")
+                result = json.loads(payload)
+                if not isinstance(result, dict):
+                    raise ValueError("Ungültige API-Antwort")
+                return result
+        except urllib.error.HTTPError as exc:
+            retry_after = _retry_after_seconds(
+                exc.headers.get("Retry-After") if exc.headers is not None else None
+            )
+            if exc.code == 429 and is_rebrickable_api and attempt < max_retries:
+                delay = (
+                    retry_after
+                    if retry_after is not None
+                    else _REBRICKABLE_BACKOFF_SECONDS[
+                        min(attempt, len(_REBRICKABLE_BACKOFF_SECONDS) - 1)
+                    ]
+                )
+                logger.warning(
+                    "Rebrickable rate limit reached; retry in %.1f seconds; "
+                    "retry attempt %d/%d",
+                    delay,
+                    attempt + 1,
+                    max_retries,
+                )
+                time.sleep(delay)
+                continue
+            if exc.code == 429:
+                raise ExternalAPIError(
+                    "Externe API Rate Limit erreicht",
+                    error_type="rate_limit",
+                    status_code=429,
+                    retry_after=retry_after,
+                ) from exc
+            if exc.code in {401, 403}:
+                raise ExternalAPIError(
+                    "Externe API Authentifizierung fehlgeschlagen",
+                    error_type="authentication",
+                    status_code=exc.code,
+                ) from exc
+            error_type = "not_found" if exc.code == 404 else "unavailable"
+            raise ExternalAPIError(
+                f"Externe API antwortete mit HTTP {exc.code}",
+                error_type=error_type,
+                status_code=exc.code,
+            ) from exc
+        except (urllib.error.URLError, json.JSONDecodeError) as exc:
+            raise ExternalAPIError(
+                "Externe Datenquelle ist nicht erreichbar oder ungültig",
+                error_type="unavailable",
+            ) from exc
+    raise AssertionError("unreachable")
 
 
 def normalize_rebrickable_set_number(set_number):
@@ -65,14 +161,19 @@ def _rebrickable_json(path, api_key):
             "https://rebrickable.com/api/v3/lego/" + path,
             {"Authorization": f"key {api_key}"},
         )
+    except ExternalAPIError as exc:
+        messages = {
+            "authentication": "Der Rebrickable API-Key ist ungültig.",
+            "rate_limit": "Rebrickable hat zu viele Anfragen erhalten.",
+            "not_found": "Set wurde nicht gefunden.",
+        }
+        raise RebrickableError(
+            messages.get(exc.error_type, "Rebrickable ist momentan nicht erreichbar."),
+            exc.error_type,
+            status_code=exc.status_code,
+            retry_after=exc.retry_after,
+        ) from exc
     except ValueError as exc:
-        message = str(exc)
-        if "Authentifizierung" in message:
-            raise RebrickableError("Der Rebrickable API-Key ist ungültig.", "authentication") from exc
-        if "Rate Limit" in message:
-            raise RebrickableError("Rebrickable hat zu viele Anfragen erhalten.", "rate_limit") from exc
-        if "HTTP 404" in message:
-            raise RebrickableError("Set wurde nicht gefunden.", "not_found") from exc
         raise RebrickableError("Rebrickable ist momentan nicht erreichbar.", "unavailable") from exc
 
 

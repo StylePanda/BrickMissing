@@ -23,6 +23,14 @@ def env_nonnegative_int(name: str, default: int) -> int:
     return parsed
 
 
+def env_nonnegative_float(name: str, default: float) -> float:
+    value = os.getenv(name, str(default)).strip()
+    parsed = float(value)
+    if parsed < 0:
+        raise ValueError(f"{name} must be a non-negative number")
+    return parsed
+
+
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "development-only-not-for-production")
 DEBUG = False
 ALLOWED_HOSTS: list[str] = []
@@ -153,6 +161,10 @@ BRICKLINK_CONSUMER_KEY = os.getenv("BRICKLINK_CONSUMER_KEY", "")
 BRICKLINK_CONSUMER_SECRET = os.getenv("BRICKLINK_CONSUMER_SECRET", "")
 BRICKLINK_TOKEN = os.getenv("BRICKLINK_TOKEN", "")
 BRICKLINK_TOKEN_SECRET = os.getenv("BRICKLINK_TOKEN_SECRET", "")
+REBRICKABLE_MIN_REQUEST_INTERVAL_SECONDS = env_nonnegative_float(
+    "REBRICKABLE_MIN_REQUEST_INTERVAL_SECONDS", 1.05
+)
+REBRICKABLE_MAX_RETRIES = env_nonnegative_int("REBRICKABLE_MAX_RETRIES", 5)
 IMAGE_PROXY_ALLOWED_HOSTS = env_list("IMAGE_PROXY_ALLOWED_HOSTS", "rebrickable.com,brickset.com,lego.com")
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
