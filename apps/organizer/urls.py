@@ -11,6 +11,11 @@ urlpatterns = [
         views.label_set_qr,
         name="label_set_qr",
     ),
+    path(
+        "organisation/etiketten-qr/qr/minifigure/<int:figure_pk>.svg",
+        views.label_minifigure_qr,
+        name="label_minifigure_qr",
+    ),
     path("organisation/labels/<int:pk>/preview/", views.label_preview, name="label_preview"),
     path("organisation/labels/<int:pk>/print.css", views.label_print_css, name="label_print_css"),
     path("organisation/labels/<int:pk>/qr/<int:item_pk>.svg", views.label_qr, name="label_qr"),

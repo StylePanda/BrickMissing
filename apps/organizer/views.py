@@ -1,5 +1,6 @@
 import uuid
 from collections import OrderedDict
+from urllib.parse import quote
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
@@ -416,6 +417,8 @@ LABEL_TYPES = {
     "collected": "Setnummern gesammelt · jede einmal",
     "per_minifigure": "Nur Setnummer · einmal pro Minifigur",
     "colors": "Kontrollsackerl · frei beschriftbar",
+    "minifigure": "Minifiguren-Etikett",
+    "missing_parts": "Fehlteile-/Setteil-Etikett",
 }
 QR_TARGETS = {
     "set": "Setseite",
@@ -484,6 +487,39 @@ def _collected_number_cells(numbers):
     return cells
 
 
+def _minifigure_label_data(request, figure):
+    required = figure.quantity
+    owned = figure.owned_quantity
+    status = "complete" if owned >= required else "partial" if owned else "missing"
+    return {
+        "figure": figure,
+        "status": status,
+        "qr_url": reverse("organizer:label_minifigure_qr", args=[figure.pk]),
+    }
+
+
+def _missing_part_label_data(request, part, lego_set, *, minifigure=None):
+    if minifigure is not None:
+        qr_url = reverse("organizer:label_minifigure_qr", args=[minifigure.pk])
+        target_url = f"{_public_origin(request)}{reverse('organizer:detail', args=['minifigures', minifigure.pk])}"
+    else:
+        qr_url = reverse("organizer:label_set_qr", args=[lego_set.pk]) + "?target=inventory"
+        route = reverse("catalog:set_detail", args=[lego_set.pk])
+        target_url = f"{_public_origin(request)}{route}?q={quote(part.part_number)}#set-inventory"
+    return {
+        "part": part,
+        "lego_set": lego_set,
+        "minifigure": minifigure,
+        "color": getattr(part, "color_name", "") or getattr(part, "color", ""),
+        "required": getattr(part, "required_quantity", None) or part.quantity,
+        "owned": part.owned_quantity,
+        "missing": part.missing_quantity,
+        "status": "missing" if part.owned_quantity == 0 else "partial",
+        "qr_url": qr_url,
+        "target_url": target_url,
+    }
+
+
 @login_required
 @require_http_methods(["GET", "POST"])
 def label_studio(request):
@@ -545,6 +581,44 @@ def label_studio(request):
         for lego_set in selected_sets:
             data = _label_data(request, lego_set, qr_target)
             labels.extend([data] * data["minifigure_count"])
+    elif label_type == "minifigure":
+        for lego_set in selected_sets:
+            labels.extend(
+                _minifigure_label_data(request, figure)
+                for figure in lego_set.minifigures_inventory.all()
+            )
+    elif label_type == "missing_parts":
+        part_query = params.get("part_query", "").strip().casefold()
+        missing_status = params.get("missing_status", "all")
+        missing_color = params.get("missing_color", "").strip().casefold()
+        for lego_set in selected_sets:
+            for part in lego_set.inventory_items.all():
+                if part.is_spare or part.missing_quantity <= 0:
+                    continue
+                if part_query and part_query not in " ".join(
+                    (part.part_number, part.element_id, part.name, part.color_name)
+                ).casefold():
+                    continue
+                if missing_color and part.color_name.casefold() != missing_color:
+                    continue
+                status = "missing" if part.owned_quantity == 0 else "partial"
+                if missing_status != "all" and status != missing_status:
+                    continue
+                labels.append(_missing_part_label_data(request, part, lego_set))
+            for figure in lego_set.minifigures_inventory.all():
+                for part in figure.parts.all():
+                    if part.is_spare or part.missing_quantity <= 0:
+                        continue
+                    if part_query and part_query not in " ".join(
+                        (part.part_number, part.element_id, part.name, part.color_name)
+                    ).casefold():
+                        continue
+                    if missing_color and part.color_name.casefold() != missing_color:
+                        continue
+                    status = "missing" if part.owned_quantity == 0 else "partial"
+                    if missing_status != "all" and status != missing_status:
+                        continue
+                    labels.append(_missing_part_label_data(request, part, lego_set, minifigure=figure))
     else:
         labels = [{"text": checked_text} for _ in range(checked_count)]
     slots = [None] * (start - 1) + labels if labels else []
@@ -568,6 +642,9 @@ def label_studio(request):
             "show_images": params.get("images", "1") != "0",
             "checked_text": checked_text,
             "checked_count": checked_count,
+            "part_query": params.get("part_query", "").strip(),
+            "missing_status": params.get("missing_status", "all"),
+            "missing_color": params.get("missing_color", "").strip(),
             "slots": slots,
             "label_pages": label_pages,
             "has_selected_sets": bool(selected_sets),
@@ -598,6 +675,19 @@ def label_set_qr(request, set_pk):
         qr_svg(_qr_target(request, lego_set, target), border=4),
         content_type="image/svg+xml",
     )
+
+
+@login_required
+@require_GET
+def label_minifigure_qr(request, figure_pk):
+    figure = get_object_or_404(
+        SetMinifigure.objects.select_related("lego_set"),
+        pk=figure_pk,
+        owner=request.user,
+        lego_set__deleted_at__isnull=True,
+    )
+    target = f"{_public_origin(request)}{reverse('organizer:detail', args=['minifigures', figure.pk])}"
+    return HttpResponse(qr_svg(target, border=4), content_type="image/svg+xml")
 
 
 def _moc_parts_snapshot(moc):

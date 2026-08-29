@@ -7,7 +7,7 @@ from .part_status import expected_is_present
 class LegoSetForm(forms.ModelForm):
     CONDITION_CHOICES = (("neu", "Neu"), ("gebraucht", "Gebraucht"))
     COMPLETENESS_CHOICES = (("vollständig", "Vollständig"), ("unvollständig", "Unvollständig"), ("unbekannt", "Unbekannt"))
-    BUILD_STATUS_CHOICES = (("gebaut", "Aufgebaut"), ("aufgebaut", "Aufgebaut (bestehender Wert)"), ("zerlegt vollständig", "Zerlegt, vollständig"), ("zerlegt unvollständig", "Zerlegt, unvollständig"), ("in arbeit", "Im Aufbau"))
+    BUILD_STATUS_CHOICES = (("gebaut", "Aufgebaut"), ("aufgebaut", "Aufgebaut (bestehender Wert)"), ("aufgebaut unvollständig", "Aufgebaut, unvollständig"), ("zerlegt vollständig", "Zerlegt, vollständig"), ("zerlegt unvollständig", "Zerlegt, unvollständig"), ("in arbeit", "Im Aufbau"))
     condition = forms.ChoiceField(label="Kaufzustand", choices=CONDITION_CHOICES)
     build_status = forms.ChoiceField(label="Aufbaustatus", choices=BUILD_STATUS_CHOICES)
     class Meta:

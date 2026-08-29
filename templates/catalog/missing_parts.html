@@ -5,6 +5,7 @@
   <div><p class="eyebrow">Einkauf und Suche</p><h1>Fehlteile</h1><p class="muted">Insgesamt {{ missing_total }} fehlende Teile</p></div>
   <a class="button primary" href="{% url 'catalog:part_create' %}">Fehlteil hinzufügen</a>
 </div>
+<p class="no-print"><a class="button" href="{% url 'organizer:label_studio' %}?type=missing_parts">Fehlteile-Etiketten drucken</a></p>
 {% include "components/save_view.html" with saved_view_area="missing_parts" %}
 <form method="get" class="filters missing-filters">
   <label>Suche<input type="search" name="q" value="{{ query }}" placeholder="Teil, Element-ID, Farbe oder Set"></label>

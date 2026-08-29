@@ -194,6 +194,26 @@ class CatalogFlowTests(TestCase):
         self.assertContains(part_page, 'class="sectioned-form"')
         self.assertContains(part_page, "Teilinformationen")
 
+    def test_built_incomplete_status_is_selectable_and_persisted(self):
+        lego_set = LegoSet.objects.create(owner=self.user, set_number="status-1", name="Status")
+        response = self.client.get(reverse("catalog:set_edit", args=[lego_set.pk]))
+        self.assertContains(response, "Aufgebaut, unvollständig")
+        response = self.client.post(
+            reverse("catalog:set_edit", args=[lego_set.pk]),
+            {"set_number": lego_set.set_number, "name": lego_set.name, "condition": "gebraucht",
+             "build_status": "aufgebaut unvollständig", "purchase_price": "0", "current_value": "0"},
+        )
+        self.assertRedirects(response, reverse("catalog:set_detail", args=[lego_set.pk]))
+        lego_set.refresh_from_db()
+        self.assertEqual(lego_set.build_status, "aufgebaut unvollständig")
+        self.assertContains(self.client.get(reverse("catalog:set_detail", args=[lego_set.pk])), "aufgebaut unvollständig")
+
+    def test_newly_purchased_set_button_uses_existing_add_workflow_and_preset(self):
+        response = self.client.get(reverse("catalog:set_list"))
+        self.assertContains(response, "Neu gekauftes Set hinzufügen")
+        preset = self.client.get(reverse("catalog:set_create"), {"preset": "neu"})
+        self.assertContains(preset, 'option value="neu" selected')
+
     def test_set_inventory_bulk_creates_owned_missing_parts(self):
         lego_set = LegoSet.objects.create(owner=self.user, set_number="100-1", name="Test")
         SetInventoryItem.objects.create(lego_set=lego_set, part_number="3001", element_id="300101", name="Brick", required_quantity=4, owned_quantity=1)
@@ -201,6 +221,37 @@ class CatalogFlowTests(TestCase):
         self.assertRedirects(response, reverse("catalog:set_detail", args=[lego_set.pk]))
         part = Part.objects.get(owner=self.user, lego_set=lego_set)
         self.assertEqual(part.quantity, 3)
+
+    def test_set_inventory_bulk_keeps_workflow_state_and_counts_minifigure_parts(self):
+        lego_set = LegoSet.objects.create(owner=self.user, set_number="100-2", name="Test")
+        SetInventoryItem.objects.create(
+            lego_set=lego_set, part_number="3002", element_id="300202", name="Brick",
+            required_quantity=5, owned_quantity=3,
+        )
+        figure = SetMinifigure.objects.create(
+            owner=self.user, lego_set=lego_set, figure_number="fig-2", name="Figure"
+        )
+        MinifigurePart.objects.create(
+            minifigure=figure, part_number="head", name="Head", quantity=2, owned_quantity=1
+        )
+        response = self.client.post(reverse("catalog:set_inventory_action", args=[lego_set.pk, "create-missing"]))
+        self.assertRedirects(response, reverse("catalog:set_detail", args=[lego_set.pk]))
+        part = Part.objects.get(owner=self.user, lego_set=lego_set)
+        self.assertEqual(part.quantity, 2)
+        part.status = Part.Status.ORDERED
+        part.save(update_fields=["status"])
+        self.client.post(reverse("catalog:set_inventory_action", args=[lego_set.pk, "create-missing"]))
+        part.refresh_from_db()
+        self.assertEqual(part.status, Part.Status.ORDERED)
+        self.assertEqual(Part.objects.filter(owner=self.user, lego_set=lego_set).count(), 1)
+        self.assertContains(self.client.get(reverse("catalog:missing_parts")), "Head")
+
+    def test_set_inventory_action_is_post_only_and_owner_scoped(self):
+        lego_set = LegoSet.objects.create(owner=self.user, set_number="100-3", name="Test")
+        self.assertEqual(self.client.get(reverse("catalog:set_inventory_action", args=[lego_set.pk, "create-missing"])).status_code, 405)
+        other = get_user_model().objects.create_user("other-action", "other-action@example.test", "Strong-password-123")
+        foreign = LegoSet.objects.create(owner=other, set_number="100-4", name="Foreign")
+        self.assertEqual(self.client.post(reverse("catalog:set_inventory_action", args=[foreign.pk, "create-missing"])).status_code, 404)
 
     def test_missing_parts_search_filter_sort_combination_and_ownership(self):
         lego_set = LegoSet.objects.create(

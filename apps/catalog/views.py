@@ -1,5 +1,6 @@
 import uuid
 
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db import transaction
@@ -149,6 +150,8 @@ def set_edit(request, pk=None):
         else None
     )
     form = LegoSetForm(request.POST or None, instance=lego_set)
+    if request.method == "GET" and lego_set is None and request.GET.get("preset") == "neu":
+        form.initial["condition"] = "neu"
     if request.method == "POST" and form.is_valid():
         instance = form.save(commit=False)
         instance.owner = request.user
@@ -697,14 +700,25 @@ def set_inventory_action(request, set_pk, action):
     elif action == "missing":
         records.update(owned_quantity=0)
     elif action == "create-missing":
+        added = 0
         for item in records.filter(owned_quantity__lt=F("required_quantity"), is_spare=False):
             quantity = item.required_quantity - item.owned_quantity
             part, created = Part.objects.get_or_create(owner=request.user, lego_set=lego_set, element_id=item.element_id or item.part_number, color=item.color_name, deleted_at__isnull=True, defaults={"part_number": item.part_number, "name": item.name, "quantity": quantity, "owned_quantity": 0, "status": Part.Status.MISSING, "image_url": item.image_url})
             if not created:
-                part.quantity = quantity
-                part.owned_quantity = min(part.owned_quantity, quantity)
-                part.status = Part.Status.MISSING if part.owned_quantity < quantity else Part.Status.FOUND
-                part.save(update_fields=["quantity", "owned_quantity", "status", "updated_at"])
+                if part.missing_quantity <= 0:
+                    part.quantity = max(part.quantity, part.owned_quantity + quantity)
+                    part.save(update_fields=["quantity", "updated_at"])
+            added += 1
+        added += MinifigurePart.objects.filter(
+            minifigure__lego_set=lego_set,
+            minifigure__owner=request.user,
+            quantity__gt=F("owned_quantity"),
+            is_spare=False,
+        ).count()
+        if added:
+            messages.success(request, f"{added} fehlende Positionen wurden zur Fehlliste hinzugefügt.")
+        else:
+            messages.info(request, "Für dieses Set gibt es keine offenen fehlenden Teile.")
     else:
         return redirect("catalog:set_detail", pk=lego_set.pk)
     AuditEvent.objects.create(actor=request.user, target_user=request.user, action=f"set_inventory.{action}", entity_type="set", entity_id=str(lego_set.pk), request_id=request.request_id)

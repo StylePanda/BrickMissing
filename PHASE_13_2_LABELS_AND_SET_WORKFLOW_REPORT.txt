@@ -1,0 +1,243 @@
+BRICKMISSING 8 – PHASE 13.2
+LABEL SYSTEM EXPANSION + SET WORKFLOW FIXES
+
+1. Executive Summary
+--------------------
+Die bestehende Label-Studio-Architektur wurde gezielt um echte Minifiguren- und
+offene Set-/Fehlteil-Etiketten erweitert. Zusätzlich wurden der neue
+Aufbaustatus, die Fehllistenaktion und der Neu-kauft-Workflow stabilisiert.
+Die vier bisherigen Studio-Typen, POST-Auswahl, Print-Struktur, QR, Bild-Proxy,
+Owner-Isolation und Legacy-LabelTemplate-System bleiben erhalten.
+
+2. Neuer Aufbaustatus
+---------------------
+LegoSet.build_status ist ein bestehendes CharField ohne DB-Choices. Die zentrale
+LegoSetForm verwendet nun den zusätzlichen Wert "aufgebaut unvollständig" mit
+der Anzeige "Aufgebaut, unvollständig". Der gleiche Choice gilt konsistent für
+SetCopyForm. Bestehende Werte bleiben gültig; completeness bleibt vollständig
+getrennt und wird nicht automatisch aus build_status überschrieben.
+
+3. Model/Form/Migration
+-----------------------
+Es wurde kein Model geändert. Der neue Status passt in das vorhandene 64-Zeichen-
+Feld und benötigt keine Migration. Formularspeicherung und Reload wurden getestet;
+Setdetail zeigt den gespeicherten Wert über das bestehende Feld an. Import/Export
+und Admin können den freien bestehenden CharField-Wert weiterhin transportieren.
+
+4. Root Cause "Alle fehlenden zur Fehlliste"
+---------------------------------------------
+Die Route war grundsätzlich vorhanden: POST /sets/<uuid>/inventar/aktion/create-missing/.
+Die View erzeugte normale Part-Zeilen aus SetInventoryItems, behandelte
+MinifigureParts aber nicht als Teil der vorhandenen kanonischen Fehlteilequelle.
+Außerdem setzte der bestehende Pfad bei bereits vorhandenen Zeilen Statuswerte
+aggressiv auf MISSING zurück. Das widersprach dem User-State.
+
+5. Fix der Fehllisten-Aktion
+----------------------------
+Die Aktion bleibt login_required, CSRF-geschützt, POST-only, owner-gefiltert und
+transaktional. Offene normale Setteile werden weiter als Part mit positiver
+Fehlmenge angelegt bzw. wiederverwendet. Bereits vorhandene Part-Zeilen werden
+nicht dupliziert und ihr Workflowstatus wird nicht zurückgesetzt. MinifigureParts
+werden aus der bestehenden owner-geschützten Reconciliation als offene Positionen
+mitgezählt; es wird keine parallele zweite Repräsentation erzeugt.
+
+Nach dem Redirect erscheint eine Django-Erfolgsmeldung wie "N fehlende Positionen
+wurden zur Fehlliste hinzugefügt." Bei keiner offenen Position wird eine
+entsprechende Info-Meldung ausgegeben.
+
+6. Mengenlogik
+-------------
+Für SetInventoryItem gilt weiterhin required_quantity - owned_quantity; nur ein
+positiver Wert ist offen. Ein Beispiel 5 Soll/3 Vorhanden erzeugt eine offene
+Menge 2, nicht 5. Vollständig vorhandene Positionen und Ersatzteile werden nicht
+angelegt. MinifigurePart.missing_quantity nutzt dieselbe bestehende Property.
+
+7. Minifigurenparts
+-------------------
+Offene, nicht als Ersatzteil markierte MinifigureParts erscheinen weiterhin über
+die kanonische Fehlteileansicht. Die Bulk-Aktion zählt sie für das Feedback, ändert
+aber weder owned_quantity noch persönliche Daten und erzeugt keine Part-Duplikate.
+
+8. Deduplizierung/User-State
+----------------------------
+Die bestehende Unique-/Reconciliation-Logik bleibt aktiv. Vorhandene Part-Zeilen
+werden wiederverwendet; FOUND, ORDERED, SHIPPED, RECEIVED und INSTALLED werden
+nicht blind zu MISSING umgeschrieben. owned_quantity, Notizen und andere
+Benutzerdaten bleiben unangetastet.
+
+9. Neu gekauftes Set Workflow
+-----------------------------
+Auf /sets/ gibt es zusätzlich den klar beschrifteten Button "Neu gekauftes Set
+hinzufügen". Er verwendet die bestehende Route /sets/neu/ mit preset=neu. Die
+Form setzt dadurch ausschließlich Kaufzustand=Neu voraus; Aufbau und
+Vollständigkeit werden nicht fälschlich vorausgefüllt. Der normale "Set
+hinzufügen"-Button bleibt unverändert bestehen.
+
+10. Neue Minifiguren-Etiketten
+------------------------------
+Der neue Studio-Typ minifigure rendert SetMinifigure-Daten: figure_number, Name,
+Setnummer/Setname, Menge, owned_quantity und einen abgeleiteten Status. Das
+vorhandene Figurenbild wird optional über proxied_image_url eingebunden. Die
+Vorlage nutzt dieselbe HERMA-5077-Bogen- und Printstruktur wie die übrigen
+Studio-Typen.
+
+11. Neue SetInventory-/Fehlteile-Etiketten
+------------------------------------------
+Der Typ missing_parts rendert offene normale SetInventoryItems und offene
+MinifigureParts. Enthalten sind Teilenummer, Element-ID, Name, Farbe, Setnummer,
+Soll, Vorhanden, Fehlend, Status, optionales Bild und QR. Ersatzteile und
+Positionen ohne offene Menge werden ausgeschlossen. Suche, Farbe und Status
+(alle offen/komplett fehlend/teilweise vorhanden) stehen als Studio-Controls zur
+Verfügung.
+
+12. QR-Ziele
+-----------
+Für Minifiguren gibt es den neuen owner-geschützten GET-Endpunkt
+/organisation/etiketten-qr/qr/minifigure/<id>.svg. Sein QR-Ziel ist die bestehende
+owner-geschützte Minifiguren-Detailseite und verwendet PUBLIC_URL.
+Normale Fehlteil-QRs verwenden die bestehende owner-geschützte Setdetailseite mit
+Inventar-Fragment/Teilenummer-Kontext; MinifigurePart-QRs führen zur zugehörigen
+Figurenseite. Es werden keine Secrets oder opaque Resolver-freien Daten codiert.
+
+13. Bildlogik
+------------
+Alle neuen Bilder verwenden den bestehenden Image Proxy. Die Studio-Checkbox
+"Bilder anzeigen" wirkt auch bei Minifiguren- und Fehlteil-Etiketten. Direkte
+externe Bild-URLs werden nicht in das HTML geschrieben.
+
+14. Label-Studio-Integration
+----------------------------
+Die bestehenden LABEL_TYPES wurden um minifigure und missing_parts ergänzt.
+Die vorhandene POST-basierte Auswahl, CSRF, AbortController, Sequence Protection,
+Debounce, Loading-/Empty-State, Startposition, explizite Sheets und Print-CSS
+werden weiterverwendet. Es wurde kein drittes Label-System eingeführt.
+
+15. Legacy LabelTemplate
+------------------------
+LabelTemplate-CRUD, freie Konfiguration, is_default-Sortierung, generische
+Vorschau, dynamisches Print-CSS sowie Import/Export wurden nicht ersetzt oder
+gelöscht. Das Studio bleibt der primäre schnelle Workflow; die Legacy-Familie
+bleibt separat lesbar und kompatibel.
+
+16. Kontextaktionen
+-------------------
+Es gibt nun direkte Drucklinks von der Setdetailseite (Set-Etikett), von der
+Minifiguren-Detailseite (Minifiguren-Etikett) und von der Fehlteile-Seite
+(Fehlteile-Etiketten). Sie verwenden kurze Typ-/Setparameter; keine großen
+UUID-Listen werden in URLs erzeugt.
+
+17. Print
+--------
+Alle neuen Templates verwenden preview.html, label-pages und label-sheet aus
+dem bestehenden Studio. HERMA-Kapazität, Avery-Kleinformat, Seitenumbruch,
+Print-Overflow-Neutralisierung und Bild-Proxy bleiben zentral. Es wurde keine
+neue PDF-/Print-Engine eingeführt.
+
+18. Security
+------------
+Mutierende Fehllisten- und Set-Workflows bleiben POST-only und CSRF-geschützt.
+Alle neuen QR-Views sind login_required und owner-gefiltert. Fremde Set-,
+Minifiguren- und Template-IDs werden über get_object_or_404 abgewehrt.
+
+19. Owner Isolation
+-------------------
+Studio-Auswahl basiert weiterhin ausschließlich auf LegoSet.owner. Minifiguren
+werden zusätzlich über SetMinifigure.owner und nicht gelöschte Sets geschützt.
+Die Fehllistenaktion filtert request.user; fremde Sets liefern 404 und erzeugen
+keine Daten.
+
+20. Performance
+---------------
+Das Studio nutzt die bestehende prefetch_related-Kette inventory_items und
+minifigures_inventory__parts. Die neuen Labels erzeugen keine zusätzlichen
+API-Requests und keine URL-Auswahlserialisierung. Die Rendering-Schleifen
+arbeiten auf den vorab geladenen Beziehungen.
+
+21. Geänderte Dateien
+---------------------
+apps/catalog/forms.py, apps/catalog/views.py, apps/catalog/tests.py
+apps/organizer/views.py, apps/organizer/urls.py, apps/organizer/tests.py
+templates/catalog/set_list.html, set_detail.html, missing_parts.html
+templates/organizer/detail.html, label_studio.html, labels/preview.html
+templates/organizer/labels/minifigure.html, missing_part.html
+static/css/labels.css
+PHASE_13_2_LABELS_AND_SET_WORKFLOW_REPORT.txt
+
+22. Migrationen
+---------------
+Keine Migration erstellt oder erforderlich. Es wurden keine Models geändert.
+
+23. Neue Tests
+--------------
+* neuer build_status ist im Formular sichtbar, speicherbar und nach Reload im
+  Setdetail vorhanden;
+* Neu-kauft-Button und condition=neu-Preset;
+* Bulk-Fehlliste mit Teilmenge, MinifigurePart, Idempotenz, User-State,
+  POST-only und Owner-404;
+* echte Minifigurenlabels samt Bild-/Status-/QR-Struktur und QR-Endpunkt;
+* Fehlteil-Labels mit Nummer, Farbe, Set, Mengen, Bild und QR;
+* bestehende Studio-, Pagination-, QR-, Owner-, POST-Auswahl-, Setbild-,
+  Schneidraster- und Kontrollsackerl-Charakterisierung.
+
+24. Vollständige Testergebnisse
+------------------------------
+python manage.py check: PASS – keine Systemcheck-Fehler
+python manage.py makemigrations --check --dry-run: PASS – No changes detected
+python manage.py test apps.organizer: PASS – 44 Tests
+python manage.py test apps.catalog: PASS – 48 Tests
+python manage.py test: PASS – 302 Tests
+python -m ruff check .: PASS – All checks passed
+git diff --check: PASS
+Es wurden keine JavaScript-Dateien geändert; ein node --check war nicht nötig.
+
+25. collectstatic nötig JA/NEIN
+-------------------------------
+JA bei Deployment, da static/css/labels.css geändert wurde. collectstatic wurde
+nicht ausgeführt.
+
+26. Service Restart nötig JA/NEIN
+---------------------------------
+NEIN zwingend. Für Template-/CSS-Caching ist nach Deployment ein kontrollierter
+Application-/Static-Reload beziehungsweise harter Browser-Reload empfohlen.
+
+27. Production-Testplan
+-----------------------
+1. Set bearbeiten öffnen, "Aufgebaut, unvollständig" wählen, speichern, reloaden
+   und Setdetail prüfen.
+2. Ein Testset mit normalen Teilen 0/5 und 3/5 anlegen; "Alle fehlenden zur
+   Fehlliste" ausführen; Fehlteile-Seite und offene Menge prüfen.
+3. Dasselbe Set mit Minifigurenteilen prüfen; MinifigureParts müssen erscheinen.
+4. Aktion ein zweites Mal ausführen; keine semantischen Duplikate und keine
+   Status-/owned-Änderung.
+5. Fremdes Set mit direktem POST versuchen; 404 erwarten.
+6. Auf /sets/ "Neu gekauftes Set hinzufügen" öffnen; Zustand Neu prüfen, Aufbau
+   und Vollständigkeit leer/neutral lassen; normales Hinzufügen gegenprüfen.
+7. Minifiguren-Label mit Bild an/aus, QR-Scan und mehreren Sets testen.
+8. Fehlteil-Label mit Suche, Status, Farbe, Bild an/aus und mehreren Bögen testen.
+9. QR-Ziele nur als eingeloggter Besitzer scannen; fremde IDs dürfen nicht öffnen.
+10. Bestehende Full-/Collected-/Colors-/Avery-Labels, Setbild, Schneidraster,
+    Startposition und Browserdruck regressionsprüfen.
+
+28. Bekannte Einschränkungen
+----------------------------
+Die neue Fehlteil-QR-Verlinkung zeigt bei normalen Setteilen auf die bestehende
+Setdetail-/Inventaransicht; eine individuelle SetInventoryItem-Detailroute gibt
+es weiterhin nicht. MinifigurePart-QRs zeigen auf die zugehörige Figurenseite.
+Die neue Studio-Suche filtert Setauswahl und die zusätzlichen Part-Controls,
+bleibt bewusst synchron servergerendert. Physische Druck-/Scanqualität muss im
+Production-Browser und am Zielgerät manuell bestätigt werden.
+
+29. Verbleibende Aufgaben
+-------------------------
+Spätere Phase-13.2+-Arbeiten können die beiden Labelarchitekturen über einen
+Adapter zusammenführen, individuelle SetInventoryItem-Routen ergänzen und
+weitere Layout-/Herstellerprofile anbieten. Diese Aufgaben waren nicht Teil
+dieses begrenzten Changesets.
+
+30. Final Status
+---------------
+Die geforderten Set-Workflows und die beiden neuen Labeltypen sind integriert,
+owner-geschützt und getestet. Keine Migration, kein Deployment, kein Commit und
+kein Push wurden ausgeführt.
+
+PHASE 13.2: READY

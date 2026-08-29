@@ -614,6 +614,41 @@ class LabelStudioTests(TestCase):
             404,
         )
 
+    def test_minifigure_label_has_identity_image_status_and_owner_protected_qr(self):
+        figure = self.lego_set.minifigures_inventory.get()
+        page = self.client.get(
+            reverse("organizer:label_studio"),
+            {"selection": 1, "type": "minifigure", "item": self.lego_set.pk},
+        )
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, figure.figure_number)
+        self.assertContains(page, figure.name)
+        self.assertContains(page, self.lego_set.set_number)
+        self.assertContains(page, "label-minifigure")
+        self.assertContains(page, reverse("organizer:label_minifigure_qr", args=[figure.pk]))
+        qr = self.client.get(reverse("organizer:label_minifigure_qr", args=[figure.pk]))
+        self.assertEqual(qr.status_code, 200)
+        self.assertEqual(qr["Content-Type"], "image/svg+xml")
+
+    def test_missing_part_label_has_quantities_color_set_and_qr(self):
+        self.lego_set.inventory_items.create(
+            part_number="3001", element_id="300101", name="Brick", color_name="Rot",
+            required_quantity=5, owned_quantity=2, image_url="https://example.test/brick.png",
+        )
+        page = self.client.get(
+            reverse("organizer:label_studio"),
+            {"selection": 1, "type": "missing_parts", "item": self.lego_set.pk},
+        )
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, "3001")
+        self.assertContains(page, "Rot")
+        self.assertContains(page, "Soll 5")
+        self.assertContains(page, "Vorhanden 2")
+        self.assertContains(page, "Fehlend 3")
+        self.assertContains(page, "label-missing-part")
+        self.assertContains(page, reverse("organizer:label_set_qr", args=[self.lego_set.pk]))
+        self.assertContains(page, "label-item-image")
+
     def test_four_templates_have_independent_layouts_and_partial_response(self):
         url = reverse("organizer:label_studio")
         common = {"selection": 1, "item": self.lego_set.pk}
