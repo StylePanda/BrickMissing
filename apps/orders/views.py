@@ -14,6 +14,7 @@ from apps.catalog.models import Part
 from apps.core.services import record_recent
 from apps.inventory.models import InventoryItem
 from apps.inventory.services import change_inventory
+from apps.organizer.models import MinifigurePart
 
 from .forms import OrderForm, OrderItemForm
 from .importers import parse_order_csv
@@ -52,13 +53,34 @@ def order_import(request):
     payload = {"source": request.POST.get("source", "generic"), "order_number": request.POST.get("order_number", "").strip()[:100], "order_date": order_date, "supplier": request.POST.get("supplier", "").strip()[:100], "items": items, "errors": errors}
     matches = []
     for item in items:
-        qs = Part.objects.filter(owner=request.user, deleted_at__isnull=True, status=Part.Status.MISSING, part_number=item["part_number"])
-        if item["color"]:
-            qs = qs.filter(color__iexact=item["color"])
-        quality = "EXACT" if qs.exists() and item["color"] else ("POSSIBLE" if qs.exists() else "NONE")
+        part_qs = Part.objects.filter(owner=request.user, deleted_at__isnull=True, status=Part.Status.MISSING, part_number=item["part_number"], quantity__gt=models.F("owned_quantity")).select_related("lego_set").order_by("lego_set_id", "pk")
+        mini_qs = MinifigurePart.objects.filter(minifigure__owner=request.user, minifigure__lego_set__deleted_at__isnull=True, part_number=item["part_number"], quantity__gt=models.F("owned_quantity"), is_spare=False).select_related("minifigure", "minifigure__lego_set").order_by("minifigure__lego_set_id", "minifigure_id", "pk")
+        candidates = []
+        for candidate in part_qs:
+            color_match = bool(item["color"]) and candidate.color.strip().casefold() == item["color"].strip().casefold()
+            if item["color"] and not color_match:
+                continue
+            candidates.append({"kind": "part", "id": str(candidate.pk), "set_name": candidate.lego_set.set_number if candidate.lego_set else "", "open": candidate.missing_quantity, "quality": "EXACT" if color_match else "POSSIBLE"})
+        for candidate in mini_qs:
+            color_match = bool(item["color"]) and candidate.color_name.strip().casefold() == item["color"].strip().casefold()
+            if item["color"] and not color_match:
+                continue
+            candidates.append({"kind": "minifigure_part", "id": candidate.pk, "set_name": candidate.minifigure.lego_set.set_number, "open": candidate.missing_quantity, "quality": "EXACT" if color_match else "POSSIBLE"})
+        quality = "EXACT" if any(c["quality"] == "EXACT" for c in candidates) else ("POSSIBLE" if candidates else "NONE")
+        remaining = item["quantity"]
+        allocations = []
+        for candidate in candidates:
+            if candidate["quality"] != "EXACT" or remaining <= 0:
+                continue
+            allocated = min(candidate["open"], remaining)
+            if allocated:
+                candidate["allocated"] = allocated
+                allocations.append(candidate)
+                remaining -= allocated
         item["match_quality"] = quality
-        item["match_part_ids"] = [str(pk) for pk in qs.values_list("pk", flat=True)] if quality == "EXACT" else []
-        matches.append({"part_number": item["part_number"], "count": qs.count(), "quality": quality})
+        item["allocations"] = allocations
+        item["match_part_ids"] = [c["id"] for c in allocations if c["kind"] == "part" and c["allocated"] >= c["open"]]
+        matches.append({"part_number": item["part_number"], "count": len(candidates), "quality": quality, "allocated": item["quantity"] - remaining, "remaining": remaining, "allocations": allocations})
     token = signing.dumps(payload, salt="order-import")
     return render(request, "orders/import_preview.html", {"payload": payload, "token": token, "matches": matches})
 
@@ -75,10 +97,13 @@ def order_import_confirm(request):
     if order_number and Order.objects.filter(owner=request.user, supplier=payload.get("supplier", "Import"), order_number=order_number, deleted_at__isnull=True).exists():
         return render(request, "orders/import.html", {"error": "Diese Bestellung scheint bereits vorhanden zu sein."}, status=400)
     order = Order.objects.create(owner=request.user, supplier=payload.get("supplier") or payload.get("source") or "Import", order_number=order_number, order_date=payload.get("order_date") or None, status="ordered")
+    selected_allocations = set(request.POST.getlist("allocation"))
+    has_selection = bool(selected_allocations)
     for item in payload.get("items", []):
         OrderItem.objects.create(order=order, part_number=item["part_number"], name=item.get("name", ""), color=item.get("color", ""), quantity=item["quantity"], unit_price=item.get("unit_price", "0"), notes=item.get("notes", ""))
         if item.get("match_part_ids"):
-            Part.objects.filter(owner=request.user, pk__in=item["match_part_ids"], status=Part.Status.MISSING).update(status=Part.Status.ORDERED)
+            match_ids = item["match_part_ids"] if not has_selection else [pk for pk in item["match_part_ids"] if pk in selected_allocations]
+            Part.objects.filter(owner=request.user, pk__in=match_ids, status=Part.Status.MISSING).update(status=Part.Status.ORDERED)
     return redirect("orders:detail", pk=order.pk)
 
 
