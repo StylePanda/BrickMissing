@@ -267,6 +267,21 @@ def rebrickable_set_metadata(set_number, api_key):
     }
 
 
+def rebrickable_set_preview(set_number, api_key):
+    """Fetch only the single set resource needed for a lightweight batch preview."""
+    number = normalize_rebrickable_set_number(set_number)
+    encoded = urllib.parse.quote(number, safe="")
+    metadata = _rebrickable_json(f"sets/{encoded}/", api_key)
+    return {
+        "set_number": str(metadata.get("set_num") or number),
+        "name": str(metadata.get("name") or ""),
+        "year": metadata.get("year"),
+        "theme_id": metadata.get("theme_id"),
+        "total_parts": metadata.get("num_parts"),
+        "image_url": str(metadata.get("set_img_url") or ""),
+    }
+
+
 def brickeconomy_set(set_number):
     if not settings.BRICKECONOMY_API_KEY:
         raise ValueError("BRICKECONOMY_API_KEY ist nicht konfiguriert")

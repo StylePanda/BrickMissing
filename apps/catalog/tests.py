@@ -681,10 +681,21 @@ class BatchSetImportTests(TestCase):
         self.client.force_login(self.user)
 
     def test_batch_page_and_preview_are_owner_protected_post_endpoints(self):
-        self.assertEqual(self.client.get(reverse("catalog:set_batch_import")).status_code, 200)
+        page = self.client.get(reverse("catalog:set_batch_import"))
+        self.assertEqual(page.status_code, 200)
+        self.assertNotContains(page, "batch-default-date")
         response = self.client.post(reverse("catalog:set_batch_preview"), {"set_numbers": "10300 10300"})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["duplicates"], 1)
+
+    @patch("apps.integrations.services.rebrickable_set_preview", return_value={"name": "Preview Set", "set_number": "10300-1"})
+    def test_preview_one_uses_metadata_only(self, preview):
+        self.user.rebrickable_api_key_encrypted = encrypt_secret("preview-key")  # noqa: S106
+        self.user.save(update_fields=["rebrickable_api_key_encrypted"])
+        response = self.client.post(reverse("catalog:set_batch_preview_one"), {"set_number": "10300"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["set"]["status"], "ready")
+        preview.assert_called_once()
 
     def test_batch_import_one_is_post_only_and_idempotent(self):
         self.assertEqual(self.client.get(reverse("catalog:set_batch_import_one"), {"set_number": "10300"}).status_code, 405)

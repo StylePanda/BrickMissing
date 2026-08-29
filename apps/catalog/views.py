@@ -227,7 +227,7 @@ def batch_set_import(request):
 @require_POST
 def batch_set_import_preview(request):
     from apps.accounts.totp import decrypt_secret
-    from apps.integrations.services import rebrickable_set_metadata
+    from apps.integrations.services import rebrickable_set_preview
 
     numbers, invalid, duplicate_count = parse_batch_set_numbers(request.POST.get("set_numbers"))
     previews = []
@@ -241,11 +241,34 @@ def batch_set_import_preview(request):
             previews.append({"number": number, "status": "error", "message": "Rebrickable ist nicht eingerichtet."})
             continue
         try:
-            data = rebrickable_set_metadata(number, api_key)
+            data = rebrickable_set_preview(number, api_key)
             previews.append({"number": number, "status": "ready", "name": data.get("name", ""), "data": data})
         except ValueError as exc:
             previews.append({"number": number, "status": "not_found" if getattr(exc, "code", "") == "not_found" else "error", "message": str(exc)})
     return JsonResponse({"ok": True, "sets": previews, "invalid": invalid, "duplicates": duplicate_count})
+
+
+@login_required
+@require_POST
+def batch_set_import_preview_one(request):
+    from apps.accounts.totp import decrypt_secret
+    from apps.integrations.services import rebrickable_set_preview
+
+    try:
+        number = normalize_rebrickable_set_number(request.POST.get("set_number", ""))
+    except ValueError as exc:
+        return JsonResponse({"ok": False, "status": "invalid", "message": str(exc)}, status=400)
+    existing = LegoSet.objects.filter(owner=request.user, active_set_number=number, deleted_at__isnull=True).first()
+    if existing:
+        return JsonResponse({"ok": True, "set": {"number": number, "status": "existing", "name": existing.name}})
+    if not request.user.rebrickable_api_key_encrypted:
+        return JsonResponse({"ok": True, "set": {"number": number, "status": "error", "message": "Rebrickable ist nicht eingerichtet."}})
+    try:
+        data = rebrickable_set_preview(number, decrypt_secret(request.user.rebrickable_api_key_encrypted))
+    except ValueError as exc:
+        status = "not_found" if getattr(exc, "code", "") == "not_found" else "error"
+        return JsonResponse({"ok": True, "set": {"number": number, "status": status, "message": str(exc)}})
+    return JsonResponse({"ok": True, "set": {"number": number, "status": "ready", "name": data.get("name", ""), "data": data}})
 
 
 def _batch_purchase_metadata(data):

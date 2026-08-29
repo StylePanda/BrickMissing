@@ -8,6 +8,7 @@ urlpatterns = [
     path("sets/neu/", views.set_edit, name="set_create"),
     path("sets/mehrere-neue/", views.batch_set_import, name="set_batch_import"),
     path("sets/mehrere-neue/vorschau/", views.batch_set_import_preview, name="set_batch_preview"),
+    path("sets/mehrere-neue/vorschau/einzel/", views.batch_set_import_preview_one, name="set_batch_preview_one"),
     path("sets/mehrere-neue/importieren/", views.batch_set_import_one, name="set_batch_import_one"),
     path("sets/<uuid:pk>/", views.set_detail, name="set_detail"),
     path("sets/<uuid:pk>/bearbeiten/", views.set_edit, name="set_edit"),
