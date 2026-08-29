@@ -333,6 +333,16 @@ class CatalogFlowTests(TestCase):
         self.assertNotContains(response, ">Anwenden<")
         self.assertNotContains(response, "Workflowstatus:")
 
+    def test_missing_parts_row_keeps_status_chip_and_compact_search(self):
+        Part.objects.create(
+            owner=self.user, element_id="status-chip", name="Status part",
+            quantity=1, owned_quantity=0, status=Part.Status.ORDERED,
+        )
+        response = self.client.get(reverse("catalog:missing_parts"))
+        self.assertContains(response, 'class="status-chip"')
+        self.assertContains(response, "Bestellt")
+        self.assertContains(response, 'placeholder="Teil, ID oder Farbe"')
+
     def test_missing_parts_groups_element_and_color_with_set_allocations(self):
         first = LegoSet.objects.create(owner=self.user, set_number="100", name="Erstes Set")
         second = LegoSet.objects.create(owner=self.user, set_number="200", name="Zweites Set")
