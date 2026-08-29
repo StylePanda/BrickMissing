@@ -13,6 +13,7 @@ from django.urls import reverse
 from apps.accounts.models import User
 from apps.audit.models import AuditEvent
 from apps.catalog.models import LegoSet, Part
+from apps.integrations.models import PriceObservation
 
 from .client_ip import client_ip
 from .models import DataQualityIssue, SavedView
@@ -361,7 +362,7 @@ class SavedViewAndQualityTests(TestCase):
 
     def test_quality_view_groups_repeated_issues_without_mutating_data(self):
         DataQualityIssue.objects.bulk_create([
-            DataQualityIssue(owner=self.user, issue_key="missing_price_owner", entity_type="price", entity_id=str(index), severity="error", message="Preisbeobachtung hat keinen Eigentümer")
+            DataQualityIssue(owner=self.user, issue_key="missing_price_owner", entity_type="price", entity_id=str(index), severity="warning", message="Historische Preisbeobachtung ohne Eigentümer (Legacy-Import)")
             for index in range(3)
         ])
         response = self.client.get(reverse("quality"))
@@ -369,3 +370,28 @@ class SavedViewAndQualityTests(TestCase):
         self.assertContains(response, "3")
         self.assertEqual(response.context["issue_groups"][0]["count"], 3)
         self.assertEqual(DataQualityIssue.objects.filter(owner=self.user).count(), 3)
+
+    def test_legacy_price_owner_issue_is_warning_and_scan_is_read_only(self):
+        self.user.is_staff = True
+        self.user.save(update_fields=["is_staff"])
+        orphan = PriceObservation.objects.create(
+            owner=None,
+            entity_type="set",
+            entity_id="legacy-1",
+            price="4.50",
+        )
+        owned = PriceObservation.objects.create(
+            owner=self.user,
+            entity_type="set",
+            entity_id="owned-1",
+            price="5.00",
+        )
+        self.client.post(reverse("quality_scan"))
+        issue = DataQualityIssue.objects.get(owner=self.user, issue_key="missing_price_owner")
+        self.assertEqual(issue.severity, "warning")
+        self.assertIn("Legacy-Import", issue.message)
+        self.assertEqual(
+            DataQualityIssue.objects.filter(owner=self.user, severity="error").count(), 0
+        )
+        self.assertEqual(PriceObservation.objects.get(pk=orphan.pk).owner_id, None)
+        self.assertEqual(PriceObservation.objects.get(pk=owned.pk).owner_id, self.user.pk)

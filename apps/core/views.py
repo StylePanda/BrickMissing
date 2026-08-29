@@ -195,7 +195,7 @@ def quality_scan(request):
             issues.append(("unknown_price_source", "price", observation.pk, "warning", "Preisbeobachtung hat eine unbekannte Quelle"))
     if request.user.is_staff:
         for observation in PriceObservation.objects.filter(owner__isnull=True):
-            issues.append(("missing_price_owner", "price", observation.pk, "error", "Preisbeobachtung hat keinen Eigentümer"))
+            issues.append(("missing_price_owner", "price", observation.pk, "warning", "Historische Preisbeobachtung ohne Eigentümer (Legacy-Import)"))
     DataQualityIssue.objects.filter(owner=request.user).delete()
     DataQualityIssue.objects.bulk_create(
         [DataQualityIssue(owner=request.user, issue_key=key, entity_type=kind, entity_id=str(pk), severity=severity, message=message) for key, kind, pk, severity, message in issues]
