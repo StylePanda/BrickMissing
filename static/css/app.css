@@ -273,8 +273,11 @@ td small { display: block; margin-top: var(--space-1); }
 .badge.found, .badge.installed, .badge.complete, .badge.completed, .badge.ready { background: color-mix(in srgb, var(--color-success) 14%, var(--color-surface)); color: var(--color-success); }
 .badge.ordered, .badge.pending { background: color-mix(in srgb, var(--color-warning) 14%, var(--color-surface)); color: var(--color-warning); }
 .badge.shipped, .badge.received, .badge.info { background: color-mix(in srgb, var(--color-info) 14%, var(--color-surface)); color: var(--color-info); }
-.pagination { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-3); }
+.pagination { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: var(--space-3); margin-top: var(--space-5); }
 .pagination a, .pagination span { display: inline-flex; min-height: 40px; align-items: center; border-radius: var(--radius-sm); padding: var(--space-2) var(--space-3); }
+.pagination a { border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text); text-decoration: none; font-weight: 600; }
+.pagination a:hover, .pagination a:focus-visible { border-color: var(--color-primary); background: var(--color-surface-hover); }
+.pagination span { border: 1px solid var(--color-border-subtle); background: var(--color-surface-active); color: var(--color-text-secondary); font-size: .9rem; }
 dl { display: grid; grid-template-columns: minmax(140px, .7fr) minmax(0, 1.3fr); gap: var(--space-2) var(--space-4); }
 dt { color: var(--color-text-muted); }
 dd { margin: 0; }

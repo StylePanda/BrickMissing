@@ -64,6 +64,13 @@ class LegalPageTests(TestCase):
         ):
             self.assertContains(response, text)
 
+    def test_imprint_states_ecg_legal_basis_with_official_ris_link(self):
+        response = self.client.get(reverse("legal:imprint"))
+        self.assertContains(response, "§ 5 E-Commerce-Gesetz (ECG)")
+        self.assertContains(response, "ris.bka.gv.at")
+        self.assertContains(response, "§ 24 Mediengesetz (MedienG)")
+        self.assertContains(response, "§ 25 Mediengesetz (MedienG)")
+
     @override_settings(
         SECRET_KEY="do-not-render-secret",  # noqa: S106
         EMAIL_HOST_PASSWORD="do-not-render-mail-secret",  # noqa: S106
