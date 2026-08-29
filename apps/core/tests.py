@@ -224,6 +224,18 @@ class InterfaceQualityTests(TestCase):
         self.assertEqual(navigation.count('aria-current="page"'), 1)
         self.assertIn('aria-current="page">Fehlteile</a>', navigation)
 
+    def test_trash_activates_only_system_navigation_group(self):
+        response = self.client.get(reverse("catalog:trash"))
+        navigation = re.search(
+            r'<nav id="main-navigation".*?</nav>',
+            response.content.decode(),
+            re.DOTALL,
+        ).group()
+        self.assertEqual(navigation.count('class="nav-group is-active"'), 1)
+        self.assertIn("<summary>Papierkorb</summary>", navigation)
+        self.assertNotIn('<details class="nav-group is-active" data-nav-group><summary>Sammlung</summary>', navigation)
+        self.assertIn('aria-current="page">Papierkorb</a>', navigation)
+
     def test_dashboard_search_finds_owned_sets_parts_and_minifigures(self):
         lego_set = LegoSet.objects.create(owner=self.user, set_number="SEARCH-SET", name="Burg")
         Part.objects.create(owner=self.user, lego_set=lego_set, element_id="E-100", design_id="DESIGN-42", name="Stein")
@@ -346,3 +358,14 @@ class SavedViewAndQualityTests(TestCase):
         )
         self.assertIn("duplicate_part", keys)
         self.assertIn("invalid_element_id", keys)
+
+    def test_quality_view_groups_repeated_issues_without_mutating_data(self):
+        DataQualityIssue.objects.bulk_create([
+            DataQualityIssue(owner=self.user, issue_key="missing_price_owner", entity_type="price", entity_id=str(index), severity="error", message="Preisbeobachtung hat keinen Eigentümer")
+            for index in range(3)
+        ])
+        response = self.client.get(reverse("quality"))
+        self.assertContains(response, "Betroffen")
+        self.assertContains(response, "3")
+        self.assertEqual(response.context["issue_groups"][0]["count"], 3)
+        self.assertEqual(DataQualityIssue.objects.filter(owner=self.user).count(), 3)

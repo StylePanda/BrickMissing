@@ -206,7 +206,17 @@ def quality_scan(request):
 
 @login_required
 def quality(request):
+    issues = DataQualityIssue.objects.filter(owner=request.user).order_by("severity", "issue_key", "entity_id")
+    groups = []
+    for issue in issues:
+        key = (issue.severity, issue.issue_key, issue.message)
+        if not groups or groups[-1]["key"] != key:
+            groups.append({"key": key, "severity": issue.severity, "issue_key": issue.issue_key, "message": issue.message, "count": 0, "details": []})
+        group = groups[-1]
+        group["count"] += 1
+        if len(group["details"]) < 50:
+            group["details"].append(issue)
     return render(
         request, "core/quality.html",
-        {"issues": DataQualityIssue.objects.filter(owner=request.user)},
+        {"issues": issues, "issue_groups": groups, "error_count": issues.filter(severity="error").count(), "warning_count": issues.filter(severity="warning").count(), "issue_count": issues.count()},
     )

@@ -249,6 +249,15 @@ input[type="file"]::file-selector-button { min-height: 34px; margin-right: var(-
 .filters { display: flex; flex-wrap: wrap; align-items: end; gap: var(--space-3); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-md); padding: var(--space-4); background: var(--color-surface); }
 .filters input { flex: 1 1 240px; }
 .filters select { flex: 0 1 220px; }
+.dashboard-search { padding: var(--space-4); }
+.dashboard-search form { max-width: 960px; }
+.dashboard-search .filter-row { display: flex; align-items: center; gap: var(--space-3); }
+.dashboard-search .filter-row input { flex: 1 1 auto; min-width: 0; }
+.dashboard-search .filter-row button, .dashboard-search .filter-row a { flex: 0 0 auto; }
+@media (max-width: 600px) {
+  .dashboard-search .filter-row { align-items: stretch; flex-direction: column; }
+  .dashboard-search .filter-row button, .dashboard-search .filter-row a { width: 100%; }
+}
 .table-wrap { width: 100%; min-width: 0; max-width: 100%; overflow-x: auto; border: 1px solid var(--color-border-subtle); border-radius: var(--radius-md); background: var(--color-surface); scrollbar-width: thin; }
 table { width: 100%; border-collapse: collapse; background: var(--color-surface); }
 th, td { padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--color-border-subtle); text-align: left; vertical-align: middle; }
