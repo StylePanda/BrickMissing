@@ -18,10 +18,26 @@ navToggle?.addEventListener("click", () => {
   const open = mainNavigation?.classList.toggle("is-open") ?? false;
   navToggle.setAttribute("aria-expanded", String(open));
 });
+document.querySelectorAll("[data-nav-group]").forEach((group) => {
+  group.addEventListener("toggle", () => {
+    if (!group.open) return;
+    document.querySelectorAll("[data-nav-group][open]").forEach((other) => {
+      if (other !== group) other.open = false;
+    });
+  });
+});
+document.addEventListener("click", (event) => {
+  if (!event.target.closest(".topbar")) {
+    closeNavigation();
+    document.querySelectorAll("[data-nav-group][open]").forEach((group) => { group.open = false; });
+  }
+  if (event.target.closest("#main-navigation a")) closeNavigation();
+});
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && mainNavigation?.classList.contains("is-open")) {
     closeNavigation();
     navToggle?.focus();
+    document.querySelectorAll("[data-nav-group][open]").forEach((group) => { group.open = false; });
   }
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
     event.preventDefault();

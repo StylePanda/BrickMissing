@@ -167,10 +167,44 @@ class InterfaceQualityTests(TestCase):
         response = self.client.get(reverse("catalog:set_list"))
 
         self.assertContains(response, 'aria-current="page">Sets</a>')
+        self.assertContains(response, 'data-nav-group')
+        self.assertContains(response, "Sammlung")
         self.assertContains(response, "Import und Export")
         self.assertContains(response, "Lagerorte")
         self.assertContains(response, 'class="nav-toggle ghost"')
         self.assertContains(response, "icons/brickmissing.svg")
+
+    def test_grouped_navigation_keeps_routes_and_hides_global_search_from_primary(self):
+        response = self.client.get(reverse("catalog:set_list"))
+        navigation = re.search(r'<nav id="main-navigation".*?</nav>', response.content.decode(), re.DOTALL).group()
+        self.assertIn(reverse("catalog:set_list"), navigation)
+        self.assertIn(reverse("catalog:part_list"), navigation)
+        self.assertIn(reverse("catalog:missing_parts"), navigation)
+        self.assertIn(reverse("inventory:list"), navigation)
+        self.assertIn(reverse("inventory:locations"), navigation)
+        self.assertIn(reverse("orders:list"), navigation)
+        self.assertIn(reverse("organizer:label_studio"), navigation)
+        self.assertIn(reverse("data_portability:import_page"), navigation)
+        self.assertIn(reverse("media_library:list"), navigation)
+        self.assertIn(reverse("global_search"), navigation)
+        self.assertIn('class="nav-group', navigation)
+        self.assertNotIn('class="nav-home" href="/suche/', navigation)
+
+    def test_navigation_permissions_and_account_logout_semantics_remain(self):
+        response = self.client.get(reverse("catalog:set_list"))
+        content = response.content.decode()
+        self.assertIn(reverse("accounts:profile"), content)
+        self.assertIn(reverse("accounts:sessions"), content)
+        self.assertIn(reverse("accounts:logout"), content)
+        self.assertIn('method="post" action="/konto/abmelden/"', content)
+        self.assertNotIn(reverse("backups:list"), content)
+
+    def test_navigation_disclosure_markup_contains_accessible_controls(self):
+        response = self.client.get(reverse("catalog:set_list"))
+        content = response.content.decode()
+        self.assertIn('aria-controls="main-navigation"', content)
+        self.assertIn('data-nav-group', content)
+        self.assertIn('summary>Sammlung</summary>', content)
 
     def test_missing_parts_has_exactly_one_primary_navigation_item(self):
         response = self.client.get(reverse("catalog:missing_parts"))
