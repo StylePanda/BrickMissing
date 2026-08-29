@@ -204,7 +204,23 @@ class InterfaceQualityTests(TestCase):
         content = response.content.decode()
         self.assertIn('aria-controls="main-navigation"', content)
         self.assertIn('data-nav-group', content)
-        self.assertIn('summary>Sammlung</summary>', content)
+        self.assertIn('summary>Sets</summary>', content)
+
+    def test_navigation_group_labels_follow_active_collection_subsection(self):
+        cases = (
+            ("catalog:set_list", "Sets"),
+            ("catalog:part_list", "Teile"),
+            ("catalog:missing_parts", "Fehlteile"),
+            ("inventory:list", "Inventar"),
+            ("inventory:locations", "Lagerorte"),
+            ("orders:list", "Bestellungen"),
+            ("media_library:list", "Dokumente"),
+            ("organizer:label_studio", "Etiketten & QR-Codes"),
+        )
+        for route_name, label in cases:
+            with self.subTest(route_name=route_name):
+                content = self.client.get(reverse(route_name)).content.decode()
+                self.assertIn(f"<summary>{label}</summary>", content)
 
     def test_missing_parts_has_exactly_one_primary_navigation_item(self):
         response = self.client.get(reverse("catalog:missing_parts"))

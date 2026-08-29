@@ -2,12 +2,10 @@
 {% block title %}Fehlteile{% endblock %}
 {% block content %}
 <div class="page-head">
-  <div><p class="eyebrow">Einkauf und Suche</p><h1>Fehlteile</h1><p class="muted">Insgesamt {{ missing_total }} fehlende Teile</p></div>
-  <a class="button primary" href="{% url 'catalog:part_create' %}">Fehlteil hinzufügen</a>
+  <div><p class="eyebrow">Sammlung</p><h1>Fehlteile</h1><p class="muted">Insgesamt {{ missing_total }} offene Fehlteile.</p></div>
+  <a class="button" href="{% url 'catalog:part_create' %}">Fehlteil hinzufügen</a>
 </div>
 <p class="no-print"><a class="button" href="{% url 'organizer:label_studio' %}?type=missing_parts">Fehlteile-Etiketten drucken</a></p>
-{% include "components/save_view.html" with saved_view_area="missing_parts" %}
-<section class="panel saved-views no-print"><h2>Gespeicherte Ansichten</h2>{% for item in saved_views %}<div class="saved-view-row"><strong>{{ item.name }}</strong><span><a class="button" href="{% url 'saved_view_load' item.pk %}">Laden</a><form method="post" action="{% url 'saved_view_delete' item.pk %}" class="inline-form">{% csrf_token %}<input type="hidden" name="next" value="/fehlteile/"><button class="danger" type="submit">Löschen</button></form></span></div>{% empty %}<p class="muted">Noch keine gespeicherten Ansichten.</p>{% endfor %}</section>
 <form method="get" class="filters missing-filters">
   <label>Suche<input type="search" name="q" value="{{ query }}" placeholder="Teil, Element-ID, Farbe oder Set"></label>
   <label>Status<select name="status"><option value="">Alle Status</option>{% for value,label in statuses %}<option value="{{ value }}"{% if value == status %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
@@ -19,9 +17,10 @@
   <label>Sortierung<select name="sort"><option value="name"{% if sort == 'name' %} selected{% endif %}>Name A–Z</option><option value="-name"{% if sort == '-name' %} selected{% endif %}>Name Z–A</option><option value="part_number"{% if sort == 'part_number' %} selected{% endif %}>Teilenummer aufsteigend</option><option value="color"{% if sort == 'color' %} selected{% endif %}>Farbe A–Z</option><option value="-quantity"{% if sort == '-quantity' %} selected{% endif %}>Benötigte Menge absteigend</option><option value="-missing"{% if sort == '-missing' %} selected{% endif %}>Fehlmenge absteigend</option><option value="-owned_quantity"{% if sort == '-owned_quantity' %} selected{% endif %}>Vorhandene Menge absteigend</option></select></label>
   <button class="primary">Aktualisieren</button>
 </form>
+<div class="collection-utilities no-print">{% include "components/save_view.html" with saved_view_area="missing_parts" save_view_compact=True %}<section class="saved-views"><h2>Gespeicherte Ansichten</h2>{% for item in saved_views %}<div class="saved-view-row"><strong>{{ item.name }}</strong><span><a class="button" href="{% url 'saved_view_load' item.pk %}">Laden</a><form method="post" action="{% url 'saved_view_delete' item.pk %}" class="inline-form">{% csrf_token %}<input type="hidden" name="next" value="/fehlteile/"><button class="danger" type="submit">Löschen</button></form></span></div>{% empty %}<p class="muted">Noch keine gespeicherten Ansichten.</p>{% endfor %}</section></div>
 <form id="missing-bulk-form" method="post" action="{% url 'catalog:missing_parts_bulk' %}" data-selection-scope>
   {% csrf_token %}
-  <div class="bulk-toolbar"><label>Workflowstatus setzen<select name="action" required>{% for value,label in part_statuses %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label><button>Auswahl anwenden (<span data-selection-count>0</span>)</button></div>
+  <div class="bulk-toolbar"><span class="bulk-selection-count"><strong data-selection-count>0</strong> ausgewählt</span><label>Status ändern<select name="action" required>{% for value,label in part_statuses %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label><button type="submit" disabled>Anwenden</button></div>
 </form>
 <div class="table-wrap missing-worktable">
   <table>

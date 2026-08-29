@@ -62,8 +62,13 @@ document.querySelectorAll("a[data-history-back]").forEach((link) => {
 
 document.querySelectorAll("[data-selection-scope]").forEach((scope) => {
   const count = scope.querySelector("[data-selection-count]");
+  const submit = scope.querySelector("button[type=submit]");
   const items = document.querySelectorAll(`[form="${scope.id}"][data-selection-item]`);
-  const update = () => { if (count) count.textContent = String([...items].filter((item) => item.checked).length); };
+  const update = () => {
+    const selected = [...items].filter((item) => item.checked).length;
+    if (count) count.textContent = String(selected);
+    if (submit) submit.disabled = selected === 0;
+  };
   items.forEach((item) => item.addEventListener("change", update));
   update();
 });

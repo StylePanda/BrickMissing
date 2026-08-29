@@ -359,6 +359,36 @@ dd { margin: 0; }
   .nav-menu, .nav-group, .user-group { display: none !important; }
 }
 
+/* Phase 13.4C: compact collection-page utilities and action groups. */
+.collection-actions { justify-content: flex-end; }
+.action-menu { position: relative; }
+.action-menu > summary { list-style: none; }
+.action-menu > summary::-webkit-details-marker { display: none; }
+.action-menu-content { position: absolute; z-index: 70; top: calc(100% + 6px); right: 0; display: grid; min-width: 230px; gap: 2px; padding: var(--space-2); border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); box-shadow: var(--shadow-md); }
+.action-menu-content a { display: block; padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); color: var(--color-text); text-decoration: none; white-space: nowrap; }
+.action-menu-content a:hover, .action-menu-content a:focus-visible { background: var(--color-surface-hover); }
+.collection-utilities { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--space-3); }
+.collection-utilities > * { margin: 0; }
+.save-view-compact { border: 1px solid var(--color-border-subtle); border-radius: var(--radius-md); padding: 8px 12px; background: var(--color-surface); }
+.save-view-compact summary { min-height: 28px; }
+.save-view-compact[open] summary { margin-bottom: 8px; }
+.save-view-compact .save-view-form { padding: 0; border: 0; background: transparent; }
+.saved-views { flex: 1 1 320px; }
+.bulk-toolbar { align-items: center; padding: 10px 14px; }
+.bulk-toolbar label { display: inline-flex; align-items: center; gap: var(--space-2); }
+.bulk-selection-count { color: var(--color-text-secondary); white-space: nowrap; }
+.bulk-toolbar button:disabled { cursor: not-allowed; opacity: .5; }
+
+@media (max-width: 760px) {
+  .collection-actions { justify-content: stretch; }
+  .collection-actions > * { width: 100%; }
+  .action-menu-content { position: static; min-width: 0; margin-top: var(--space-2); box-shadow: none; }
+  .collection-utilities { display: grid; }
+  .collection-utilities > * { width: 100%; }
+  .bulk-toolbar { align-items: stretch; flex-direction: column; }
+  .bulk-toolbar label, .bulk-toolbar button { width: 100%; }
+}
+
 /* Phase 7.3: compact inventory work views */
 .compact-number { width: 6.5rem; max-width: 100%; text-align: center; font-variant-numeric: tabular-nums; }
 .quantity-form, .status-form { display: flex; align-items: center; gap: var(--space-2); margin: 0; }

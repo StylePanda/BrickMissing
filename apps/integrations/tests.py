@@ -257,7 +257,7 @@ class IntegrationSecurityTests(TestCase):
         )
         response = self.client.get(reverse("catalog:set_list"))
         self.assertEqual(response.context["sync_sets"], [first, second])
-        self.assertContains(response, "Alle Sets synchronisieren")
+        self.assertContains(response, "Set-Inventare aktualisieren")
         self.assertContains(response, reverse("integrations:sync_rebrickable", args=[first.pk]))
         self.assertNotContains(response, str(self.foreign_set.pk))
 

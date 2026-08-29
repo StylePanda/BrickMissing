@@ -327,6 +327,13 @@ class CatalogFlowTests(TestCase):
         self.assertEqual((own.owned_quantity, own.status), (0, Part.Status.FOUND))
         self.assertEqual((foreign.owned_quantity, foreign.status), (0, Part.Status.MISSING))
 
+    def test_missing_parts_bulk_toolbar_is_compact_and_disabled_without_selection(self):
+        response = self.client.get(reverse("catalog:missing_parts"))
+        self.assertContains(response, "Status ändern")
+        self.assertContains(response, 'data-selection-count>0</strong> ausgewählt')
+        self.assertContains(response, '<button type="submit" disabled>Anwenden</button>')
+        self.assertNotContains(response, "Workflowstatus setzen")
+
     def test_missing_parts_groups_element_and_color_with_set_allocations(self):
         first = LegoSet.objects.create(owner=self.user, set_number="100", name="Erstes Set")
         second = LegoSet.objects.create(owner=self.user, set_number="200", name="Zweites Set")
