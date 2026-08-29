@@ -35,7 +35,7 @@ document.querySelectorAll("form[data-confirm]").forEach((form) => {
     if (!window.confirm(form.dataset.confirm)) event.preventDefault();
   });
 });
-document.querySelectorAll("[data-print-page]").forEach((button) => button.addEventListener("click", () => window.print()));
+document.querySelectorAll("[data-print-page]:not([data-label-print])").forEach((button) => button.addEventListener("click", () => window.print()));
 document.querySelectorAll("a[data-history-back]").forEach((link) => {
   link.addEventListener("click", (event) => {
     if (window.history.length <= 1) return;

@@ -13,7 +13,7 @@ LABELS = {
     "loaned_at": "Ausgeliehen am", "due_at": "Fällig am", "returned_at": "Zurückgegeben am",
     "title": "Titel", "content": "Inhalt", "width_mm": "Breite (mm)",
     "height_mm": "Höhe (mm)", "orientation": "Ausrichtung",
-    "configuration": "Konfiguration", "is_default": "Standardvorlage",
+    "configuration": "Konfiguration", "is_default": "Standardvorlage (in Liste bevorzugt)",
     "figure_number": "Figurennummer", "quantity": "Benötigte Menge",
     "owned_quantity": "Vorhandene Menge", "part_number": "Teilenummer",
     "element_id": "Element-ID", "color_id": "Farb-ID", "color_name": "Farbe",

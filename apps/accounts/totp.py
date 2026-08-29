@@ -53,8 +53,13 @@ def provisioning_uri(secret, username):
     return f"otpauth://totp/{quote(f'BrickMissing:{username}')}?secret={secret}&issuer=BrickMissing&algorithm=SHA1&digits=6&period=30"
 
 
-def qr_svg(uri):
-    image = qrcode.make(uri, image_factory=qrcode.image.svg.SvgPathImage, box_size=6, border=2)
+def qr_svg(uri, *, border=2):
+    image = qrcode.make(
+        uri,
+        image_factory=qrcode.image.svg.SvgPathImage,
+        box_size=6,
+        border=border,
+    )
     output = BytesIO()
     image.save(output)
     return output.getvalue()

@@ -15,7 +15,8 @@ class CompletenessAndColorTests(TestCase):
         self.lego_set = LegoSet.objects.create(owner=self.user, set_number="1", name="Set")
 
     def test_set_completeness_is_derived_from_normal_and_minifigure_parts(self):
-        self.assertEqual(set_completeness(self.lego_set)["key"], "complete")
+        empty = set_completeness(self.lego_set)
+        self.assertEqual((empty["key"], empty["label"]), ("unknown", "Unbekannt"))
         item = SetInventoryItem.objects.create(
             lego_set=self.lego_set, part_number="3001", name="Stein",
             required_quantity=2, owned_quantity=2,
@@ -37,7 +38,7 @@ class CompletenessAndColorTests(TestCase):
             lego_set=self.lego_set, part_number="spare", name="Ersatz",
             required_quantity=1, owned_quantity=0, is_spare=True,
         )
-        self.assertEqual(set_completeness(self.lego_set)["key"], "complete")
+        self.assertEqual(set_completeness(self.lego_set)["key"], "unknown")
 
     def test_central_color_categories(self):
         cases = {

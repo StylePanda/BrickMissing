@@ -19,11 +19,24 @@ def set_completeness(lego_set):
     required = sum(item.required_quantity if hasattr(item, "required_quantity") else item.quantity for item in positions)
     owned = sum(min(item.owned_quantity, item.required_quantity if hasattr(item, "required_quantity") else item.quantity) for item in positions)
     missing = max(required - owned, 0)
+    if required <= 0:
+        return {
+            "key": "unknown",
+            "label": "Unbekannt",
+            "required": required,
+            "owned": owned,
+            "missing": missing,
+        }
     return {"key": "incomplete" if missing else "complete", "label": "Unvollständig" if missing else "Vollständig", "required": required, "owned": owned, "missing": missing}
 
 
 def stored_completeness_value(result):
-    return "vollständig" if result["missing"] == 0 else "unvollständig"
+    values = {
+        "complete": "vollständig",
+        "incomplete": "unvollständig",
+        "unknown": "unbekannt",
+    }
+    return values[result["key"]]
 
 
 @transaction.atomic

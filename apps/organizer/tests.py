@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -149,6 +151,117 @@ class OrganizerOwnershipTests(TestCase):
             "Mode Figure",
         )
 
+    def test_label_configuration_and_start_are_normalized_without_server_error(self):
+        label = LabelTemplate.objects.create(
+            owner=self.first,
+            name="Robust",
+            width_mm=50,
+            height_mm=30,
+            configuration=[],
+        )
+        self.client.force_login(self.first)
+        url = reverse("organizer:label_preview", args=[label.pk])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual((response.context["rows"], response.context["columns"]), (4, 2))
+
+        label.configuration = {"rows": "abc"}
+        label.save(update_fields=["configuration"])
+        self.assertEqual(self.client.get(url).context["rows"], 4)
+        for value, expected in (("abc", 1), ("-100", 1), ("999999", 8)):
+            with self.subTest(start=value):
+                page = self.client.get(url, {"start": value})
+                self.assertEqual(page.status_code, 200)
+                self.assertEqual(page.context["start"], expected)
+
+    def test_absurd_configuration_and_dimensions_are_bounded_for_print(self):
+        label = LabelTemplate.objects.create(
+            owner=self.first,
+            name="Bounded",
+            width_mm=9999,
+            height_mm=9999,
+            configuration={
+                "rows": -500,
+                "columns": 999999,
+                "margin_top": -20,
+                "margin_right": 999999,
+                "margin_bottom": "invalid",
+                "margin_left": 999999,
+                "qr_code": "false",
+                "text": ["safe"],
+            },
+        )
+        self.client.force_login(self.first)
+        preview = self.client.get(reverse("organizer:label_preview", args=[label.pk]))
+        self.assertEqual(preview.status_code, 200)
+        self.assertEqual(preview.context["rows"], 1)
+        self.assertGreaterEqual(preview.context["columns"], 1)
+        self.assertLessEqual(preview.context["columns"], 10)
+        self.assertFalse(preview.context["label_configuration"].qr_code)
+        self.assertEqual(preview.context["label_configuration"].text, "['safe']")
+        css = self.client.get(reverse("organizer:label_print_css", args=[label.pk]))
+        self.assertEqual(css.status_code, 200)
+        css_text = css.content.decode()
+        self.assertNotIn("9999.00mm", css_text)
+        self.assertNotIn("nan", css_text.casefold())
+
+    @override_settings(PUBLIC_URL="https://brickmissing.example")
+    def test_inventory_qr_uses_existing_owner_protected_absolute_url(self):
+        label = LabelTemplate.objects.create(owner=self.first, name="QR")
+        item = InventoryItem.objects.create(
+            owner=self.first, part_number="3001", name="Brick", quantity=1
+        )
+        foreign_item = InventoryItem.objects.create(
+            owner=self.second, part_number="secret", name="Secret", quantity=1
+        )
+        self.client.force_login(self.first)
+        with patch("apps.organizer.views.qr_svg", return_value=b"<svg/>") as mocked_qr:
+            response = self.client.get(
+                reverse("organizer:label_qr", args=[label.pk, item.pk])
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            mocked_qr.call_args.args[0],
+            f"https://brickmissing.example{reverse('inventory:edit', args=[item.pk])}",
+        )
+        self.assertEqual(mocked_qr.call_args.kwargs["border"], 4)
+        self.assertEqual(
+            self.client.get(
+                reverse("organizer:label_qr", args=[label.pk, foreign_item.pk])
+            ).status_code,
+            404,
+        )
+
+    def test_read_only_label_routes_reject_post_and_label_qr_has_quiet_zone(self):
+        label = LabelTemplate.objects.create(owner=self.first, name="Methods")
+        item = InventoryItem.objects.create(
+            owner=self.first, part_number="3001", name="Brick", quantity=1
+        )
+        lego_set = LegoSet.objects.create(owner=self.first, set_number="405", name="QR Set")
+        self.client.force_login(self.first)
+        urls = (
+            reverse("organizer:label_preview", args=[label.pk]),
+            reverse("organizer:label_print_css", args=[label.pk]),
+            reverse("organizer:label_qr", args=[label.pk, item.pk]),
+            reverse("organizer:label_studio"),
+            reverse("organizer:label_set_qr", args=[lego_set.pk]),
+        )
+        for url in urls:
+            with self.subTest(url=url):
+                self.assertEqual(self.client.post(url).status_code, 405)
+        with patch("apps.organizer.views.qr_svg", return_value=b"<svg/>") as mocked_qr:
+            self.client.get(reverse("organizer:label_set_qr", args=[lego_set.pk]))
+        self.assertEqual(mocked_qr.call_args.kwargs["border"], 4)
+
+    @patch("apps.accounts.totp.qrcode.make")
+    def test_qr_helper_default_remains_totp_compatible_and_border_is_configurable(self, make):
+        from apps.accounts.totp import qr_svg
+
+        qr_svg("otpauth://example")
+        self.assertEqual(make.call_args.kwargs["border"], 2)
+        qr_svg("https://brickmissing.example", border=4)
+        self.assertEqual(make.call_args.kwargs["border"], 4)
+
     def test_owned_domain_get_edit_delete_and_relation_idor_matrix(self):
         foreign_set = LegoSet.objects.create(
             owner=self.second, set_number="foreign-1", name="Foreign Set"
@@ -286,6 +399,15 @@ class OrganizerListRenderingTests(TestCase):
                 self.assertEqual(response.status_code, 200)
                 self.assertContains(response, label)
                 self.assertNotContains(response, "Collection object")
+
+    def test_default_label_template_is_listed_first_and_marked(self):
+        LabelTemplate.objects.create(owner=self.user, name="A normal")
+        preferred = LabelTemplate.objects.create(
+            owner=self.user, name="Z preferred", is_default=True
+        )
+        response = self.client.get(reverse("organizer:list", args=["labels"]))
+        self.assertEqual(response.context["rows"][0]["record"], preferred)
+        self.assertContains(response, "Standard")
 
 
 class MinifigureInventoryInteractionTests(TestCase):
@@ -522,6 +644,9 @@ class LabelStudioTests(TestCase):
         )
         self.assertEqual(empty.status_code, 200)
         self.assertEqual(sum(slot is not None for slot in empty.context["slots"]), 0)
+        self.assertEqual(empty.context["label_pages"], [])
+        self.assertContains(empty, "Keine Sets ausgewählt.")
+        self.assertNotContains(empty, 'class="label-sheet label-sheet-herma"')
         multiple = self.client.get(
             url,
             {
@@ -536,8 +661,87 @@ class LabelStudioTests(TestCase):
         self.assertEqual(multiple.context["slots"][:2], [None, None])
         self.assertEqual(sum(slot is not None for slot in multiple.context["slots"]), 2)
 
+    def test_herma_labels_are_grouped_into_explicit_physical_sheets(self):
+        sets = [self.lego_set]
+        for number in range(8):
+            sets.append(
+                LegoSet.objects.create(
+                    owner=self.user, set_number=f"PAGE-{number}", name=f"Page {number}"
+                )
+            )
+        response = self.client.get(
+            reverse("organizer:label_studio"),
+            {"selection": 1, "type": "full", "item": [item.pk for item in sets]},
+        )
+        self.assertEqual(len(response.context["label_pages"]), 2)
+        self.assertEqual([len(page) for page in response.context["label_pages"]], [8, 8])
+        self.assertEqual(sum(slot is not None for slot in response.context["slots"]), 9)
+        self.assertContains(response, 'class="label-sheet label-sheet-herma"', count=2)
+
+    def test_start_position_is_preserved_across_multiple_sheets(self):
+        second = LegoSet.objects.create(
+            owner=self.user, set_number="PAGE-SECOND", name="Second"
+        )
+        response = self.client.get(
+            reverse("organizer:label_studio"),
+            {
+                "selection": 1,
+                "type": "full",
+                "item": [self.lego_set.pk, second.pk],
+                "start": 8,
+            },
+        )
+        pages = response.context["label_pages"]
+        self.assertEqual(len(pages), 2)
+        self.assertEqual(pages[0][:7], [None] * 7)
+        self.assertIsNotNone(pages[0][7])
+        self.assertIsNotNone(pages[1][0])
+
+    def test_more_than_189_small_labels_create_multiple_sheets(self):
+        self.lego_set.minifigures_inventory.update(quantity=190)
+        response = self.client.get(
+            reverse("organizer:label_studio"),
+            {
+                "selection": 1,
+                "type": "per_minifigure",
+                "item": self.lego_set.pk,
+            },
+        )
+        self.assertEqual(len(response.context["label_pages"]), 2)
+        self.assertEqual([len(page) for page in response.context["label_pages"]], [189, 189])
+        self.assertEqual(sum(slot is not None for slot in response.context["slots"]), 190)
+        self.assertContains(response, 'class="label-sheet label-sheet-small"', count=2)
+
     @override_settings(PUBLIC_URL="https://brickmissing.example")
     def test_configured_public_origin_is_used_without_localhost(self):
         response = self.client.get(reverse("organizer:label_studio"))
         self.assertContains(response, "https://brickmissing.example")
         self.assertNotContains(response, "127.0.0.1")
+
+    @override_settings(PUBLIC_URL="https://brickmissing.example")
+    def test_all_six_set_qr_targets_keep_their_resolved_destinations(self):
+        set_detail = reverse("catalog:set_detail", args=[self.lego_set.pk])
+        expected = {
+            "set": f"https://brickmissing.example{set_detail}",
+            "inventory": f"https://brickmissing.example{set_detail}#set-inventory",
+            "missing": (
+                f"https://brickmissing.example{reverse('catalog:missing_parts')}"
+                f"?set={self.lego_set.pk}"
+            ),
+            "edit": (
+                "https://brickmissing.example"
+                f"{reverse('catalog:set_edit', args=[self.lego_set.pk])}"
+            ),
+            "bricklink": (
+                "https://www.bricklink.com/v2/catalog/catalogitem.page?S=7345-1"
+            ),
+            "rebrickable": "https://rebrickable.com/sets/7345-1/",
+        }
+        url = reverse("organizer:label_set_qr", args=[self.lego_set.pk])
+        for target, destination in expected.items():
+            with self.subTest(target=target):
+                with patch("apps.organizer.views.qr_svg", return_value=b"<svg/>") as mocked_qr:
+                    response = self.client.get(url, {"target": target})
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(mocked_qr.call_args.args[0], destination)
+                self.assertEqual(mocked_qr.call_args.kwargs["border"], 4)

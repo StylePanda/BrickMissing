@@ -2,6 +2,41 @@
   let controller;
   let timer;
   let sequence = 0;
+  function setLoading(preview, loading) {
+    if (!preview) return;
+    preview.classList.toggle("is-loading", loading);
+    preview.setAttribute("aria-busy", String(loading));
+    const indicator = preview.querySelector("[data-label-loading]");
+    if (indicator) indicator.hidden = !loading;
+  }
+  function waitForLabelImages() {
+    const images = [...document.querySelectorAll("[data-label-preview] img")]
+      .filter((image) => !image.complete);
+    if (!images.length) return Promise.resolve();
+    const settled = Promise.all(images.map((image) => new Promise((resolve) => {
+      image.addEventListener("load", resolve, {once: true});
+      image.addEventListener("error", resolve, {once: true});
+    })));
+    return Promise.race([
+      settled,
+      new Promise((resolve) => window.setTimeout(resolve, 3000)),
+    ]);
+  }
+  function waitForPreviewUpdate() {
+    if (document.querySelector("[data-label-preview]")?.getAttribute("aria-busy") !== "true") {
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+      const started = Date.now();
+      const poll = window.setInterval(() => {
+        const busy = document.querySelector("[data-label-preview]")?.getAttribute("aria-busy");
+        if (busy !== "true" || Date.now() - started >= 3000) {
+          window.clearInterval(poll);
+          resolve();
+        }
+      }, 50);
+    });
+  }
   function init() {
     const studio = document.querySelector("[data-label-studio]");
     if (!studio || studio.dataset.ready) return;
@@ -13,7 +48,7 @@
       controller = new AbortController();
       const current = ++sequence;
       const preview = studio.querySelector("[data-label-preview]");
-      preview?.classList.add("is-loading");
+      setLoading(preview, true);
       const timeout = window.setTimeout(() => controller.abort(), 8000);
       try {
         const response = await fetch(buildUrl(), {
@@ -57,7 +92,9 @@
         studio.querySelector("[data-label-retry]")?.addEventListener("click", () => refresh());
       } finally {
         window.clearTimeout(timeout);
-        if (current === sequence) studio.querySelector("[data-label-preview]")?.classList.remove("is-loading");
+        if (current === sequence) {
+          setLoading(document.querySelector("[data-label-preview]"), false);
+        }
       }
     }
     form.addEventListener("change", (event) => {
@@ -77,6 +114,23 @@
       });
     }
     form.querySelector("[data-label-select-none]")?.addEventListener("click", () => { form.querySelectorAll('input[name="item"]').forEach((item) => { item.checked = false; }); refresh(); });
+    const printButton = document.querySelector("[data-label-print]");
+    if (printButton && !printButton.dataset.labelsReady) {
+      printButton.dataset.labelsReady = "true";
+      printButton.addEventListener("click", async () => {
+        const originalText = printButton.textContent;
+        printButton.disabled = true;
+        printButton.textContent = "Druck wird vorbereitet …";
+        try {
+          await waitForPreviewUpdate();
+          await waitForLabelImages();
+          window.print();
+        } finally {
+          printButton.textContent = originalText;
+          printButton.disabled = false;
+        }
+      });
+    }
   }
   init();
 })();

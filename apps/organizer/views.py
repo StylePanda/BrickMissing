@@ -6,7 +6,7 @@ from django.db import models, transaction
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from apps.accounts.totp import qr_svg
 from apps.audit.models import AuditEvent
@@ -16,6 +16,7 @@ from apps.core.services import record_recent
 from apps.inventory.models import InventoryItem, WarehouseLocation
 
 from .forms import build_model_form
+from .label_configuration import label_print_layout, normalize_start
 from .models import (
     Collection,
     CollectionMember,
@@ -94,7 +95,8 @@ def _note_display(record):
 
 
 def _label_display(record):
-    return record.name, f"{record.width_mm} × {record.height_mm} mm"
+    suffix = " · Standard" if record.is_default else ""
+    return record.name, f"{record.width_mm} × {record.height_mm} mm{suffix}"
 
 
 def _minifigure_display(record):
@@ -221,7 +223,13 @@ def _area(name):
 @login_required
 def area_list(request, area):
     model, title, _ = _area(area)
-    records = model.objects.filter(owner=request.user).order_by("-pk")[:500]
+    records = model.objects.filter(owner=request.user)
+    records = (
+        records.order_by("-is_default", "name", "pk")
+        if area == "labels"
+        else records.order_by("-pk")
+    )
+    records = records[:500]
     display = AREA_DISPLAY[area]
     rows = []
     for record in records:
@@ -295,6 +303,7 @@ def area_detail(request, area, pk):
 
 
 @login_required
+@require_GET
 def label_preview(request, pk):
     template = get_object_or_404(LabelTemplate, pk=pk, owner=request.user)
     mode = request.GET.get("mode", "part")
@@ -331,22 +340,14 @@ def label_preview(request, pk):
         items = items.filter(
             models.Q(figure_number__icontains=query) | models.Q(name__icontains=query)
         )
-    configuration = template.configuration or {}
-    rows = min(max(int(configuration.get("rows", 4)), 1), 20)
-    columns = min(max(int(configuration.get("columns", 2)), 1), 10)
+    layout = label_print_layout(template)
+    configuration = layout.configuration
+    rows = configuration.rows
+    columns = configuration.columns
     capacity = rows * columns
-    start = min(max(int(request.GET.get("start", 1) or 1), 1), capacity)
-    orientation = (
-        template.orientation if template.orientation in {"portrait", "landscape"} else "portrait"
-    )
+    start = normalize_start(request.GET.get("start"), capacity)
+    orientation = layout.orientation
     orientation_label = "Querformat" if orientation == "landscape" else "Hochformat"
-
-    def millimeters(name, default=0):
-        try:
-            value = min(max(float(configuration.get(name, default)), 0), 50)
-            return f"{value:.2f}"
-        except (TypeError, ValueError):
-            return f"{float(default):.2f}"
 
     remaining = capacity - start + 1
     return render(
@@ -354,6 +355,9 @@ def label_preview(request, pk):
         "organizer/label_preview.html",
         {
             "label_template": template,
+            "label_configuration": configuration,
+            "label_width": f"{layout.width_mm:.2f}",
+            "label_height": f"{layout.height_mm:.2f}",
             "items": items[:remaining],
             "query": query,
             "mode": mode,
@@ -364,48 +368,44 @@ def label_preview(request, pk):
             "leading_slots": range(start - 1),
             "orientation": orientation,
             "orientation_label": orientation_label,
-            "margin_top": millimeters("margin_top"),
-            "margin_right": millimeters("margin_right"),
-            "margin_bottom": millimeters("margin_bottom"),
-            "margin_left": millimeters("margin_left"),
+            "margin_top": f"{configuration.margin_top:.2f}",
+            "margin_right": f"{configuration.margin_right:.2f}",
+            "margin_bottom": f"{configuration.margin_bottom:.2f}",
+            "margin_left": f"{configuration.margin_left:.2f}",
         },
     )
 
 
 @login_required
+@require_GET
 def label_print_css(request, pk):
     template = get_object_or_404(LabelTemplate, pk=pk, owner=request.user)
-    configuration = template.configuration or {}
-
-    def number(name, default, minimum, maximum):
-        try:
-            return min(max(float(configuration.get(name, default)), minimum), maximum)
-        except (TypeError, ValueError):
-            return float(default)
-
-    rows = int(number("rows", 4, 1, 20))
-    columns = int(number("columns", 2, 1, 10))
-    orientation = (
-        template.orientation if template.orientation in {"portrait", "landscape"} else "portrait"
+    layout = label_print_layout(template)
+    configuration = layout.configuration
+    margins = (
+        configuration.margin_top,
+        configuration.margin_right,
+        configuration.margin_bottom,
+        configuration.margin_left,
     )
-    margins = [
-        number(name, 0, 0, 50)
-        for name in ("margin_top", "margin_right", "margin_bottom", "margin_left")
-    ]
     css = (
-        f"@page{{size:A4 {orientation};margin:{margins[0]:.2f}mm {margins[1]:.2f}mm {margins[2]:.2f}mm {margins[3]:.2f}mm}}"
-        f".label-sheet{{grid-template-columns:repeat({columns},{float(template.width_mm):.2f}mm);grid-template-rows:repeat({rows},{float(template.height_mm):.2f}mm)}}"
-        f".print-label{{width:{float(template.width_mm):.2f}mm;height:{float(template.height_mm):.2f}mm}}"
+        f"@page{{size:A4 {layout.orientation};margin:{margins[0]:.2f}mm "
+        f"{margins[1]:.2f}mm {margins[2]:.2f}mm {margins[3]:.2f}mm}}"
+        f".label-sheet{{grid-template-columns:repeat({configuration.columns},"
+        f"{layout.width_mm:.2f}mm);grid-template-rows:repeat({configuration.rows},"
+        f"{layout.height_mm:.2f}mm)}}"
+        f".print-label{{width:{layout.width_mm:.2f}mm;height:{layout.height_mm:.2f}mm}}"
     )
     return HttpResponse(css, content_type="text/css; charset=utf-8")
 
 
 @login_required
+@require_GET
 def label_qr(request, pk, item_pk):
     get_object_or_404(LabelTemplate, pk=pk, owner=request.user)
     item = get_object_or_404(InventoryItem, pk=item_pk, owner=request.user)
     return HttpResponse(
-        qr_svg(f"inventory:{item.pk}:{item.part_number}"),
+        qr_svg(f"{_public_origin(request)}{reverse('inventory:edit', args=[item.pk])}", border=4),
         content_type="image/svg+xml",
     )
 
@@ -414,7 +414,7 @@ LABEL_TYPES = {
     "full": "Vollständiges Set-Etikett",
     "collected": "Setnummern gesammelt · jede einmal",
     "per_minifigure": "Nur Setnummer · einmal pro Minifigur",
-    "colors": "Farbsackerl · durchsucht",
+    "colors": "Kontrollsackerl · frei beschriftbar",
 }
 QR_TARGETS = {
     "set": "Setseite",
@@ -465,6 +465,7 @@ def _label_data(request, lego_set, qr_target):
 
 
 @login_required
+@require_GET
 def label_studio(request):
     own_sets = (
         LegoSet.objects.filter(owner=request.user, deleted_at__isnull=True)
@@ -513,10 +514,9 @@ def label_studio(request):
             labels.extend([data] * data["minifigure_count"])
     else:
         labels = [{"text": checked_text} for _ in range(checked_count)]
-    slots = [None] * (start - 1) + labels
+    slots = [None] * (start - 1) + labels if labels else []
     slots += [None] * ((-len(slots)) % capacity)
-    if not slots:
-        slots = [None] * capacity
+    label_pages = [slots[offset : offset + capacity] for offset in range(0, len(slots), capacity)]
     context = {
             "sets": visible_sets,
             "selected_ids": set(selected_ids),
@@ -535,6 +535,8 @@ def label_studio(request):
             "checked_text": checked_text,
             "checked_count": checked_count,
             "slots": slots,
+            "label_pages": label_pages,
+            "has_selected_sets": bool(selected_sets),
             "capacity": capacity,
             "columns": columns,
             "rows": rows,
@@ -550,6 +552,7 @@ def label_studio(request):
 
 
 @login_required
+@require_GET
 def label_set_qr(request, set_pk):
     lego_set = get_object_or_404(
         LegoSet, pk=set_pk, owner=request.user, deleted_at__isnull=True
@@ -557,7 +560,10 @@ def label_set_qr(request, set_pk):
     target = request.GET.get("target", "set")
     if target not in QR_TARGETS:
         target = "set"
-    return HttpResponse(qr_svg(_qr_target(request, lego_set, target)), content_type="image/svg+xml")
+    return HttpResponse(
+        qr_svg(_qr_target(request, lego_set, target), border=4),
+        content_type="image/svg+xml",
+    )
 
 
 def _moc_parts_snapshot(moc):
