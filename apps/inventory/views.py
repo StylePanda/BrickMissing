@@ -3,6 +3,8 @@ from django.core.paginator import Paginator
 from django.db.models import Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
+from django.views.decorators.http import require_POST
 
 from apps.accounts.totp import qr_svg
 from apps.audit.models import AuditEvent
@@ -93,3 +95,26 @@ def location_qr(request, pk):
     location = get_object_or_404(WarehouseLocation, pk=pk, owner=request.user)
     target = request.build_absolute_uri(f"/inventar/?location={location.pk}")
     return HttpResponse(qr_svg(target), content_type="image/svg+xml")
+
+
+@login_required
+@require_POST
+def location_delete(request, pk):
+    location = get_object_or_404(
+        WarehouseLocation.objects.prefetch_related("children"),
+        pk=pk, owner=request.user, archived_at__isnull=True,
+    )
+    item_count = InventoryItem.objects.filter(
+        owner=request.user, location=location, archived_at__isnull=True,
+    ).count()
+    child_count = location.children.filter(archived_at__isnull=True).count()
+    if item_count or child_count:
+        from django.contrib import messages
+        messages.error(request, "Lagerort kann nicht gelöscht werden, solange Bestand oder Unterlagerorte zugeordnet sind.")
+        return redirect("inventory:locations")
+    location.archived_at = timezone.now()
+    location.active = False
+    location.save(update_fields=["archived_at", "active", "updated_at"])
+    from django.contrib import messages
+    messages.success(request, "Lagerort wurde archiviert.")
+    return redirect("inventory:locations")

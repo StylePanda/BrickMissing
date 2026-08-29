@@ -145,3 +145,22 @@ class InventoryIntegrityTests(TestCase):
         self.assertContains(response, 'name="location"')
         self.assertContains(response, "Box A")
         self.assertEqual(self.client.get(reverse("inventory:list"), {"location": location.pk}).status_code, 200)
+
+    def test_empty_location_is_archived_post_only_and_inventory_is_kept(self):
+        location = WarehouseLocation.objects.create(owner=self.user, name="Empty")
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.get(reverse("inventory:location_delete", args=[location.pk])).status_code, 405)
+        response = self.client.post(reverse("inventory:location_delete", args=[location.pk]))
+        self.assertRedirects(response, reverse("inventory:locations"))
+        location.refresh_from_db()
+        self.assertFalse(location.active)
+        self.assertIsNotNone(location.archived_at)
+
+    def test_location_with_inventory_is_not_archived(self):
+        location = WarehouseLocation.objects.create(owner=self.user, name="Used")
+        self.item.location = location
+        self.item.save(update_fields=["location"])
+        self.client.force_login(self.user)
+        self.client.post(reverse("inventory:location_delete", args=[location.pk]))
+        location.refresh_from_db()
+        self.assertIsNone(location.archived_at)

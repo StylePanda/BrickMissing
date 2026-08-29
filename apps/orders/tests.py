@@ -1,8 +1,9 @@
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
 
 from apps.accounts.models import User
-from apps.catalog.models import LegoSet
+from apps.catalog.models import LegoSet, Part
 from apps.inventory.models import InventoryItem, InventoryMovement, WarehouseLocation
 
 from .forms import OrderForm
@@ -31,6 +32,21 @@ class OrderReceiptTests(TestCase):
         for name in ("status", "payment_status", "shipping_status", "currency"):
             self.assertEqual(form.fields[name].widget.input_type, "select")
         self.assertEqual(form.fields["supplier"].label, "Lieferant")
+
+    def test_order_list_status_filter_and_import_preview_then_confirm(self):
+        self.assertEqual(self.client.get(reverse("orders:list"), {"status": "ordered"}).status_code, 200)
+        missing = Part.objects.create(owner=self.user, part_number="3001", element_id="3001", name="Brick", color="Rot", quantity=2, status=Part.Status.MISSING)
+        csv_file = SimpleUploadedFile("order.csv", b"Part Number;Quantity;Color;Unit Price\n3001;2;Rot;1,25\n", content_type="text/csv")
+        preview = self.client.post(reverse("orders:import"), {"file": csv_file, "source": "bricklink", "supplier": "BrickLink", "order_number": "BL-1"})
+        self.assertEqual(preview.status_code, 200)
+        self.assertContains(preview, "Noch keine Daten wurden gespeichert")
+        token = preview.context["token"]
+        confirm = self.client.post(reverse("orders:import_confirm"), {"token": token})
+        self.assertEqual(confirm.status_code, 302)
+        order = Order.objects.get(order_number="BL-1", owner=self.user)
+        self.assertEqual(order.items.get().quantity, 2)
+        missing.refresh_from_db()
+        self.assertEqual(missing.status, Part.Status.ORDERED)
 
     def test_receipt_rejects_overdelivery_and_foreign_order(self):
         self.assertEqual(self.client.post(reverse("orders:receive_item", args=[self.order.pk, self.item.pk]), {"quantity": 4}).status_code, 400)

@@ -1,23 +1,85 @@
+from datetime import date
+
 from django.contrib.auth.decorators import login_required
+from django.core import signing
+from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db import models, transaction
-from django.http import HttpResponseBadRequest
+from django.http import HttpResponseBadRequest, HttpResponseNotAllowed
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from apps.audit.models import AuditEvent
+from apps.catalog.models import Part
 from apps.core.services import record_recent
 from apps.inventory.models import InventoryItem
 from apps.inventory.services import change_inventory
 
 from .forms import OrderForm, OrderItemForm
+from .importers import parse_order_csv
 from .models import Order, OrderItem
 
 
 @login_required
 def order_list(request):
     records = Order.objects.filter(owner=request.user, deleted_at__isnull=True).prefetch_related("items")
-    return render(request, "orders/list.html", {"page_obj": Paginator(records.order_by("-created_at"), 30).get_page(request.GET.get("page"))})
+    status = request.GET.get("status", "")
+    valid_statuses = set(Order.STATUS_LABELS)
+    if status in valid_statuses:
+        records = records.filter(status=status)
+    else:
+        status = ""
+    counts = [(key, Order.STATUS_LABELS[key], Order.objects.filter(owner=request.user, deleted_at__isnull=True, status=key).count()) for key in Order.STATUS_LABELS]
+    return render(request, "orders/list.html", {"page_obj": Paginator(records.order_by("-created_at"), 30).get_page(request.GET.get("page")), "status": status, "status_counts": counts})
+
+
+@login_required
+def order_import(request):
+    if request.method == "GET":
+        return render(request, "orders/import.html")
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    try:
+        items, errors = parse_order_csv(request.FILES.get("file"))
+    except ValidationError as exc:
+        return render(request, "orders/import.html", {"error": exc.messages[0]}, status=400)
+    order_date = request.POST.get("order_date", "").strip()
+    if order_date:
+        try:
+            date.fromisoformat(order_date)
+        except ValueError:
+            return render(request, "orders/import.html", {"error": "Das Bestelldatum ist ungültig."}, status=400)
+    payload = {"source": request.POST.get("source", "generic"), "order_number": request.POST.get("order_number", "").strip()[:100], "order_date": order_date, "supplier": request.POST.get("supplier", "").strip()[:100], "items": items, "errors": errors}
+    matches = []
+    for item in items:
+        qs = Part.objects.filter(owner=request.user, deleted_at__isnull=True, status=Part.Status.MISSING, part_number=item["part_number"])
+        if item["color"]:
+            qs = qs.filter(color__iexact=item["color"])
+        quality = "EXACT" if qs.exists() and item["color"] else ("POSSIBLE" if qs.exists() else "NONE")
+        item["match_quality"] = quality
+        item["match_part_ids"] = [str(pk) for pk in qs.values_list("pk", flat=True)] if quality == "EXACT" else []
+        matches.append({"part_number": item["part_number"], "count": qs.count(), "quality": quality})
+    token = signing.dumps(payload, salt="order-import")
+    return render(request, "orders/import_preview.html", {"payload": payload, "token": token, "matches": matches})
+
+
+@login_required
+@require_POST
+@transaction.atomic
+def order_import_confirm(request):
+    try:
+        payload = signing.loads(request.POST.get("token", ""), salt="order-import", max_age=3600)
+    except signing.BadSignature:
+        return HttpResponseBadRequest("Importvorschau ist abgelaufen oder ungültig.")
+    order_number = payload.get("order_number", "")
+    if order_number and Order.objects.filter(owner=request.user, supplier=payload.get("supplier", "Import"), order_number=order_number, deleted_at__isnull=True).exists():
+        return render(request, "orders/import.html", {"error": "Diese Bestellung scheint bereits vorhanden zu sein."}, status=400)
+    order = Order.objects.create(owner=request.user, supplier=payload.get("supplier") or payload.get("source") or "Import", order_number=order_number, order_date=payload.get("order_date") or None, status="ordered")
+    for item in payload.get("items", []):
+        OrderItem.objects.create(order=order, part_number=item["part_number"], name=item.get("name", ""), color=item.get("color", ""), quantity=item["quantity"], unit_price=item.get("unit_price", "0"), notes=item.get("notes", ""))
+        if item.get("match_part_ids"):
+            Part.objects.filter(owner=request.user, pk__in=item["match_part_ids"], status=Part.Status.MISSING).update(status=Part.Status.ORDERED)
+    return redirect("orders:detail", pk=order.pk)
 
 
 @login_required
