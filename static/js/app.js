@@ -60,19 +60,6 @@ document.querySelectorAll("a[data-history-back]").forEach((link) => {
   });
 });
 
-document.querySelectorAll("[data-selection-scope]").forEach((scope) => {
-  const count = scope.querySelector("[data-selection-count]");
-  const submit = scope.querySelector("button[type=submit]");
-  const items = document.querySelectorAll(`[form="${scope.id}"][data-selection-item]`);
-  const update = () => {
-    const selected = [...items].filter((item) => item.checked).length;
-    if (count) count.textContent = String(selected);
-    if (submit) submit.disabled = selected === 0;
-  };
-  items.forEach((item) => item.addEventListener("change", update));
-  update();
-});
-
 document.querySelectorAll("[data-color-filter]").forEach((filter) => {
   const boxes = [...filter.querySelectorAll('input[type="checkbox"]')];
   const summary = filter.querySelector("[data-color-summary]");

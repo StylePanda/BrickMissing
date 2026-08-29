@@ -1,11 +1,7 @@
 {% extends "base.html" %}{% load static %}
 {% block title %}Fehlteile{% endblock %}
 {% block content %}
-<div class="page-head">
-  <div><p class="eyebrow">Sammlung</p><h1>Fehlteile</h1><p class="muted">Insgesamt {{ missing_total }} offene Fehlteile.</p></div>
-  <a class="button" href="{% url 'catalog:part_create' %}">Fehlteil hinzufügen</a>
-</div>
-<p class="no-print"><a class="button" href="{% url 'organizer:label_studio' %}?type=missing_parts">Fehlteile-Etiketten drucken</a></p>
+<div class="page-head"><div><p class="eyebrow">Sammlung</p><h1>Fehlteile</h1><p class="muted">Insgesamt {{ missing_total }} offene Fehlteile.</p></div><div class="page-head-actions"><a class="button secondary" href="{% url 'organizer:label_studio' %}?type=missing_parts">Fehlteile-Etiketten drucken</a><a class="button" href="{% url 'catalog:part_create' %}">Fehlteil hinzufügen</a></div></div>
 <form method="get" class="filters missing-filters">
   <label>Suche<input type="search" name="q" value="{{ query }}" placeholder="Teil, Element-ID, Farbe oder Set"></label>
   <label>Status<select name="status"><option value="">Alle Status</option>{% for value,label in statuses %}<option value="{{ value }}"{% if value == status %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
@@ -18,39 +14,12 @@
   <button class="primary">Aktualisieren</button>
 </form>
 <div class="collection-utilities no-print">{% include "components/save_view.html" with saved_view_area="missing_parts" save_view_compact=True %}<section class="saved-views"><h2>Gespeicherte Ansichten</h2>{% for item in saved_views %}<div class="saved-view-row"><strong>{{ item.name }}</strong><span><a class="button" href="{% url 'saved_view_load' item.pk %}">Laden</a><form method="post" action="{% url 'saved_view_delete' item.pk %}" class="inline-form">{% csrf_token %}<input type="hidden" name="next" value="/fehlteile/"><button class="danger" type="submit">Löschen</button></form></span></div>{% empty %}<p class="muted">Noch keine gespeicherten Ansichten.</p>{% endfor %}</section></div>
-<form id="missing-bulk-form" method="post" action="{% url 'catalog:missing_parts_bulk' %}" data-selection-scope>
-  {% csrf_token %}
-  <div class="bulk-toolbar"><span class="bulk-selection-count"><strong data-selection-count>0</strong> ausgewählt</span><label>Status ändern<select name="action" required>{% for value,label in part_statuses %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label><button type="submit" disabled>Anwenden</button></div>
-</form>
-<div class="table-wrap missing-worktable">
-  <table>
-    <thead><tr><th>Auswahl</th><th>Bild</th><th>Teil</th><th>Set-Zuordnungen</th><th>Gesamt</th><th>Gruppenstatus</th><th>Kosten</th></tr></thead>
-    <tbody>
-    {% for group in page_obj %}
-      <tr class="missing-group-row" data-part-group="{{ group.element_id }}|{{ group.color }}">
-        <td><input form="missing-bulk-form" type="checkbox" name="item" value="{{ group.bulk_value }}" aria-label="Teilegruppe {{ group.name }} auswählen" data-selection-item></td>
-        <td>{% if group.image_url %}<button class="part-image-trigger compact-image" type="button" aria-label="Bild von {{ group.name }} vergrößern" data-lightbox-image="{{ group.image_url|proxied_image_url }}" data-lightbox-title="{{ group.name }}"><img src="{{ group.image_url|proxied_image_url }}" alt="{{ group.name }}" loading="lazy" data-image-fallback></button>{% else %}<span class="part-placeholder compact-image">Kein Bild</span>{% endif %}</td>
-        <td><strong>{{ group.name }}</strong>{% if group.is_minifigure %}<span class="badge">Minifigurenteil</span>{% endif %}<small>{{ group.part_number|default:group.element_id }} · Element {{ group.element_id }}{% if group.color %} · {{ group.color }}{% endif %}</small></td>
-        <td>
-          <div class="allocation-list">
-          {% for part in group.allocations %}
-            <section class="allocation-row"{% if not group.is_minifigure %} data-part-allocation data-part-status="{{ part.status }}"{% endif %}>
-              <div class="allocation-set">{% if group.is_minifigure %}<a href="{% url 'catalog:set_detail' part.minifigure.lego_set.pk %}"><strong>{{ part.minifigure.lego_set.set_number }} – {{ part.minifigure.lego_set.name }} · Minifigur {{ part.minifigure.name }}</strong></a>{% elif part.lego_set %}<a href="{% url 'catalog:set_detail' part.lego_set.pk %}"><strong>{{ part.lego_set }}</strong></a>{% else %}<strong>Ohne Set-Zuordnung</strong>{% endif %}<small><span data-allocation-owned>{{ part.owned_quantity }}</span> von {{ part.quantity }} vorhanden · <span data-allocation-missing>{{ part.missing_quantity }}</span> fehlt</small>{% if not group.is_minifigure %}<small>Workflowstatus: <strong data-allocation-status-label>{{ part.get_status_display }}</strong></small>{% endif %}</div>
-              {% if group.is_minifigure %}<form class="quantity-form" method="post" action="{% url 'organizer:minifigure_part_quantity' part.minifigure.pk part.pk %}">{% csrf_token %}<input class="compact-number" type="number" min="0" max="{{ part.quantity }}" name="owned_quantity" value="{{ part.owned_quantity }}" aria-label="Vorhandene Menge für {{ part }}"><button>Speichern</button></form>{% else %}<form class="quantity-form" method="post" action="{% url 'catalog:missing_part_quantity' part.pk %}">{% csrf_token %}<label class="sr-only" for="owned-{{ part.pk }}">Vorhandene Menge für {{ part }}</label><input id="owned-{{ part.pk }}" class="compact-number" type="number" min="0" max="{{ part.quantity }}" name="owned_quantity" value="{{ part.owned_quantity }}"><button>Speichern</button></form>{% endif %}
-              {% if not group.is_minifigure %}<form class="status-form" method="post" action="{% url 'catalog:missing_part_status' part.pk %}">{% csrf_token %}<label class="sr-only" for="status-{{ part.pk }}">Status für {{ part }}</label><select id="status-{{ part.pk }}" name="status">{% for value,label in part_statuses %}<option value="{{ value }}"{% if part.status == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select><button>Speichern</button></form><div class="allocation-actions"><a href="{% url 'catalog:part_edit' part.pk %}">Bearbeiten</a><a href="{% url 'integrations:pick_a_brick' part.pk %}" target="_blank" rel="noopener noreferrer">Pick a Brick</a></div>{% endif %}
-            </section>
-          {% endfor %}
-          </div>
-        </td>
-        <td><strong>{{ group.required }}× benötigt</strong><small>{{ group.owned }} vorhanden</small><small>{{ group.missing }} fehlend</small></td>
-        <td><span class="badge {{ group.status }}" data-group-workflow-status>{{ group.status_label }}</span><small>{{ group.stock_label }}</small></td>
-        <td>{% if group.cost %}{{ group.cost }} €{% else %}<span class="muted">Kein Preis hinterlegt</span>{% endif %}</td>
-      </tr>
-    {% empty %}<tr><td colspan="7"><div class="empty">Keine passenden Fehlteile gefunden.</div></td></tr>{% endfor %}
-    </tbody>
-  </table>
-</div>
-{% include "components/pagination.html" %}
-<dialog id="image-lightbox" class="image-lightbox" aria-labelledby="image-lightbox-title"><button class="lightbox-close" type="button" data-lightbox-close aria-label="Bildansicht schließen">×</button><img alt=""><p id="image-lightbox-title"></p></dialog>
-<script src="{% static 'js/missing-parts.js' %}?v=8.0-status" defer></script>
+<div class="table-wrap missing-worktable"><table><thead><tr><th>Bild</th><th>Teil</th><th>Set-Zuordnungen</th><th>Gesamt</th><th>Gruppenstatus</th><th>Kosten</th></tr></thead><tbody>
+{% for group in page_obj %}<tr class="missing-group-row" data-part-group="{{ group.element_id }}|{{ group.color }}">
+<td>{% if group.image_url %}<button class="part-image-trigger compact-image" type="button" aria-label="Bild von {{ group.name }} vergrößern" data-lightbox-image="{{ group.image_url|proxied_image_url }}" data-lightbox-title="{{ group.name }}"><img src="{{ group.image_url|proxied_image_url }}" alt="{{ group.name }}" loading="lazy" data-image-fallback></button>{% else %}<span class="part-placeholder compact-image">Kein Bild</span>{% endif %}</td>
+<td><strong>{{ group.name }}</strong>{% if group.is_minifigure %}<span class="badge">Minifigurenteil</span>{% endif %}<small>{{ group.part_number|default:group.element_id }} · Element {{ group.element_id }}{% if group.color %} · {{ group.color }}{% endif %}</small></td>
+<td><div class="allocation-list">{% for part in group.allocations %}<section class="allocation-row"{% if not group.is_minifigure %} data-part-allocation data-part-status="{{ part.status }}"{% endif %}><div class="allocation-set">{% if group.is_minifigure %}<a href="{% url 'catalog:set_detail' part.minifigure.lego_set.pk %}"><strong>{{ part.minifigure.lego_set.set_number }} – {{ part.minifigure.lego_set.name }} · Minifigur {{ part.minifigure.name }}</strong></a>{% elif part.lego_set %}<a href="{% url 'catalog:set_detail' part.lego_set.pk %}"><strong>{{ part.lego_set }}</strong></a>{% else %}<strong>Ohne Set-Zuordnung</strong>{% endif %}<small><span data-allocation-owned>{{ part.owned_quantity }}</span> von {{ part.quantity }} vorhanden · <span data-allocation-missing>{{ part.missing_quantity }}</span> fehlt</small></div>{% if group.is_minifigure %}<form class="quantity-form" method="post" action="{% url 'organizer:minifigure_part_quantity' part.minifigure.pk part.pk %}">{% csrf_token %}<input class="compact-number" type="number" min="0" max="{{ part.quantity }}" name="owned_quantity" value="{{ part.owned_quantity }}" aria-label="Vorhandene Menge für {{ part }}"><button>Speichern</button></form>{% else %}<form class="quantity-form" method="post" action="{% url 'catalog:missing_part_quantity' part.pk %}">{% csrf_token %}<label class="sr-only" for="owned-{{ part.pk }}">Vorhandene Menge für {{ part }}</label><input id="owned-{{ part.pk }}" class="compact-number" type="number" min="0" max="{{ part.quantity }}" name="owned_quantity" value="{{ part.owned_quantity }}"><button>Speichern</button></form><form class="status-form" method="post" action="{% url 'catalog:missing_part_status' part.pk %}">{% csrf_token %}<label class="sr-only" for="status-{{ part.pk }}">Status für {{ part }}</label><select id="status-{{ part.pk }}" name="status">{% for value,label in part_statuses %}<option value="{{ value }}"{% if part.status == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select><button>Speichern</button></form><div class="allocation-actions"><a href="{% url 'catalog:part_edit' part.pk %}">Bearbeiten</a><a href="{% url 'integrations:pick_a_brick' part.pk %}" target="_blank" rel="noopener noreferrer">Pick a Brick</a></div>{% endif %}</section>{% endfor %}</div></td>
+<td><strong>{{ group.required }}× benötigt</strong><small>{{ group.owned }}&nbsp;vorhanden</small><small>{{ group.missing }} fehlend</small></td><td><span class="badge {{ group.status }}" data-group-workflow-status>{{ group.status_label }}</span><small>{{ group.stock_label }}</small></td><td>{% if group.cost %}{{ group.cost }} €{% else %}<span class="muted">Kein Preis hinterlegt</span>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="6"><div class="empty">Keine passenden Fehlteile gefunden.</div></td></tr>{% endfor %}</tbody></table></div>
+{% include "components/pagination.html" %}<dialog id="image-lightbox" class="image-lightbox" aria-labelledby="image-lightbox-title"><button class="lightbox-close" type="button" data-lightbox-close aria-label="Bildansicht schließen">×</button><img alt=""><p id="image-lightbox-title"></p></dialog><script src="{% static 'js/missing-parts.js' %}?v=8.0-status" defer></script>
 {% endblock %}
