@@ -465,6 +465,25 @@ def _label_data(request, lego_set, qr_target):
     }
 
 
+def _collected_number_cells(numbers):
+    """Return deterministic cut-grid metadata for a collected-number label."""
+    count = len(numbers)
+    cells = []
+    for index, number in enumerate(numbers):
+        row_start = (index // 4) * 4
+        row_end = min(row_start + 4, count)
+        cells.append(
+            {
+                "number": number,
+                "row": index // 4,
+                "column": index - row_start,
+                "has_right_cut": index < row_end - 1,
+                "has_bottom_cut": index + 4 < count,
+            }
+        )
+    return cells
+
+
 @login_required
 @require_http_methods(["GET", "POST"])
 def label_studio(request):
@@ -518,7 +537,10 @@ def label_studio(request):
         labels = [_label_data(request, lego_set, qr_target) for lego_set in selected_sets]
     elif label_type == "collected":
         numbers = sorted({lego_set.set_number for lego_set in selected_sets}, key=str.casefold)
-        labels = [{"numbers": numbers[offset : offset + 20]} for offset in range(0, len(numbers), 20)]
+        labels = []
+        for offset in range(0, len(numbers), 20):
+            chunk = numbers[offset : offset + 20]
+            labels.append({"numbers": chunk, "number_cells": _collected_number_cells(chunk)})
     elif label_type == "per_minifigure":
         for lego_set in selected_sets:
             data = _label_data(request, lego_set, qr_target)

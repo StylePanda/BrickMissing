@@ -634,7 +634,7 @@ class LabelStudioTests(TestCase):
         self.assertTemplateUsed(partial, "organizer/labels/preview.html")
         self.assertNotContains(partial, "<html")
 
-    def test_collected_numbers_have_only_internal_vertical_cut_lines(self):
+    def test_collected_numbers_have_deterministic_internal_cut_grid(self):
         second = LegoSet.objects.create(
             owner=self.user, set_number="8000-1", name="Second collected set"
         )
@@ -652,21 +652,17 @@ class LabelStudioTests(TestCase):
         self.assertContains(response, "7345-1")
         self.assertContains(response, "8000-1")
         self.assertContains(response, "9000-1")
-        self.assertContains(
-            response,
-            'class="number-grid-item is-first has-cut-line"',
-            count=1,
-        )
-        self.assertContains(response, 'class="number-grid-item has-cut-line"', count=1)
+        self.assertContains(response, "has-right-cut", count=2)
+        self.assertContains(response, "has-bottom-cut", count=0)
         self.assertContains(response, 'class="number-grid-item is-last"', count=1)
-        self.assertNotContains(response, "is-last has-cut-line")
 
         css = (Path(settings.BASE_DIR) / "static" / "css" / "labels.css").read_text(
             encoding="utf-8"
         )
-        selector = ".number-grid-item.has-cut-line:not(:nth-child(4n))::after"
-        self.assertIn(selector, css)
-        cut_line_rule = css.split(selector, 1)[1].split("}", 1)[0]
+        self.assertIn(".number-grid-item.has-right-cut::after", css)
+        self.assertIn(".number-grid-item.has-bottom-cut::before", css)
+        self.assertNotIn(":nth-child(4n)", css)
+        cut_line_rule = css.split(".number-grid-item.has-right-cut::after", 1)[1].split("}", 1)[0]
         self.assertIn("border-right:.35mm dashed", cut_line_rule)
         self.assertNotIn("border-left", cut_line_rule)
 
@@ -868,6 +864,101 @@ class LabelStudioTests(TestCase):
         self.assertEqual([len(page) for page in response.context["label_pages"]], [8, 8])
         self.assertEqual(sum(slot is not None for slot in response.context["slots"]), 9)
         self.assertContains(response, 'class="label-sheet label-sheet-herma"', count=2)
+
+    def test_herma_pagination_capacity_is_exact(self):
+        for count, expected_pages in ((8, 1), (9, 2), (16, 2), (17, 3)):
+            sets = [self.lego_set]
+            for number in range(count - 1):
+                sets.append(
+                    LegoSet.objects.create(
+                        owner=self.user,
+                        set_number=f"CAP-{count}-{number}",
+                        name=f"Capacity {count}-{number}",
+                    )
+                )
+            response = self.client.get(
+                reverse("organizer:label_studio"),
+                {"selection": 1, "type": "full", "item": [item.pk for item in sets]},
+            )
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(len(response.context["label_pages"]), expected_pages)
+            self.assertTrue(all(len(page) == 8 for page in response.context["label_pages"]))
+
+    def test_collected_numbers_use_one_herma_sheet_and_complete_cut_grid(self):
+        sets = [self.lego_set]
+        for number in range(7):
+            sets.append(
+                LegoSet.objects.create(
+                    owner=self.user, set_number=f"COLLECTED-{number}", name="Collected"
+                )
+            )
+        response = self.client.get(
+            reverse("organizer:label_studio"),
+            {"selection": 1, "type": "collected", "item": [item.pk for item in sets]},
+        )
+        self.assertEqual(len(response.context["label_pages"]), 1)
+        self.assertEqual(sum(slot is not None for slot in response.context["slots"]), 1)
+        cells = response.context["slots"][0]["number_cells"]
+        self.assertEqual(len(cells), 8)
+        self.assertEqual(sum(cell["has_right_cut"] for cell in cells), 6)
+        self.assertEqual(sum(cell["has_bottom_cut"] for cell in cells), 4)
+
+    def test_eight_collected_label_slots_fit_one_herma_sheet(self):
+        sets = [self.lego_set]
+        for number in range(159):
+            sets.append(
+                LegoSet.objects.create(
+                    owner=self.user, set_number=f"COLLECTED-SHEET-{number}", name="Collected"
+                )
+            )
+        response = self.client.get(
+            reverse("organizer:label_studio"),
+            {"selection": 1, "type": "collected", "item": [item.pk for item in sets]},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.context["label_pages"]), 1)
+        self.assertEqual(sum(slot is not None for slot in response.context["slots"]), 8)
+
+    def test_collected_cut_grid_handles_partial_rows_without_outer_lines(self):
+        expected = {1: (0, 0), 2: (1, 0), 4: (3, 0), 5: (3, 1), 8: (6, 4), 20: (15, 16)}
+        for count, (right_cuts, bottom_cuts) in expected.items():
+            sets = [self.lego_set]
+            for number in range(count - 1):
+                sets.append(
+                    LegoSet.objects.create(
+                        owner=self.user,
+                        set_number=f"CUT-{count}-{number}",
+                        name="Cut grid",
+                    )
+                )
+            response = self.client.get(
+                reverse("organizer:label_studio"),
+                {"selection": 1, "type": "collected", "item": [item.pk for item in sets]},
+            )
+            cells = response.context["slots"][0]["number_cells"]
+            self.assertEqual(sum(cell["has_right_cut"] for cell in cells), right_cuts)
+            self.assertEqual(sum(cell["has_bottom_cut"] for cell in cells), bottom_cuts)
+
+    def test_print_css_neutralizes_screen_scroll_and_sheet_fragmentation(self):
+        css = (Path(settings.BASE_DIR) / "static" / "css" / "labels.css").read_text(
+            encoding="utf-8"
+        )
+        print_css = css.split("@media print", 1)[1]
+        for fragment in (
+            "overflow:visible",
+            "max-height:none",
+            "height:auto",
+            "scrollbar-gutter:auto",
+            "gap:0",
+            "break-inside:avoid",
+            "page-break-inside:avoid",
+            "break-after:auto",
+            "page-break-after:auto",
+        ):
+            self.assertIn(fragment, print_css)
+        self.assertIn("width:198.2mm;height:270.8mm", css)
+        self.assertIn("width:177.8mm;height:270mm", css)
+        self.assertIn("@page herma{size:A4 portrait;margin:13.1mm 5.9mm}", css)
 
     def test_start_position_is_preserved_across_multiple_sheets(self):
         second = LegoSet.objects.create(
