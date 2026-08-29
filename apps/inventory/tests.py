@@ -136,3 +136,12 @@ class InventoryIntegrityTests(TestCase):
         self.assertEqual(self.client.get(reverse("inventory:edit", args=[foreign_item.pk])).status_code, 404)
         self.assertEqual(self.client.get(reverse("inventory:location_edit", args=[foreign_location.pk])).status_code, 404)
         self.assertEqual(self.client.get(reverse("inventory:location_qr", args=[foreign_location.pk])).status_code, 404)
+
+    def test_inventory_page_exposes_location_filter_and_management_link(self):
+        location = WarehouseLocation.objects.create(owner=self.user, name="Box A")
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("inventory:list"))
+        self.assertContains(response, "Lagerorte verwalten")
+        self.assertContains(response, 'name="location"')
+        self.assertContains(response, "Box A")
+        self.assertEqual(self.client.get(reverse("inventory:list"), {"location": location.pk}).status_code, 200)

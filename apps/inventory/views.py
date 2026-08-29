@@ -24,7 +24,8 @@ def inventory_list(request):
         items = items.filter(location_id=location, location__owner=request.user)
     ordering = request.GET.get("sort", "name")
     ordering = ordering if ordering in {"name", "part_number", "-quantity", "color"} else "name"
-    return render(request, "inventory/list.html", {"page_obj": Paginator(items.order_by(ordering), 50).get_page(request.GET.get("page")), "query": query, "sort": ordering, "location": location})
+    locations = WarehouseLocation.objects.filter(owner=request.user, archived_at__isnull=True).order_by("name")
+    return render(request, "inventory/list.html", {"page_obj": Paginator(items.order_by(ordering), 50).get_page(request.GET.get("page")), "query": query, "sort": ordering, "location": location, "locations": locations})
 
 
 @login_required

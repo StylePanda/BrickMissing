@@ -170,7 +170,7 @@ class InterfaceQualityTests(TestCase):
         self.assertContains(response, 'data-nav-group')
         self.assertContains(response, "Sammlung")
         self.assertContains(response, "Import und Export")
-        self.assertContains(response, "Lagerorte")
+        self.assertContains(response, "Inventar")
         self.assertContains(response, 'class="nav-toggle ghost"')
         self.assertContains(response, "icons/brickmissing.svg")
 
@@ -181,7 +181,6 @@ class InterfaceQualityTests(TestCase):
         self.assertIn(reverse("catalog:part_list"), navigation)
         self.assertIn(reverse("catalog:missing_parts"), navigation)
         self.assertIn(reverse("inventory:list"), navigation)
-        self.assertIn(reverse("inventory:locations"), navigation)
         self.assertIn(reverse("orders:list"), navigation)
         self.assertIn(reverse("organizer:label_studio"), navigation)
         self.assertIn(reverse("data_portability:import_page"), navigation)
@@ -212,7 +211,7 @@ class InterfaceQualityTests(TestCase):
             ("catalog:part_list", "Teile"),
             ("catalog:missing_parts", "Fehlteile"),
             ("inventory:list", "Inventar"),
-            ("inventory:locations", "Lagerorte"),
+            ("inventory:locations", "Inventar"),
             ("orders:list", "Bestellungen"),
             ("media_library:list", "Dokumente"),
             ("organizer:label_studio", "Etiketten & QR-Codes"),
