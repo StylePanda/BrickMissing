@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% load static %}{% block title %}Etiketten & QR-Codes{% endblock %}{% block content %}
-<link rel="stylesheet" href="{% static 'css/labels.css' %}?v=8.0-ui78">
+<link rel="stylesheet" href="{% static 'css/labels.css' %}?v=8.0-ui80">
 <div class="page-head no-print"><div><p class="eyebrow">Druckvorlagen</p><h1>Etiketten & QR-Codes</h1><p class="muted">Vier eigenständige, maßgenaue Vorlagen</p></div><div class="actions"><button type="button" data-label-select-all>Alle auswählen</button><button class="primary" type="button" data-print-page data-label-print>Etiketten drucken</button></div></div>
 <div class="label-studio" data-label-studio><form class="label-controls no-print" method="post" action="{% url 'organizer:label_studio' %}" data-label-form>{% csrf_token %}<input type="hidden" name="selection" value="1">{% for selected_id in hidden_selected_ids %}<input type="hidden" name="item" value="{{ selected_id }}" data-label-preserved-item>{% endfor %}
 <label>Etikettentyp<select name="type">{% for value,label in label_types.items %}<option value="{{ value }}"{% if label_type == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>

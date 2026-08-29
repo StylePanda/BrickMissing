@@ -1,0 +1,243 @@
+BRICKMISSING 8
+PHASE 13.1.2 - LABEL VISUAL FIXES
+Stand: 2026-08-29
+
+1. ROOT CAUSE SCHNEIDELINIEN
+============================
+
+Das Template organizer/labels/set_numbers.html renderte jede Setnummer als nacktes
+<strong>-Element innerhalb eines vier Spalten breiten CSS-Grids. Es gab weder eine
+eigene Zellklasse noch einen Separator-Hook. Deshalb konnten zwischen benachbarten
+Nummern keine Schneidelinien dargestellt werden.
+
+
+2. UMSETZUNG SCHNEIDELINIEN
+===========================
+
+Jede Nummer besitzt jetzt die stabile Klasse number-grid-item. Zusätzlich kennzeichnet
+das Template:
+
+- das erste Element mit is-first;
+- jedes Element vor dem letzten mit has-cut-line;
+- das letzte Element mit is-last und ohne has-cut-line.
+
+Die eigentliche Linie wird über ein positionsneutrales CSS-Pseudo-Element erzeugt:
+
+  .number-grid-item.has-cut-line:not(:nth-child(4n))::after
+
+Sie liegt rechts an der vorhergehenden Nummer, ist 0,35 mm stark, vertikal gestrichelt
+und dezent grau. Dadurch gilt:
+
+- keine Linie links vor der ersten Nummer;
+- keine Linie rechts nach der letzten Nummer;
+- keine Außenlinie am Ende einer vierteiligen Grid-Zeile;
+- korrekte Darstellung auch bei weniger als 20 Nummern;
+- kein zusätzlicher Grid-Track und keine Änderung der Zentrierung;
+- 1,5 mm Innenabstand schützt die Nummer vor einer Überlagerung durch die Linie.
+
+HERMA-Geometrie, Labelgröße, Spaltenanzahl und Seiteneinteilung wurden nicht verändert.
+
+
+3. ROOT CAUSE HAKEN-ZENTRIERUNG
+===============================
+
+Der Kontrollhaken bestand bisher aus dem Unicode-Zeichen ✓ in einer 18-mm-Schrift
+innerhalb eines runden CSS-Rahmens. Grid-Zentrierung zentriert dabei die typografische
+Zeichenbox, nicht zwingend die sichtbare Form. Die asymmetrischen Fontmetriken des
+Hakens führten deshalb insbesondere vertikal zu einer optischen Verschiebung und
+konnten je nach Browser-/Druckfont variieren.
+
+
+4. UMSETZUNG HAKEN-ZENTRIERUNG
+==============================
+
+Das Schriftzeichen wurde durch ein lokales Inline-SVG ersetzt:
+
+- fester viewBox 0 0 24 24;
+- Kreis mit Mittelpunkt 12/12 und Radius 10,5;
+- Haken als zentrierter, offener SVG-Pfad;
+- runde Linienenden und Linienverbindungen;
+- SVG füllt den bestehenden 18 x 18 mm großen Symbolbereich exakt aus;
+- Kreis und Haken verwenden denselben grünen currentColor-Wert;
+- aria-hidden=true und focusable=false kennzeichnen das Symbol als dekorativ.
+
+Die Lösung ist unabhängig von Fontmetriken, Browserfonts und Unicode-Glyphen. Der
+äußere Flex-Container bleibt horizontal und vertikal zentriert. Textpositionen und
+Labelmaße außerhalb des Symbolbereichs bleiben unverändert.
+
+
+5. GEÄNDERTE DATEIEN
+====================
+
+- templates/organizer/labels/set_numbers.html
+- templates/organizer/labels/checked_bag.html
+- static/css/labels.css
+- templates/organizer/label_studio.html (nur CSS-Cache-Version ui80)
+- apps/organizer/tests.py
+- LABEL_QR_PHASE_13_1_2_REPORT.txt (neu)
+
+Keine Views, Models, Migrationen, JavaScript-Dateien, QR-Funktionen oder sonstigen
+Backendbereiche wurden verändert.
+
+
+6. PREVIEW-AUSWIRKUNG
+=====================
+
+Die normale und die AJAX-Live-Preview verwenden dieselben beiden Include-Templates
+und dieselbe labels.css. Die gestrichelten Linien erscheinen daher direkt zwischen
+benachbarten gesammelten Setnummern. Das Kontrollsackerl zeigt denselben geometrisch
+zentrierten SVG-Kreis/Haken in vollständiger und partieller Preview.
+
+Die CSS-Asset-Version wurde auf ui80 erhöht, damit Browser nach einem späteren
+Deployment nicht die alte Darstellung aus dem Cache verwenden.
+
+
+7. PRINT-AUSWIRKUNG
+===================
+
+Es existiert keine abweichende Print-Kopie der beiden Komponenten. Browserdruck und
+Bildschirmvorschau rendern dasselbe DOM und dieselben Komponentenregeln. Die
+allgemeinen Printregeln entfernen nur Bedienoberfläche und Schatten; die neuen
+Separatoren und SVG-Strokes bleiben sichtbar.
+
+Nicht verändert wurden:
+
+- HERMA 5077: 99,1 x 67,7 mm, 2 x 4 Slots;
+- A4-Ränder und Seitenausrichtung;
+- Padding des gesammelten Labels;
+- Labelbogen-Kapazität und Seitenumbrüche;
+- Avery-Kleinformat.
+
+
+8. REGRESSIONEN
+===============
+
+Die Änderung ist auf collected und colors begrenzt. Erhalten bleiben:
+
+- alle vier Labeltypen;
+- POST-basierte Live Preview für große Auswahlen;
+- AbortController, Sequence Protection und 180-ms-Debounce;
+- Setbild-Schalter;
+- Mehrseiten-Print und Startposition;
+- QR-Codes, Loading State und Empty State;
+- HERMA-/Avery-Geometrie;
+- Login und Owner-Isolation.
+
+JavaScript und Backend-Requestlogik wurden nicht geändert.
+
+
+9. TESTS
+========
+
+Neue Characterization-Tests bestätigen:
+
+- collected rendert drei konkrete Setnummern weiterhin;
+- erste, mittlere und letzte Nummer besitzen eigene Zellstrukturen;
+- erste Nummer erhält nur den rechtsseitigen Separator-Hook und keine linke Linie;
+- letzte Nummer besitzt kein has-cut-line und damit keine rechte Außenlinie;
+- der CSS-Separator verwendet border-right und kein border-left;
+- Zeilenenden der vier Spalten werden durch :not(:nth-child(4n)) ausgenommen;
+- colors rendert weiterhin das Kontrollsymbol und den Text INHALT KONTROLLIERT;
+- die AJAX-Preview enthält SVG, viewBox, Kreis und Hakenpfad;
+- das SVG nutzt den kompletten 18-mm-Bereich und runde Stroke-Enden.
+
+Die vorhandenen Tests für alle vier Typen, große POST-Auswahl, Setbilder, Mehrseiten-
+Print, Owner-Isolation, QR, Loading und Empty State bleiben unverändert grün.
+
+
+10. VOLLSTÄNDIGE TESTERGEBNISSE
+===============================
+
+Der projektlokale Interpreter .venv/Scripts/python.exe wurde verwendet.
+
+- python manage.py check
+  PASS - System check identified no issues (0 silenced).
+
+- python manage.py makemigrations --check --dry-run
+  PASS - No changes detected.
+
+- fokussiert: python manage.py test apps.organizer.tests.LabelStudioTests
+  PASS - 14 Tests, 0 Fehler.
+
+- python manage.py test apps.organizer
+  PASS - 37 Tests, 0 Fehler.
+
+- python manage.py test
+  PASS - 291 Tests, 0 Fehler.
+
+- ruff check .
+  PASS - All checks passed.
+
+- git diff --check
+  PASS - keine Whitespace-Fehler; LF/CRLF-Ausgaben sind reine Git-Hinweise.
+
+- JavaScript-Syntaxcheck
+  Nicht erforderlich, da keine JavaScript-Datei verändert wurde.
+
+- CSS
+  Im Projekt ist kein eigener CSS-Linter installiert. Die geänderten Selektoren und
+  Regeln werden durch direkte Characterization-Assertions sowie erfolgreiche Django-
+  Render- und Gesamttests geprüft.
+
+
+11. MIGRATION NÖTIG
+===================
+
+NEIN.
+
+Es wurden keine Models verändert; der Migration-Dry-Run meldet keine Änderungen.
+
+
+12. COLLECTSTATIC NÖTIG
+=======================
+
+JA, bei einem späteren Deployment.
+
+static/css/labels.css wurde geändert. In diesem Auftrag wurde collectstatic nicht
+ausgeführt.
+
+
+13. SERVICE RESTART NÖTIG
+=========================
+
+JA, bei einem späteren Deployment empfohlen.
+
+Es wurde kein Python-Code geändert, aber ein Neustart stellt sicher, dass ein in
+Production verwendeter gecachter Django-Template-Loader die beiden geänderten
+Templates sicher neu lädt. In diesem Auftrag wurde kein Service neu gestartet.
+
+
+14. PRODUCTION-TESTPLAN
+=======================
+
+Nach einem späteren Deployment:
+
+1. collectstatic ausführen, Service kontrolliert neu starten und Browser mit hartem
+   Reload öffnen; labels.css muss als Version ui80 geladen werden.
+2. Typ Setnummern gesammelt mit genau einer Nummer prüfen: keine innere oder äußere
+   Schneidelinie.
+3. Mit drei Nummern prüfen: gestrichelte Linien nur zwischen Nummer 1/2 und 2/3;
+   keine Linie links außen und keine Linie rechts außen.
+4. Mit vier, fünf und möglichst 20 Nummern prüfen: keine falsche Linie am rechten
+   Ende einer Grid-Zeile, Zentrierung und Lesbarkeit bleiben erhalten.
+5. Browser-Druckvorschau bei 100 % öffnen und dieselben Innen-/Außenlinien prüfen;
+   anschließend einen Testbogen drucken und Schneidbarkeit beurteilen.
+6. Typ Kontrollsackerl öffnen: Kreis rund, Haken horizontal und vertikal optisch
+   mittig, Textposition unverändert.
+7. Kontrollsackerl in Browser-Druckvorschau und auf einem Testdruck gegenprüfen.
+8. Abschließend zwischen allen vier Typen wechseln und Live Preview, große Auswahl,
+   Setbild-Schalter, Seitenumbrüche und Startposition kurz regressionsprüfen.
+
+
+15. FINAL STATUS
+================
+
+- vertikale gestrichelte Linien liegen ausschließlich zwischen Setnummern;
+- es entstehen keine falschen linken oder rechten Außenlinien;
+- der Kontrollhaken ist als fontunabhängige Vektorgeometrie zentriert;
+- Preview und Print verwenden dieselbe Struktur und dieselben Regeln;
+- Label- und HERMA-/Avery-Geometrie wurden nicht verändert;
+- alle Tests und Checks sind grün;
+- keine Migration, kein Commit, kein Push und kein Deployment wurden durchgeführt.
+
+LABEL / QR PHASE 13.1.2: READY

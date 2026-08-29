@@ -634,6 +634,70 @@ class LabelStudioTests(TestCase):
         self.assertTemplateUsed(partial, "organizer/labels/preview.html")
         self.assertNotContains(partial, "<html")
 
+    def test_collected_numbers_have_only_internal_vertical_cut_lines(self):
+        second = LegoSet.objects.create(
+            owner=self.user, set_number="8000-1", name="Second collected set"
+        )
+        third = LegoSet.objects.create(
+            owner=self.user, set_number="9000-1", name="Third collected set"
+        )
+        response = self.client.get(
+            reverse("organizer:label_studio"),
+            {
+                "selection": 1,
+                "type": "collected",
+                "item": [self.lego_set.pk, second.pk, third.pk],
+            },
+        )
+        self.assertContains(response, "7345-1")
+        self.assertContains(response, "8000-1")
+        self.assertContains(response, "9000-1")
+        self.assertContains(
+            response,
+            'class="number-grid-item is-first has-cut-line"',
+            count=1,
+        )
+        self.assertContains(response, 'class="number-grid-item has-cut-line"', count=1)
+        self.assertContains(response, 'class="number-grid-item is-last"', count=1)
+        self.assertNotContains(response, "is-last has-cut-line")
+
+        css = (Path(settings.BASE_DIR) / "static" / "css" / "labels.css").read_text(
+            encoding="utf-8"
+        )
+        selector = ".number-grid-item.has-cut-line:not(:nth-child(4n))::after"
+        self.assertIn(selector, css)
+        cut_line_rule = css.split(selector, 1)[1].split("}", 1)[0]
+        self.assertIn("border-right:.35mm dashed", cut_line_rule)
+        self.assertNotIn("border-left", cut_line_rule)
+
+    def test_control_bag_uses_centered_vector_checkmark_in_ajax_preview(self):
+        response = self.client.post(
+            reverse("organizer:label_studio"),
+            {
+                "selection": 1,
+                "type": "colors",
+                "checked_text": "GEPRÜFT",
+                "checked_count": 1,
+            },
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'class="print-label label-checked"')
+        self.assertContains(response, 'class="checkmark" aria-hidden="true"')
+        self.assertContains(response, 'viewBox="0 0 24 24"')
+        self.assertContains(response, 'class="checkmark-circle"')
+        self.assertContains(response, 'class="checkmark-tick"')
+        self.assertContains(response, "INHALT KONTROLLIERT")
+
+        css = (Path(settings.BASE_DIR) / "static" / "css" / "labels.css").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            ".label-checked .checkmark svg{display:block;width:100%;height:100%}",
+            css,
+        )
+        self.assertIn("stroke-linecap:round;stroke-linejoin:round", css)
+
     def test_get_post_preview_full_refresh_and_csrf_protection(self):
         url = reverse("organizer:label_studio")
         get_response = self.client.get(url)
