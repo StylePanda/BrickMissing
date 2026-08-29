@@ -13,8 +13,6 @@ from django.urls import reverse
 from apps.accounts.models import User
 from apps.audit.models import AuditEvent
 from apps.catalog.models import LegoSet, Part
-from apps.inventory.models import InventoryItem
-from apps.organizer.models import Moc
 
 from .client_ip import client_ip
 from .models import DataQualityIssue, SavedView
@@ -169,7 +167,7 @@ class InterfaceQualityTests(TestCase):
         self.assertContains(response, 'aria-current="page">Sets</a>')
         self.assertContains(response, 'data-nav-group')
         self.assertContains(response, "Sammlung")
-        self.assertContains(response, "Import und Export")
+        self.assertContains(response, "Import & Export")
         self.assertContains(response, "Inventar")
         self.assertContains(response, 'class="nav-toggle ghost"')
         self.assertContains(response, "icons/brickmissing.svg")
@@ -184,8 +182,8 @@ class InterfaceQualityTests(TestCase):
         self.assertIn(reverse("orders:list"), navigation)
         self.assertIn(reverse("organizer:label_studio"), navigation)
         self.assertIn(reverse("data_portability:import_page"), navigation)
-        self.assertIn(reverse("media_library:list"), navigation)
-        self.assertIn(reverse("global_search"), navigation)
+        self.assertNotIn(reverse("media_library:list"), navigation)
+        self.assertNotIn(reverse("global_search"), navigation)
         self.assertIn('class="nav-group', navigation)
         self.assertNotIn('class="nav-home" href="/suche/', navigation)
 
@@ -213,7 +211,6 @@ class InterfaceQualityTests(TestCase):
             ("inventory:list", "Inventar"),
             ("inventory:locations", "Inventar"),
             ("orders:list", "Bestellungen"),
-            ("media_library:list", "Dokumente"),
             ("organizer:label_studio", "Etiketten & QR-Codes"),
         )
         for route_name, label in cases:
@@ -227,18 +224,14 @@ class InterfaceQualityTests(TestCase):
         self.assertEqual(navigation.count('aria-current="page"'), 1)
         self.assertIn('aria-current="page">Fehlteile</a>', navigation)
 
-    def test_global_search_finds_all_supported_identifiers_and_paginates(self):
+    def test_dashboard_search_finds_owned_sets_parts_and_minifigures(self):
         lego_set = LegoSet.objects.create(owner=self.user, set_number="SEARCH-SET", name="Burg")
         Part.objects.create(owner=self.user, lego_set=lego_set, element_id="E-100", design_id="DESIGN-42", name="Stein")
-        InventoryItem.objects.create(owner=self.user, part_number="P-1", element_id="INV-ELEMENT", design_id="INV-DESIGN", name="Platte")
-        Moc.objects.create(owner=self.user, project_code="MOC-SEARCH", name="Turm")
-        for query, expected in (("SEARCH-SET", "Burg"), ("DESIGN-42", "Stein"), ("INV-ELEMENT", "Platte"), ("MOC-SEARCH", "Turm")):
+        for query, expected in (("SEARCH-SET", "Burg"), ("DESIGN-42", "Stein")):
             with self.subTest(query=query):
-                self.assertContains(self.client.get(reverse("global_search"), {"q": query}), expected)
-        Part.objects.bulk_create([Part(owner=self.user, element_id=f"PAGE-{index}", name="Treffer") for index in range(30)])
-        response = self.client.get(reverse("global_search"), {"q": "Treffer", "parts_page": 2})
-        self.assertEqual(response.context["parts"].paginator.count, 30)
-        self.assertEqual(response.context["parts"].number, 2)
+                self.assertContains(self.client.get(reverse("dashboard"), {"q": query}), expected)
+        redirect_response = self.client.get(reverse("global_search"), {"q": "SEARCH-SET"})
+        self.assertRedirects(redirect_response, "/?q=SEARCH-SET")
 
     def test_custom_error_pages_render(self):
         for template_name, expected in (

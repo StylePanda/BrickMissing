@@ -41,6 +41,17 @@ def _page(request, queryset, size=50):
 def dashboard(request):
     sets = LegoSet.objects.filter(owner=request.user, deleted_at__isnull=True)
     parts = Part.objects.filter(owner=request.user, deleted_at__isnull=True)
+    query = request.GET.get("q", "").strip()[:200]
+    search_sets = search_parts = search_minifigures = None
+    if query:
+        search_sets = sets.filter(Q(set_number__icontains=query) | Q(name__icontains=query)).order_by("set_number", "pk")[:10]
+        search_parts = parts.filter(
+            Q(element_id__icontains=query) | Q(design_id__icontains=query)
+            | Q(part_number__icontains=query) | Q(name__icontains=query)
+        ).select_related("lego_set").order_by("name", "pk")[:10]
+        search_minifigures = SetMinifigure.objects.filter(
+            owner=request.user, lego_set__deleted_at__isnull=True,
+        ).filter(Q(figure_number__icontains=query) | Q(name__icontains=query)).select_related("lego_set").order_by("figure_number", "pk")[:10]
     return render(
         request,
         "catalog/dashboard.html",
@@ -61,6 +72,10 @@ def dashboard(request):
             .count(),
             "moc_count": Moc.objects.filter(owner=request.user).count(),
             "minifigure_count": SetMinifigure.objects.filter(owner=request.user).count(),
+            "query": query,
+            "search_sets": search_sets,
+            "search_parts": search_parts,
+            "search_minifigures": search_minifigures,
         },
     )
 
