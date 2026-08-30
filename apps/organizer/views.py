@@ -11,11 +11,12 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
-from apps.accounts.totp import qr_svg
+from apps.accounts.totp import decrypt_secret, qr_svg
 from apps.audit.models import AuditEvent
 from apps.catalog.models import LegoSet
 from apps.catalog.services import set_completeness
 from apps.core.services import record_recent
+from apps.integrations.services import RebrickableError, rebrickable_set_metadata
 from apps.inventory.models import InventoryItem, WarehouseLocation
 
 from .forms import WishlistItemForm, build_model_form
@@ -312,6 +313,33 @@ def area_edit(request, area, pk=None):
         saved.owner = request.user
         if area == "wishlist" and not instance:
             saved.entity_type = "set"
+        if area == "wishlist":
+            reference_changed = not instance or saved.reference != instance.reference
+            if reference_changed:
+                if not request.user.rebrickable_api_key_encrypted:
+                    form.add_error(None, "Bitte hinterlege zuerst deinen Rebrickable API-Key in den Kontoeinstellungen.")
+                    return render(request, "organizer/form.html", {"form": form, "title": f"{title}: {'Bearbeiten' if instance else 'Neu'}", "area": area})
+                try:
+                    metadata = rebrickable_set_metadata(
+                        saved.reference, decrypt_secret(request.user.rebrickable_api_key_encrypted)
+                    )
+                except RebrickableError as exc:
+                    form.add_error(None, str(exc))
+                    return render(request, "organizer/form.html", {"form": form, "title": f"{title}: {'Bearbeiten' if instance else 'Neu'}", "area": area})
+                saved.reference = metadata["set_number"]
+                saved.name = metadata["name"]
+                saved.image_url = metadata["image_url"]
+                saved.theme = metadata["theme"]
+                saved.year = metadata["year"]
+                saved.piece_count = metadata["total_parts"]
+                duplicate = WishlistItem.objects.filter(
+                    owner=request.user, entity_type="set", reference=saved.reference
+                )
+                if instance:
+                    duplicate = duplicate.exclude(pk=instance.pk)
+                if duplicate.exists():
+                    form.add_error(None, "Dieses Set ist bereits in deiner Wunschliste vorhanden.")
+                    return render(request, "organizer/form.html", {"form": form, "title": f"{title}: {'Bearbeiten' if instance else 'Neu'}", "area": area})
         saved.full_clean()
         saved.save()
         AuditEvent.objects.create(

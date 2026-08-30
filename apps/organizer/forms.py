@@ -1,6 +1,8 @@
 from django import forms
 from django.db import models
 
+from apps.integrations.services import normalize_rebrickable_set_number
+
 from .models import WishlistItem
 
 LABELS = {
@@ -70,6 +72,7 @@ class WishlistItemForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.owner = owner
         self.fields["reference"].widget.attrs["autocomplete"] = "off"
+        self.fields["name"].required = False
         self.fields["quantity"].widget.attrs.update({"min": 1, "class": "compact-number"})
         self.fields["priority"].widget = forms.Select(choices=CHOICES["priority"])
         for name in ("image_url", "theme", "year", "piece_count"):
@@ -80,6 +83,10 @@ class WishlistItemForm(forms.ModelForm):
         reference = normalize_wishlist_reference(self.cleaned_data["reference"])
         if not reference:
             raise forms.ValidationError("Bitte eine Setnummer angeben.")
+        try:
+            reference = normalize_rebrickable_set_number(reference)
+        except ValueError as exc:
+            raise forms.ValidationError(str(exc)) from exc
         if self.owner is not None:
             candidates = WishlistItem.objects.filter(
                 owner=self.owner, entity_type="set"

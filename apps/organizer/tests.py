@@ -9,6 +9,7 @@ from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
+from apps.accounts.totp import encrypt_secret
 from apps.catalog.models import LegoSet
 from apps.inventory.models import InventoryItem
 
@@ -330,6 +331,8 @@ class WishlistCoreTests(TestCase):
         self.other = users.objects.create_user(
             "wish2", "wish2@example.test", "A-very-long-password-123", email_verified=True
         )
+        self.owner.rebrickable_api_key_encrypted = encrypt_secret("fake-key")
+        self.owner.save(update_fields=["rebrickable_api_key_encrypted"])
         self.client.force_login(self.owner)
 
     def _payload(self, **overrides):
@@ -349,7 +352,12 @@ class WishlistCoreTests(TestCase):
         payload.update(overrides)
         return payload
 
-    def test_wishlist_create_persists_core_fields_and_set_type(self):
+    @patch("apps.organizer.views.rebrickable_set_metadata")
+    def test_wishlist_create_persists_core_fields_and_set_type(self, metadata):
+        metadata.return_value = {
+            "set_number": "10300-1", "name": "Back to the Future", "image_url": "https://example.test/10300.jpg",
+            "theme": "Icons", "year": 2022, "total_parts": 856,
+        }
         response = self.client.post(reverse("organizer:create", args=["wishlist"]), self._payload())
         self.assertRedirects(response, reverse("organizer:list", args=["wishlist"]))
         item = WishlistItem.objects.get(owner=self.owner)
@@ -370,7 +378,12 @@ class WishlistCoreTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(WishlistItem.objects.filter(owner=self.owner).count(), 1)
 
-    def test_duplicate_set_reference_is_owner_scoped_and_normalized(self):
+    @patch("apps.organizer.views.rebrickable_set_metadata")
+    def test_duplicate_set_reference_is_owner_scoped_and_normalized(self, metadata):
+        metadata.side_effect = lambda ref, key: {
+            "set_number": "31109-1" if "31109" in ref else "10300-1",
+            "name": "Set", "image_url": "", "theme": "", "year": 2022, "total_parts": 856,
+        }
         WishlistItem.objects.create(owner=self.owner, entity_type="set", reference="10300-1", name="Existing")
         response = self.client.post(
             reverse("organizer:create", args=["wishlist"]), self._payload(reference=" 10300 - 1 ")
@@ -391,7 +404,12 @@ class WishlistCoreTests(TestCase):
         legacy = WishlistItem.objects.create(owner=self.owner, entity_type="part", reference="3001", name="Legacy part")
         self.assertEqual(legacy.entity_type, "part")
 
-    def test_wishlist_edit_excludes_itself_from_duplicate_check(self):
+    @patch("apps.organizer.views.rebrickable_set_metadata")
+    def test_wishlist_edit_excludes_itself_from_duplicate_check(self, metadata):
+        metadata.return_value = {
+            "set_number": "10300-1", "name": "Updated", "image_url": "",
+            "theme": "", "year": 2022, "total_parts": 856,
+        }
         item = WishlistItem.objects.create(owner=self.owner, entity_type="set", reference="10300-1", name="Existing")
         response = self.client.post(reverse("organizer:edit", args=["wishlist", item.pk]), self._payload(name="Updated"))
         self.assertRedirects(response, reverse("organizer:list", args=["wishlist"]))

@@ -220,3 +220,43 @@ document.querySelectorAll("form").forEach((form) => {
   });
 });
 if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("/service-worker.js", {updateViaCache: "none"}));
+
+const wishlistForm = document.querySelector("form[data-wishlist-lookup-url]");
+if (wishlistForm) {
+  const reference = wishlistForm.elements.reference;
+  const status = document.getElementById("wishlist-lookup-status");
+  const fields = {reference: "set_number", name: "name", image_url: "image_url", theme: "theme", year: "year", piece_count: "total_parts"};
+  let timer;
+  let controller;
+  let lastReference = "";
+  reference?.addEventListener("input", () => {
+    window.clearTimeout(timer);
+    const value = reference.value.trim();
+    if (value.length < 3 || value === lastReference) return;
+    timer = window.setTimeout(async () => {
+      controller?.abort();
+      controller = new AbortController();
+      status.textContent = "Lade Setinformationen von Rebrickable …";
+      status.className = "lookup-status muted is-loading-text";
+      try {
+        const url = new URL(wishlistForm.dataset.wishlistLookupUrl, window.location.origin);
+        url.searchParams.set("set_number", value);
+        const response = await fetch(url, {headers: {Accept: "application/json"}, signal: controller.signal});
+        const payload = await response.json();
+        if (!response.ok || !payload.ok) throw new Error(payload.message || "Setinformationen konnten nicht geladen werden.");
+        const data = payload.set || {};
+        Object.entries(fields).forEach(([fieldName, dataName]) => {
+          const field = wishlistForm.elements[fieldName];
+          if (field && data[dataName] !== null && data[dataName] !== undefined) field.value = data[dataName];
+        });
+        lastReference = reference.value;
+        status.textContent = payload.message || "Setinformationen gefunden.";
+        status.className = "lookup-status good";
+      } catch (error) {
+        if (error.name === "AbortError") return;
+        status.textContent = error.message || "Rebrickable ist momentan nicht erreichbar.";
+        status.className = "lookup-status warn";
+      }
+    }, 600);
+  });
+}
