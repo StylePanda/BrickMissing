@@ -18,7 +18,7 @@ from apps.catalog.services import set_completeness
 from apps.core.services import record_recent
 from apps.inventory.models import InventoryItem, WarehouseLocation
 
-from .forms import build_model_form
+from .forms import WishlistItemForm, build_model_form
 from .label_configuration import label_print_layout, normalize_start
 from .models import (
     Collection,
@@ -56,7 +56,19 @@ AREAS = {
     "wishlist": (
         WishlistItem,
         "Wunschliste",
-        ("collection", "entity_type", "reference", "name", "priority", "target_price", "notes"),
+        (
+            "reference",
+            "name",
+            "quantity",
+            "status",
+            "priority",
+            "target_price",
+            "notes",
+            "image_url",
+            "theme",
+            "year",
+            "piece_count",
+        ),
     ),
     "loans": (
         Loan,
@@ -283,8 +295,11 @@ def area_list(request, area):
 def area_edit(request, area, pk=None):
     model, title, fields = _area(area)
     instance = get_object_or_404(model, pk=pk, owner=request.user) if pk else None
-    form_class = build_model_form(model, fields)
-    form = form_class(request.POST or None, instance=instance)
+    if area == "wishlist":
+        form = WishlistItemForm(request.POST or None, instance=instance, owner=request.user)
+    else:
+        form_class = build_model_form(model, fields)
+        form = form_class(request.POST or None, instance=instance)
     for name in ("collection",):
         if name in form.fields:
             form.fields[name].queryset = Collection.objects.filter(owner=request.user)
@@ -295,6 +310,8 @@ def area_edit(request, area, pk=None):
     if request.method == "POST" and form.is_valid():
         saved = form.save(commit=False)
         saved.owner = request.user
+        if area == "wishlist" and not instance:
+            saved.entity_type = "set"
         saved.full_clean()
         saved.save()
         AuditEvent.objects.create(

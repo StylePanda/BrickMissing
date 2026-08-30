@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.core.validators import MinValueValidator
 from django.db import models
 
 from apps.catalog.models import LegoSet
@@ -96,6 +97,15 @@ class MocVersion(models.Model):
 
 
 class WishlistItem(models.Model):
+    STATUS_WISH = "wish"
+    STATUS_PLANNED = "planned"
+    STATUS_PURCHASED = "purchased"
+    STATUS_CHOICES = (
+        (STATUS_WISH, "Wunsch"),
+        (STATUS_PLANNED, "Geplant"),
+        (STATUS_PURCHASED, "Gekauft"),
+    )
+
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     collection = models.ForeignKey(Collection, null=True, blank=True, on_delete=models.SET_NULL)
     legacy_id = models.PositiveBigIntegerField(null=True, blank=True)
@@ -105,7 +115,14 @@ class WishlistItem(models.Model):
     priority = models.CharField(max_length=20, default="normal")
     target_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     notes = models.TextField(blank=True)
+    quantity = models.PositiveIntegerField(default=1, validators=[MinValueValidator(1)])
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_WISH)
+    image_url = models.URLField(max_length=1000, blank=True)
+    theme = models.CharField(max_length=191, blank=True)
+    year = models.PositiveIntegerField(null=True, blank=True)
+    piece_count = models.PositiveIntegerField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.name

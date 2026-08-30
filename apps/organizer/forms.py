@@ -1,6 +1,8 @@
 from django import forms
 from django.db import models
 
+from .models import WishlistItem
+
 LABELS = {
     "collection": "Sammlung", "location": "Lagerort", "lego_set": "LEGO-Set",
     "inventory_item": "Bestandsteil", "user": "Benutzerkonto", "role": "Rolle",
@@ -27,6 +29,68 @@ CHOICES = {
     "orientation": (("landscape", "Querformat"), ("portrait", "Hochformat")),
     "entity_type": (("set", "LEGO-Set"), ("part", "Teil"), ("minifigure", "Minifigur"), ("moc", "MOC")),
 }
+
+
+def normalize_wishlist_reference(value):
+    """Normalize formatting only; LEGO set variants remain distinct."""
+    return " ".join(str(value or "").strip().upper().split()).replace(" - ", "-")
+
+
+class WishlistItemForm(forms.ModelForm):
+    class Meta:
+        model = WishlistItem
+        fields = (
+            "reference",
+            "name",
+            "quantity",
+            "status",
+            "priority",
+            "target_price",
+            "notes",
+            "image_url",
+            "theme",
+            "year",
+            "piece_count",
+        )
+        labels = {
+            "reference": "Setnummer",
+            "name": "Setname",
+            "quantity": "Gewünschte Menge",
+            "status": "Status",
+            "priority": "Priorität",
+            "target_price": "Wunschpreis",
+            "notes": "Notizen",
+            "image_url": "Bild-URL",
+            "theme": "Themenwelt",
+            "year": "Erscheinungsjahr",
+            "piece_count": "Teileanzahl",
+        }
+
+    def __init__(self, *args, owner=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.owner = owner
+        self.fields["reference"].widget.attrs["autocomplete"] = "off"
+        self.fields["quantity"].widget.attrs.update({"min": 1, "class": "compact-number"})
+        self.fields["priority"].widget = forms.Select(choices=CHOICES["priority"])
+        for name in ("image_url", "theme", "year", "piece_count"):
+            self.fields[name].required = False
+        self.fields["notes"].widget = forms.Textarea(attrs={"rows": 4})
+
+    def clean_reference(self):
+        reference = normalize_wishlist_reference(self.cleaned_data["reference"])
+        if not reference:
+            raise forms.ValidationError("Bitte eine Setnummer angeben.")
+        if self.owner is not None:
+            candidates = WishlistItem.objects.filter(
+                owner=self.owner, entity_type="set"
+            )
+            if self.instance and self.instance.pk:
+                candidates = candidates.exclude(pk=self.instance.pk)
+            if any(normalize_wishlist_reference(item.reference) == reference for item in candidates):
+                raise forms.ValidationError(
+                    "Dieses Set ist bereits in deiner Wunschliste vorhanden."
+                )
+        return reference
 
 
 def build_model_form(model, fields):

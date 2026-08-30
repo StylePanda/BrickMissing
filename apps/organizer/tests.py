@@ -1,3 +1,4 @@
+from decimal import Decimal
 from pathlib import Path
 from unittest.mock import patch
 from urllib.parse import urlencode
@@ -235,6 +236,7 @@ class OrganizerOwnershipTests(TestCase):
             404,
         )
 
+
     def test_read_only_label_resource_routes_reject_post_and_qr_has_quiet_zone(self):
         label = LabelTemplate.objects.create(owner=self.first, name="Methods")
         item = InventoryItem.objects.create(
@@ -317,6 +319,84 @@ class OrganizerOwnershipTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertFalse(Moc.objects.filter(owner=self.first, name="Injected").exists())
         self.assertTrue(Collection.objects.filter(pk=own_collection.pk).exists())
+
+
+class WishlistCoreTests(TestCase):
+    def setUp(self):
+        users = get_user_model()
+        self.owner = users.objects.create_user(
+            "wish1", "wish1@example.test", "A-very-long-password-123", email_verified=True
+        )
+        self.other = users.objects.create_user(
+            "wish2", "wish2@example.test", "A-very-long-password-123", email_verified=True
+        )
+        self.client.force_login(self.owner)
+
+    def _payload(self, **overrides):
+        payload = {
+            "reference": "10300-1",
+            "name": "Back to the Future",
+            "quantity": 2,
+            "status": "planned",
+            "priority": "high",
+            "target_price": "49.90",
+            "notes": "Birthday wish",
+            "image_url": "https://example.test/10300.jpg",
+            "theme": "Icons",
+            "year": 2022,
+            "piece_count": 856,
+        }
+        payload.update(overrides)
+        return payload
+
+    def test_wishlist_create_persists_core_fields_and_set_type(self):
+        response = self.client.post(reverse("organizer:create", args=["wishlist"]), self._payload())
+        self.assertRedirects(response, reverse("organizer:list", args=["wishlist"]))
+        item = WishlistItem.objects.get(owner=self.owner)
+        self.assertEqual(item.entity_type, "set")
+        self.assertEqual(item.quantity, 2)
+        self.assertEqual(item.status, "planned")
+        self.assertEqual(item.priority, "high")
+        self.assertEqual(item.target_price, Decimal("49.90"))
+        self.assertEqual(item.piece_count, 856)
+        self.assertIsNotNone(item.updated_at)
+
+    def test_wishlist_defaults_and_quantity_validation(self):
+        item = WishlistItem.objects.create(owner=self.owner, reference="31109", name="Rennwagen")
+        self.assertEqual(item.quantity, 1)
+        self.assertEqual(item.status, WishlistItem.STATUS_WISH)
+        self.assertIsNone(item.year)
+        response = self.client.post(reverse("organizer:create", args=["wishlist"]), self._payload(quantity=0))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(WishlistItem.objects.filter(owner=self.owner).count(), 1)
+
+    def test_duplicate_set_reference_is_owner_scoped_and_normalized(self):
+        WishlistItem.objects.create(owner=self.owner, entity_type="set", reference="10300-1", name="Existing")
+        response = self.client.post(
+            reverse("organizer:create", args=["wishlist"]), self._payload(reference=" 10300 - 1 ")
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "bereits in deiner Wunschliste")
+        WishlistItem.objects.create(owner=self.other, entity_type="set", reference="10300-1", name="Other")
+        response = self.client.post(
+            reverse("organizer:create", args=["wishlist"]), self._payload(reference="31109")
+        )
+        self.assertRedirects(response, reverse("organizer:list", args=["wishlist"]))
+        self.assertEqual(WishlistItem.objects.filter(owner=self.owner).count(), 2)
+
+    def test_wishlist_owner_scope_and_legacy_entity_type_remains_supported(self):
+        foreign = WishlistItem.objects.create(owner=self.other, entity_type="part", reference="3001", name="Foreign")
+        self.assertNotContains(self.client.get(reverse("organizer:list", args=["wishlist"])), "Foreign")
+        self.assertEqual(self.client.get(reverse("organizer:edit", args=["wishlist", foreign.pk])).status_code, 404)
+        legacy = WishlistItem.objects.create(owner=self.owner, entity_type="part", reference="3001", name="Legacy part")
+        self.assertEqual(legacy.entity_type, "part")
+
+    def test_wishlist_edit_excludes_itself_from_duplicate_check(self):
+        item = WishlistItem.objects.create(owner=self.owner, entity_type="set", reference="10300-1", name="Existing")
+        response = self.client.post(reverse("organizer:edit", args=["wishlist", item.pk]), self._payload(name="Updated"))
+        self.assertRedirects(response, reverse("organizer:list", args=["wishlist"]))
+        item.refresh_from_db()
+        self.assertEqual(item.name, "Updated")
 
 
 class OrganizerListRenderingTests(TestCase):
