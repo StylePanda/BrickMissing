@@ -367,6 +367,14 @@ def area_list(request, area):
             ),
         ).order_by(*WISHLIST_SORTS[sort])
         page_obj = Paginator(records, 50).get_page(request.GET.get("page"))
+        collection_sets = dict(
+            LegoSet.objects.filter(
+                owner=request.user, deleted_at__isnull=True,
+                set_number__in=[item.reference for item in page_obj.object_list],
+            ).values_list("set_number", "pk")
+        )
+        for item in page_obj.object_list:
+            item.collection_set_pk = collection_sets.get(item.reference)
         has_filters = any((query, status, priority, theme)) or sort != "newest"
         return render(
             request,

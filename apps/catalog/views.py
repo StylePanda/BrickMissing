@@ -20,7 +20,7 @@ from apps.core.services import record_recent
 from apps.integrations.services import normalize_rebrickable_set_number
 from apps.inventory.models import InventoryItem
 from apps.orders.models import Order
-from apps.organizer.models import MinifigurePart, Moc, SetMinifigure
+from apps.organizer.models import MinifigurePart, Moc, SetMinifigure, WishlistItem
 
 from .colors import grouped_colors
 from .forms import LegoSetForm, PartForm, SetCopyForm, SetInventoryItemForm
@@ -242,17 +242,41 @@ def set_edit(request, pk=None):
         if pk
         else None
     )
+    wishlist_source = None
+    wishlist_id = request.POST.get("wishlist_item") or request.GET.get("wishlist_item") or request.GET.get("wishlist")
+    if wishlist_id:
+        wishlist_source = get_object_or_404(
+            WishlistItem,
+            pk=wishlist_id,
+            owner=request.user,
+            entity_type="set",
+        )
     form = LegoSetForm(request.POST or None, instance=lego_set)
+    if request.method == "GET" and lego_set is None and wishlist_source:
+        form.initial["set_number"] = wishlist_source.reference
     if request.method == "GET" and lego_set is None and request.GET.get("preset") == "neu":
         form.initial["condition"] = "neu"
     if request.method == "POST" and form.is_valid():
+        if wishlist_source and lego_set is None:
+            try:
+                source_number = normalize_rebrickable_set_number(wishlist_source.reference)
+                submitted_number = normalize_rebrickable_set_number(form.cleaned_data["set_number"])
+            except ValueError:
+                source_number = submitted_number = ""
+            if source_number != submitted_number:
+                form.add_error("set_number", "Die Setnummer muss dem ausgewählten Wunsch entsprechen.")
+                return render(request, "catalog/set_form.html", {"form": form, "title": "Set hinzufügen: Neu", "theme_suggestions": [], "subtheme_suggestions": [], "rebrickable_connected": request.user.has_rebrickable_api_key, "newly_purchased": True, "wishlist_item": wishlist_source})
         instance = form.save(commit=False)
         instance.owner = request.user
         instance.save()
-        if request.POST.get("newly_purchased") == "1":
+        if request.POST.get("newly_purchased") == "1" or wishlist_source is not None:
             pending = set(request.session.get("newly_purchased_pending", []))
             pending.add(str(instance.pk))
             request.session["newly_purchased_pending"] = list(pending)
+        if wishlist_source:
+            pending_wishlist = dict(request.session.get("wishlist_pending", {}))
+            pending_wishlist[str(instance.pk)] = str(wishlist_source.pk)
+            request.session["wishlist_pending"] = pending_wishlist
         AuditEvent.objects.create(
             actor=request.user,
             target_user=request.user,
@@ -282,7 +306,8 @@ def set_edit(request, pk=None):
             "theme_suggestions": suggestions("theme"),
             "subtheme_suggestions": suggestions("subtheme"),
             "rebrickable_connected": request.user.has_rebrickable_api_key,
-            "newly_purchased": request.GET.get("preset") == "neu",
+            "newly_purchased": request.GET.get("preset") == "neu" or wishlist_source is not None,
+            "wishlist_item": wishlist_source,
         },
     )
 

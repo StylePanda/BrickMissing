@@ -10,7 +10,7 @@ from django.urls import reverse
 from apps.accounts.models import User
 from apps.accounts.totp import decrypt_secret, encrypt_secret
 from apps.catalog.models import LegoSet, Part, SetInventoryItem
-from apps.organizer.models import MinifigurePart, SetMinifigure
+from apps.organizer.models import MinifigurePart, SetMinifigure, WishlistItem
 
 from .rebrickable_sync import initialize_newly_purchased_inventory
 from .services import (
@@ -279,6 +279,24 @@ class IntegrationSecurityTests(TestCase):
         self.client.post(reverse("integrations:sync_rebrickable", args=[lego_set.pk]))
         self.assertEqual(SetInventoryItem.objects.get(lego_set=lego_set).owned_quantity, 2)
         self.assertEqual(SetInventoryItem.objects.get(lego_set=other).owned_quantity, 0)
+
+    @patch("apps.integrations.views.rebrickable_minifigures", return_value=[])
+    @patch("apps.integrations.views.rebrickable_set")
+    def test_wishlist_sync_marks_item_purchased_after_success(self, set_api, _fig_api):
+        wishlist = WishlistItem.objects.create(
+            owner=self.user, entity_type="set", reference="405-1", name="Wishlist Set"
+        )
+        lego_set = LegoSet.objects.create(owner=self.user, set_number="405-1", name="Wishlist Set")
+        set_api.return_value = ({"name": "Wishlist Set", "num_parts": 0}, [])
+        session = self.client.session
+        session["newly_purchased_pending"] = [str(lego_set.pk)]
+        session["wishlist_pending"] = {str(lego_set.pk): str(wishlist.pk)}
+        session.save()
+        response = self.client.post(reverse("integrations:sync_rebrickable", args=[lego_set.pk]))
+        self.assertEqual(response.status_code, 302)
+        wishlist.refresh_from_db()
+        self.assertEqual(wishlist.status, WishlistItem.STATUS_PURCHASED)
+        self.assertTrue(WishlistItem.objects.filter(pk=wishlist.pk).exists())
 
     @patch("apps.integrations.views.rebrickable_minifigures", return_value=[])
     @patch("apps.integrations.views.rebrickable_set")

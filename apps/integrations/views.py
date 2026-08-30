@@ -11,6 +11,7 @@ from apps.accounts.totp import decrypt_secret
 from apps.audit.models import AuditEvent
 from apps.catalog.models import LegoSet, Part
 from apps.core.rate_limit import limited
+from apps.organizer.models import WishlistItem
 
 from .models import PriceObservation
 from .rebrickable_sync import initialize_newly_purchased_inventory, synchronize_set
@@ -61,6 +62,19 @@ def sync_rebrickable(request, pk):
         pending.discard(str(lego_set.pk))
         request.session["newly_purchased_pending"] = list(pending)
         request.session.modified = True
+    wishlist_pending = dict(request.session.get("wishlist_pending", {}))
+    wishlist_id = wishlist_pending.get(str(lego_set.pk))
+    if wishlist_id and request.POST.get("bulk") != "1":
+        updated = WishlistItem.objects.filter(
+            pk=wishlist_id,
+            owner=request.user,
+            entity_type="set",
+        ).update(status=WishlistItem.STATUS_PURCHASED)
+        if updated:
+            wishlist_pending.pop(str(lego_set.pk), None)
+            request.session["wishlist_pending"] = wishlist_pending
+            request.session.modified = True
+            messages.success(request, "Das Set wurde deiner Sammlung hinzugefügt und auf der Wunschliste als gekauft markiert.")
     if not result.minifigures_available:
         messages.warning(request, "Minifiguren konnten nicht synchronisiert werden.")
     AuditEvent.objects.create(actor=request.user, target_user=request.user, action="integration.rebrickable_sync", entity_type="set", entity_id=str(pk), details={"parts": result.parts, "minifigures": result.minifigures, "minifigure_parts": result.minifigure_parts}, request_id=request.request_id)

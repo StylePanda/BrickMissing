@@ -11,7 +11,7 @@ from django.utils import timezone
 from apps.accounts.totp import encrypt_secret
 from apps.core.models import SavedView
 from apps.inventory.models import InventoryItem
-from apps.organizer.models import MinifigurePart, SetMinifigure
+from apps.organizer.models import MinifigurePart, SetMinifigure, WishlistItem
 
 from .colors import color_category
 from .models import LegoSet, Part, SetCopy, SetInventoryItem
@@ -229,6 +229,31 @@ class CatalogFlowTests(TestCase):
         self.assertContains(response, "Neu gekauftes Set hinzufügen")
         preset = self.client.get(reverse("catalog:set_create"), {"preset": "neu"})
         self.assertContains(preset, 'option value="neu" selected')
+
+    def test_wishlist_source_prefills_set_create_and_marks_new_purchase_context(self):
+        wishlist = WishlistItem.objects.create(
+            owner=self.user, entity_type="set", reference="31212-1", name="Milky Way"
+        )
+        response = self.client.get(reverse("catalog:set_create"), {"wishlist": wishlist.pk})
+        self.assertContains(response, 'value="31212-1"')
+        self.assertContains(response, 'name="newly_purchased" value="1"')
+        response = self.client.post(
+            f"{reverse('catalog:set_create')}?wishlist={wishlist.pk}",
+            {"set_number": "31212-1", "name": "Milky Way", "condition": "neu", "build_status": "gebaut", "purchase_price": "0", "current_value": "0"},
+        )
+        lego_set = LegoSet.objects.get(owner=self.user, set_number="31212-1")
+        self.assertRedirects(response, reverse("catalog:set_detail", args=[lego_set.pk]))
+        session = self.client.session
+        self.assertIn(str(lego_set.pk), session["newly_purchased_pending"])
+        self.assertEqual(session["wishlist_pending"][str(lego_set.pk)], str(wishlist.pk))
+
+    def test_foreign_wishlist_source_is_rejected(self):
+        other = get_user_model().objects.create_user("wishlist-other", "wishlist-other@example.test", "Strong-password-123")
+        wishlist = WishlistItem.objects.create(owner=other, entity_type="set", reference="999-1", name="Foreign")
+        self.assertEqual(
+            self.client.get(reverse("catalog:set_create"), {"wishlist": wishlist.pk}).status_code,
+            404,
+        )
 
     def test_set_inventory_bulk_creates_owned_missing_parts(self):
         lego_set = LegoSet.objects.create(owner=self.user, set_number="100-1", name="Test")

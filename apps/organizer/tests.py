@@ -1374,3 +1374,15 @@ class WishlistBrowseTests(TestCase):
         WishlistItem.objects.filter(owner=self.user).delete()
         response = self.client.get(reverse("organizer:list", args=["wishlist"]))
         self.assertContains(response, "Noch keine Sets auf deiner Wunschliste.")
+
+    def test_collection_cta_is_set_only_and_purchased_items_show_no_import_cta(self):
+        legacy = WishlistItem.objects.create(
+            owner=self.user, entity_type="part", reference="3001", name="Brick"
+        )
+        purchased = WishlistItem.objects.create(
+            owner=self.user, entity_type="set", reference="6040-1", name="Castle", status="purchased"
+        )
+        response = self.client.get(reverse("organizer:list", args=["wishlist"]))
+        self.assertContains(response, "Zur Sammlung hinzufügen")
+        self.assertNotContains(response, f"?wishlist={purchased.pk}")
+        self.assertNotContains(response, f"?wishlist={legacy.pk}")
