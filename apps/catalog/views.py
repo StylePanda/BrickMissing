@@ -135,6 +135,14 @@ def set_detail(request, pk):
         request.user, "set", lego_set.pk, f"{lego_set.set_number} · {lego_set.name}",
         request.path,
     )
+    # Use the established parts-based completeness record for the initial
+    # render; the parent owned quantity may be stale after part updates.
+    from apps.organizer.views import _minifigure_record
+
+    minifigure_records = [
+        _minifigure_record(figure)
+        for figure in lego_set.minifigures_inventory.all()
+    ]
     inventory = lego_set.inventory_items.all()
     kind = request.GET.get("art", "all")
     if kind == "normal":
@@ -187,7 +195,7 @@ def set_detail(request, pk):
     stats = {key: value or 0 for key, value in stats.items()}
     stats["missing"] = max(stats["required"] - stats["owned"], 0)
     stats["percent"] = min(round(stats["owned"] * 100 / stats["required"]), 100) if stats["required"] else 0
-    return render(request, "catalog/set_detail.html", {"lego_set": lego_set, "page_obj": page_obj, "inventory_stats": stats, "inventory_kind": kind, "inventory_query": query, "inventory_stock": stock, "inventory_sort": sort, "color_groups": grouped_colors(colors), "selected_colors": selected_colors, "color_summary": f"{len(selected_colors)} Farben" if selected_colors else "Alle Farben", "derived_completeness": _set_completeness(lego_set)})
+    return render(request, "catalog/set_detail.html", {"lego_set": lego_set, "page_obj": page_obj, "inventory_stats": stats, "inventory_kind": kind, "inventory_query": query, "inventory_stock": stock, "inventory_sort": sort, "color_groups": grouped_colors(colors), "selected_colors": selected_colors, "color_summary": f"{len(selected_colors)} Farben" if selected_colors else "Alle Farben", "derived_completeness": _set_completeness(lego_set), "minifigure_records": minifigure_records})
 
 
 @login_required

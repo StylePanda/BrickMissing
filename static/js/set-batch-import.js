@@ -10,6 +10,8 @@
   const progressBar = document.querySelector('[data-batch-progress-bar]');
   const progressText = document.querySelector('[data-batch-progress-text]');
   const summary = document.querySelector('[data-batch-summary]');
+  const errors = document.querySelector('[data-batch-errors]');
+  const errorList = document.querySelector('[data-batch-error-list]');
   const importUrl = form.action.replace(/vorschau\/?$/, 'importieren/');
   const previewOneUrl = form.action.replace(/vorschau\/?$/, 'vorschau/einzel/');
   const csrf = form.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
@@ -21,8 +23,24 @@
     return fetch(url, { method: 'POST', body: data, headers: { 'X-Requested-With': 'XMLHttpRequest' } });
   }
 
-  function escapeHtml(value) {
-    return String(value).replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
+  function resetImportResults() {
+    summary.textContent = '';
+    errorList?.replaceChildren();
+    errors?.setAttribute('hidden', '');
+  }
+
+  function renderImportErrors(failedResults) {
+    if (!errors || !errorList || !failedResults.length) return;
+    failedResults.forEach(result => {
+      const item = document.createElement('li');
+      const number = document.createElement('strong');
+      number.textContent = result.setNumber;
+      const detail = document.createElement('span');
+      detail.textContent = result.message;
+      item.append(number, detail);
+      errorList.appendChild(item);
+    });
+    errors.removeAttribute('hidden');
   }
 
   function appendPreview(item) {
@@ -48,7 +66,7 @@
   form.addEventListener('submit', async event => {
     event.preventDefault();
     if (running) return;
-    running = true; previewSets = []; rows.replaceChildren(); previewArea.hidden = false; previewArea.setAttribute('aria-busy', 'true');
+    running = true; previewSets = []; resetImportResults(); rows.replaceChildren(); previewArea.hidden = false; previewArea.setAttribute('aria-busy', 'true');
     previewButton.disabled = true; previewButton.textContent = 'Prüfen…'; importButton.disabled = true;
     const values = [...new Set((new FormData(form).get('set_numbers') || '').split(/[\s,;]+/).map(value => value.trim()).filter(Boolean))];
     progress.hidden = false; progressBar.max = values.length || 1; progressBar.value = 0;
@@ -73,15 +91,36 @@
     if (!selected.length || running) return;
     running = true; importButton.disabled = true; progress.hidden = false; progressBar.max = selected.length; progressBar.value = 0;
     let successful = 0; let failed = 0; let skipped = 0;
+    const failedResults = [];
+    resetImportResults();
     try {
       for (let index = 0; index < selected.length; index += 1) {
         const item = selected[index]; progressText.textContent = `Set ${index + 1} von ${selected.length}: ${item.number}`;
         const data = new FormData(); data.append('set_number', item.number);
         const metadata = rows.querySelector(`.batch-set-metadata[data-index="${previewSets.indexOf(item)}"]`);
         metadata?.querySelectorAll('[data-field]').forEach(field => data.append(field.dataset.field, field.value));
-        try { const response = await post(importUrl, data); const result = await response.json(); if (result.status === 'imported') successful += 1; else if (result.status === 'existing') skipped += 1; else failed += 1; } catch (error) { failed += 1; }
+        try {
+          const response = await post(importUrl, data);
+          const result = await response.json();
+          if (result.status === 'imported') {
+            successful += 1;
+          } else if (result.status === 'existing') {
+            skipped += 1;
+          } else {
+            failed += 1;
+            failedResults.push({ setNumber: result.set?.number || item.number, message: result.message || 'Import fehlgeschlagen.' });
+          }
+        } catch (error) {
+          failed += 1;
+          failedResults.push({ setNumber: item.number, message: 'Import konnte nicht abgeschlossen werden.' });
+        }
         progressBar.value = index + 1;
       }
-    } finally { running = false; progressText.textContent = 'Import abgeschlossen.'; summary.textContent = `${successful} erfolgreich, ${skipped} übersprungen, ${failed} fehlgeschlagen.`; }
+    } finally {
+      running = false;
+      progressText.textContent = 'Import abgeschlossen.';
+      summary.textContent = `${successful} erfolgreich, ${skipped} übersprungen, ${failed} fehlgeschlagen.`;
+      renderImportErrors(failedResults);
+    }
   });
 }());

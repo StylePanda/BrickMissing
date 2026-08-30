@@ -1,12 +1,13 @@
 <section class="minifigure-inline-workbench set-main-section" aria-labelledby="minifigures-title">
   <div class="section-head"><div><p class="eyebrow">Set-Inventar</p><h2 id="minifigures-title">Minifiguren</h2><p class="muted">{{ lego_set.minifigures_inventory.count }} Figuren. Einzelteile bei Bedarf aufklappen.</p></div></div>
   <div class="minifigure-list">
-    {% for figure in lego_set.minifigures_inventory.all %}
+    {% for record in minifigure_records %}
+      {% with figure=record.figure %}
       <details class="minifigure-disclosure" data-minifigure>
         <summary>
           <span class="minifigure-summary-image">{% if figure.image_url %}<img src="{{ figure.image_url|proxied_image_url }}" alt="Bild von {{ figure.name }}" loading="lazy" data-image-fallback>{% else %}<span class="part-placeholder">Kein Bild</span>{% endif %}</span>
           <span class="minifigure-summary-identity"><strong>{{ figure.name }}</strong><small>{{ figure.figure_number }} · {{ figure.quantity }}× im Set</small></span>
-          <span class="minifigure-summary-count"><span><span data-figure-owned>{{ figure.owned_quantity }}</span>/<span data-figure-required>{{ figure.quantity }}</span> vorhanden</span><span class="badge {% if figure.owned_quantity >= figure.quantity %}complete{% elif figure.owned_quantity == 0 %}missing{% else %}partial{% endif %}" data-figure-status>{% if figure.owned_quantity >= figure.quantity %}Vollständig{% elif figure.owned_quantity == 0 %}Fehlend{% else %}Teilweise{% endif %}</span></span>
+          <span class="minifigure-summary-count"><span><span data-figure-owned>{{ record.owned }}</span>/<span data-figure-required>{{ record.required }}</span> vorhanden</span><span class="badge {{ record.status }}" data-figure-status>{{ record.status_label }}</span></span>
         </summary>
         <div class="minifigure-detail-body">
           {% if figure.notes %}<p class="muted">{{ figure.notes }}</p>{% endif %}
@@ -15,6 +16,7 @@
           </tbody></table></div>
         </div>
       </details>
+      {% endwith %}
     {% empty %}<div class="empty">Keine Minifiguren hinterlegt.</div>{% endfor %}
   </div>
 </section>

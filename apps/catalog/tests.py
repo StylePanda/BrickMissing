@@ -1167,6 +1167,8 @@ class BatchSetImportTests(TestCase):
         page = self.client.get(reverse("catalog:set_batch_import"))
         self.assertEqual(page.status_code, 200)
         self.assertNotContains(page, "batch-default-date")
+        self.assertContains(page, 'data-batch-errors')
+        self.assertContains(page, 'data-batch-error-list')
         response = self.client.post(reverse("catalog:set_batch_preview"), {"set_numbers": "10300 10300"})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["duplicates"], 1)
@@ -1206,6 +1208,8 @@ class BatchSetImportTests(TestCase):
     def test_batch_import_rejects_invalid_metadata_without_creating_set(self):
         response = self.client.post(reverse("catalog:set_batch_import_one"), {"set_number": "10301", "purchase_date": "not-a-date"})
         self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["status"], "error")
+        self.assertIn("Rebrickable", response.json()["message"])
         self.assertFalse(LegoSet.objects.filter(owner=self.user, set_number="10301-1").exists())
 
 
@@ -1239,3 +1243,69 @@ class MissingSavedViewsTests(TestCase):
         deleted = self.client.post(reverse("saved_view_delete", args=[own.pk]), {"next": "/fehlteile/"})
         self.assertEqual(deleted.status_code, 302)
         self.assertFalse(SavedView.objects.filter(pk=own.pk).exists())
+
+
+class SetDetailMinifigureCompletenessTests(TestCase):
+    """Set-detail status must use canonical non-spare part quantities."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            "figureowner", "figureowner@example.test", "A-long-safe-password-123"
+        )
+        self.client.force_login(self.user)
+        self.lego_set = LegoSet.objects.create(
+            owner=self.user, set_number="9999-1", name="Test Set"
+        )
+
+    def _status(self, parts):
+        figure = SetMinifigure.objects.create(
+            owner=self.user,
+            lego_set=self.lego_set,
+            figure_number="fig-1",
+            name="Testfigur",
+            quantity=1,
+            owned_quantity=0,
+        )
+        for values in parts:
+            MinifigurePart.objects.create(minifigure=figure, **values)
+        response = self.client.get(reverse("catalog:set_detail", args=[self.lego_set.pk]))
+        self.assertEqual(response.status_code, 200)
+        record = response.context["minifigure_records"][0]
+        return record["status"], record["required"], record["owned"], response
+
+    def test_set_detail_uses_parts_for_complete_partial_missing_and_unknown(self):
+        cases = [
+            (
+                "complete",
+                [{"part_number": "head", "name": "Kopf", "quantity": 1, "owned_quantity": 1}],
+            ),
+            (
+                "partial",
+                [
+                    {"part_number": "head", "name": "Kopf", "quantity": 1, "owned_quantity": 1},
+                    {"part_number": "torso", "name": "Torso", "quantity": 1, "owned_quantity": 0},
+                ],
+            ),
+            (
+                "missing",
+                [{"part_number": "head", "name": "Kopf", "quantity": 1, "owned_quantity": 0}],
+            ),
+            ("unknown", []),
+        ]
+        for expected, parts in cases:
+            with self.subTest(expected=expected):
+                status, required, owned, response = self._status(parts)
+                self.assertEqual(status, expected)
+                if expected == "unknown":
+                    self.assertEqual(required, 0)
+                self.assertContains(response, f'data-figure-status>{dict(complete="Vollständig", partial="Teilweise", missing="Fehlend", unknown="Unbekannt")[expected]}</span>')
+                SetMinifigure.objects.all().delete()
+
+    def test_set_detail_ignores_spares_removed_references_and_clamps_owned(self):
+        status, required, owned, response = self._status([
+            {"part_number": "head", "name": "Kopf", "quantity": 1, "owned_quantity": 2},
+            {"part_number": "spare", "name": "Ersatz", "quantity": 1, "owned_quantity": 0, "is_spare": True},
+            {"part_number": "removed", "name": "Entfernt", "quantity": 0, "owned_quantity": 0},
+        ])
+        self.assertEqual((status, required, owned), ("complete", 1, 1))
+        self.assertContains(response, "Vollständig")
