@@ -657,13 +657,98 @@ class CatalogFlowTests(TestCase):
         lego_set = LegoSet.objects.create(owner=self.user, set_number="75010", name="B-wing")
         item = SetInventoryItem.objects.create(lego_set=lego_set, part_number="3001", name="Stein", required_quantity=4, owned_quantity=1, is_spare=True)
         response = self.client.get(reverse("catalog:set_detail", args=[lego_set.pk]), {"art": "spare"})
-        self.assertContains(response, "Set-Inventar")
+        self.assertContains(response, 'id="set-inventory"')
         self.assertContains(response, "Ersatzteil")
-        self.assertContains(response, "3")
+        self.assertContains(response, "3 fehlt")
         update = reverse("catalog:set_inventory_quantity", args=[lego_set.pk, item.pk])
         self.assertRedirects(self.client.post(update, {"owned_quantity": 3}), reverse("catalog:set_detail", args=[lego_set.pk]))
         item.refresh_from_db()
         self.assertEqual(item.owned_quantity, 3)
+
+    def test_set_detail_redesign_keeps_identity_status_actions_and_sections(self):
+        lego_set = LegoSet.objects.create(
+            owner=self.user,
+            set_number="10300-1",
+            name="Back to the Future Time Machine",
+            theme="LEGO Icons",
+            year=2022,
+            condition="neu",
+            build_status="aufgebaut",
+            image_url="https://example.test/set.png",
+            purchase_price=Decimal("149.99"),
+            current_value=Decimal("199.95"),
+            notes="Vitrine, oberes Fach",
+            has_box=True,
+            has_instructions=True,
+        )
+        SetInventoryItem.objects.create(
+            lego_set=lego_set,
+            part_number="3001",
+            name="Langer Name für einen Inventarstein",
+            color_name="Red",
+            required_quantity=4,
+            owned_quantity=1,
+        )
+        SetInventoryItem.objects.create(
+            lego_set=lego_set,
+            part_number="3002",
+            name="Ersatzplatte",
+            required_quantity=1,
+            owned_quantity=1,
+            is_spare=True,
+        )
+        figure = SetMinifigure.objects.create(
+            owner=self.user,
+            lego_set=lego_set,
+            figure_number="doc001",
+            name="Doc Brown",
+            quantity=1,
+            owned_quantity=0,
+        )
+        MinifigurePart.objects.create(
+            minifigure=figure,
+            part_number="3626",
+            name="Kopf",
+            quantity=1,
+            owned_quantity=0,
+        )
+
+        response = self.client.get(reverse("catalog:set_detail", args=[lego_set.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        for marker in (
+            'class="set-detail-hero"',
+            'class="set-statuses"',
+            'class="set-key-metrics"',
+            'id="set-information-title"',
+            'id="set-inventory"',
+            'id="minifigures-title"',
+            'class="set-advanced no-print"',
+        ):
+            self.assertContains(response, marker)
+        for content in (
+            lego_set.set_number,
+            lego_set.name,
+            lego_set.theme,
+            "Neu",
+            "Aufgebaut",
+            "Unvollständig",
+            "3 fehlt",
+            "Ersatzteil",
+            figure.figure_number,
+            "Vitrine, oberes Fach",
+            "Etikett / QR drucken",
+            "Bauanleitungen öffnen",
+            "Marktwert aktualisieren",
+        ):
+            self.assertContains(response, content)
+        self.assertContains(response, "Rebrickable synchronisieren", count=1)
+        self.assertContains(response, reverse("catalog:set_edit", args=[lego_set.pk]))
+        self.assertContains(response, reverse("integrations:sync_rebrickable", args=[lego_set.pk]))
+        self.assertContains(response, reverse("catalog:set_delete", args=[lego_set.pk]))
+        self.assertContains(response, 'data-confirm="Set in den Papierkorb verschieben?"')
+        self.assertContains(response, "csrfmiddlewaretoken")
+        self.assertNotContains(response, "Figuren und benötigte Teile")
 
     def test_set_inventory_supports_multicolor_stock_filters_and_all_sorts(self):
         lego_set = LegoSet.objects.create(owner=self.user, set_number="75010", name="B-wing")
