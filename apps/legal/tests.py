@@ -54,16 +54,30 @@ class LegalPageTests(TestCase):
         self.assertContains(response, "Beispiel GmbH")
         self.assertContains(response, "ATU00000000")
 
-    def test_imprint_contains_structured_private_project_information(self):
+    @override_settings(
+        LEGAL_OPERATOR_NAME="Simon Weiss",
+        LEGAL_OPERATOR_CITY="Wien",
+        LEGAL_OPERATOR_EMAIL="kontakt@example.test",
+    )
+    def test_imprint_contains_shared_stylepanda_project_information(self):
         response = self.client.get(reverse("legal:imprint"))
         for text in (
             "Medieninhaber",
+            "Simon Weiss",
+            "Wohnort: Wien",
             "Kontakt",
-            "Inhaltliche Ausrichtung",
-            "private, nichtkommerzielle Webanwendung",
+            "kontakt@example.test",
+            "Unter StylePanda werden private, nichtkommerzielle Webprojekte",
+            "BrickMissing, eine private Webanwendung",
+            "Sets, Teilen, Fehlteilen, Inventar",
+            "StylePanda Tools",
+            "browserbasierter Text- und PDF-Werkzeuge",
+            "Hinweis zu BrickMissing",
             "unabhängiges Projekt",
+            "LEGO® ist eine Marke der LEGO Gruppe",
         ):
             self.assertContains(response, text)
+        self.assertNotContains(response, "Musterweg 1")
 
     def test_imprint_states_minimal_media_law_basis_with_official_ris_link(self):
         response = self.client.get(reverse("legal:imprint"))
