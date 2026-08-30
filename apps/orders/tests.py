@@ -20,7 +20,7 @@ class OrderReceiptTests(TestCase):
 
     def test_receipt_creates_inventory_and_movement(self):
         response = self.client.post(reverse("orders:receive_item", args=[self.order.pk, self.item.pk]), {"quantity": 3})
-        self.assertRedirects(response, reverse("orders:detail", args=[self.order.pk]))
+        self.assertRedirects(response, f"{reverse('orders:detail', args=[self.order.pk])}#order-positions")
         inventory = InventoryItem.objects.get(owner=self.user, part_number="3001")
         self.assertEqual(inventory.quantity, 3)
         self.assertEqual(InventoryMovement.objects.get(item=inventory).difference, 3)
@@ -90,3 +90,46 @@ class OrderReceiptTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertFalse(OrderItem.objects.filter(order=self.order, name="Injected").exists())
+
+    def test_order_list_search_and_pagination_are_owner_scoped(self):
+        Order.objects.create(owner=self.user, supplier="BrickLink", order_number="BL-42")
+        Order.objects.create(owner=self.other, supplier="BrickLink", order_number="FOREIGN")
+        found = self.client.get(reverse("orders:list"), {"q": "bricklink"})
+        self.assertEqual(found.context["page_obj"].paginator.count, 1)
+        self.assertContains(found, "BL-42")
+        self.assertNotContains(found, "FOREIGN")
+
+        Order.objects.bulk_create(
+            [Order(owner=self.user, supplier="Bulk", order_number=f"B-{index:03d}") for index in range(51)]
+        )
+        first = self.client.get(reverse("orders:list"), {"q": "Bulk"})
+        self.assertEqual(first.context["page_obj"].paginator.count, 51)
+        self.assertEqual(len(first.context["page_obj"].object_list), 50)
+        self.assertContains(first, 'name="q"')
+        self.assertContains(first, "page=2")
+        second = self.client.get(reverse("orders:list"), {"q": "Bulk", "page": 2})
+        self.assertEqual(len(second.context["page_obj"].object_list), 1)
+
+    def test_order_detail_positions_are_paginated_and_receive_keeps_context(self):
+        OrderItem.objects.bulk_create(
+            [OrderItem(order=self.order, part_number=f"P-{index:03d}", quantity=1) for index in range(51)]
+        )
+        first = self.client.get(reverse("orders:detail", args=[self.order.pk]))
+        self.assertEqual(first.context["page_obj"].paginator.count, 52)
+        self.assertEqual(len(first.context["page_obj"].object_list), 50)
+        second = self.client.get(reverse("orders:detail", args=[self.order.pk]), {"page": 2})
+        self.assertEqual(len(second.context["page_obj"].object_list), 2)
+        item = second.context["page_obj"].object_list[0]
+        valid_next = f"{reverse('orders:detail', args=[self.order.pk])}?page=2#order-positions"
+        response = self.client.post(
+            reverse("orders:receive_item", args=[self.order.pk, item.pk]),
+            {"quantity": 1, "next": valid_next},
+        )
+        self.assertRedirects(response, valid_next)
+
+    def test_order_receive_rejects_external_return_context(self):
+        response = self.client.post(
+            reverse("orders:receive_item", args=[self.order.pk, self.item.pk]),
+            {"quantity": 1, "next": "https://evil.example/steal"},
+        )
+        self.assertRedirects(response, f"{reverse('orders:detail', args=[self.order.pk])}#order-positions")

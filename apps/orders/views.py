@@ -5,8 +5,11 @@ from django.core import signing
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db import models, transaction
+from django.db.models import Q
 from django.http import HttpResponseBadRequest, HttpResponseNotAllowed
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from apps.audit.models import AuditEvent
@@ -21,9 +24,24 @@ from .importers import parse_order_csv
 from .models import Order, OrderItem
 
 
+def _order_return_url(request, order):
+    fallback = f"{reverse('orders:detail', args=[order.pk])}#order-positions"
+    target = request.POST.get("next", "").strip()
+    if target and url_has_allowed_host_and_scheme(
+        target,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return target
+    return fallback
+
+
 @login_required
 def order_list(request):
     records = Order.objects.filter(owner=request.user, deleted_at__isnull=True).prefetch_related("items")
+    query = request.GET.get("q", "").strip()
+    if query:
+        records = records.filter(Q(supplier__icontains=query) | Q(order_number__icontains=query))
     status = request.GET.get("status", "")
     valid_statuses = set(Order.STATUS_LABELS)
     if status in valid_statuses:
@@ -31,7 +49,7 @@ def order_list(request):
     else:
         status = ""
     counts = [(key, Order.STATUS_LABELS[key], Order.objects.filter(owner=request.user, deleted_at__isnull=True, status=key).count()) for key in Order.STATUS_LABELS]
-    return render(request, "orders/list.html", {"page_obj": Paginator(records.order_by("-created_at"), 30).get_page(request.GET.get("page")), "status": status, "status_counts": counts})
+    return render(request, "orders/list.html", {"page_obj": Paginator(records.order_by("-created_at", "-pk"), 50).get_page(request.GET.get("page")), "status": status, "status_counts": counts, "query": query})
 
 
 @login_required
@@ -122,12 +140,14 @@ def order_edit(request, pk=None):
 
 @login_required
 def order_detail(request, pk):
-    order = get_object_or_404(Order.objects.prefetch_related("items"), pk=pk, owner=request.user)
+    order = get_object_or_404(Order, pk=pk, owner=request.user)
+    items = order.items.order_by("pk")
+    page_obj = Paginator(items, 50).get_page(request.GET.get("page"))
     record_recent(
         request.user, "order", order.pk,
         order.order_number or order.supplier, request.path,
     )
-    return render(request, "orders/detail.html", {"order": order})
+    return render(request, "orders/detail.html", {"order": order, "page_obj": page_obj})
 
 
 @login_required
@@ -182,4 +202,4 @@ def receive_item(request, order_pk, pk):
         order.status = "received"
         order.save(update_fields=["status", "updated_at"])
     AuditEvent.objects.create(actor=request.user, target_user=request.user, action="order.received", entity_type="order_item", entity_id=str(item.pk), details={"quantity": amount, "inventory_item": inventory.pk}, request_id=request.request_id)
-    return redirect("orders:detail", pk=order.pk)
+    return redirect(_order_return_url(request, order))

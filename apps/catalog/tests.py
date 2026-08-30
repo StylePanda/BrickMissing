@@ -912,7 +912,6 @@ class CatalogFlowTests(TestCase):
             'id="set-information-title"',
             'id="set-inventory"',
             'id="minifigures-title"',
-            'class="set-advanced no-print"',
             'class="set-copies"',
         ):
             self.assertContains(response, marker)
@@ -936,6 +935,8 @@ class CatalogFlowTests(TestCase):
         self.assertContains(response, reverse("catalog:set_edit", args=[lego_set.pk]))
         self.assertContains(response, reverse("integrations:sync_rebrickable", args=[lego_set.pk]))
         self.assertContains(response, reverse("catalog:set_delete", args=[lego_set.pk]))
+        self.assertContains(response, "Set löschen", count=1)
+        self.assertNotContains(response, "Erweiterte Aktionen")
         self.assertContains(response, 'data-confirm="Set in den Papierkorb verschieben?"')
         self.assertContains(response, "csrfmiddlewaretoken")
         self.assertNotContains(response, "Figuren und benötigte Teile")

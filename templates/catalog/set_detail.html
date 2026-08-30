@@ -24,6 +24,7 @@
     <div class="set-hero-actions no-print" aria-label="Set-Aktionen">
       <a class="button primary" href="{% url 'catalog:set_edit' lego_set.pk %}">Set bearbeiten</a>
       <form method="post" action="{% url 'integrations:sync_rebrickable' lego_set.pk %}">{% csrf_token %}<button type="submit">Rebrickable synchronisieren</button></form>
+      <form method="post" action="{% url 'catalog:set_delete' lego_set.pk %}" data-confirm="Set in den Papierkorb verschieben?">{% csrf_token %}<button class="danger" type="submit">Set löschen</button></form>
       <details class="action-menu set-more-actions">
         <summary class="button">Weitere Aktionen</summary>
         <div class="action-menu-content">
@@ -88,11 +89,6 @@
 </section>
 
 {% include "catalog/_minifigure_inventory.html" %}
-
-<details class="set-advanced no-print">
-  <summary>Erweiterte Aktionen</summary>
-  <div class="set-danger-action"><div><h2>Set löschen</h2><p class="muted">Das Set wird zunächst in den Papierkorb verschoben.</p></div><form method="post" action="{% url 'catalog:set_delete' lego_set.pk %}" data-confirm="Set in den Papierkorb verschieben?">{% csrf_token %}<button class="danger" type="submit">Set löschen</button></form></div>
-</details>
 
 <dialog id="image-lightbox" class="image-lightbox" aria-labelledby="image-lightbox-title"><button class="lightbox-close" type="button" data-lightbox-close aria-label="Bildansicht schließen">×</button><img alt=""><p id="image-lightbox-title"></p></dialog>
 {% endblock %}
