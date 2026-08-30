@@ -183,7 +183,6 @@ class InterfaceQualityTests(TestCase):
         self.assertIn(reverse("orders:list"), navigation)
         self.assertIn(reverse("organizer:label_studio"), navigation)
         self.assertIn(reverse("data_portability:import_page"), navigation)
-        self.assertNotIn(reverse("media_library:list"), navigation)
         self.assertNotIn(reverse("global_search"), navigation)
         self.assertIn('class="nav-group', navigation)
         self.assertNotIn('class="nav-home" href="/suche/', navigation)
@@ -271,6 +270,11 @@ class InterfaceQualityTests(TestCase):
         self.assertIn('window.location.hash === "#collection-search"', source)
         self.assertNotIn('getElementById("global-search")', source)
         self.assertNotIn('window.location.assign("/suche/")', source)
+
+    def test_removed_unused_product_routes_are_not_available(self):
+        for path in ("/dokumente/", "/benachrichtigungen/", "/zuletzt/"):
+            with self.subTest(path=path):
+                self.assertEqual(self.client.get(path).status_code, 404)
 
     def test_custom_error_pages_render(self):
         for template_name, expected in (

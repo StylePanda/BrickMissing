@@ -606,6 +606,8 @@ dd { margin: 0; }
   .saved-view-manager-row { align-items: stretch; flex-direction: column; }
   .saved-view-manager-row > *, .saved-view-manager-row form { width: 100%; }
   .saved-view-manager-row form { display: grid; gap: var(--space-2); }
+  .organizer-area-nav { align-items: center; flex-wrap: nowrap; overflow-x: auto; padding: var(--space-2); }
+  .organizer-area-nav > * { flex: 0 0 auto; width: auto; white-space: nowrap; }
 }
 @media (max-width: 1024px) {
   .set-detail-hero { grid-template-columns: minmax(210px, 30%) minmax(0, 1fr); }

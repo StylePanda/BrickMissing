@@ -8,7 +8,6 @@ from django.db import connection
 from django.db.models import Count
 from django.http import FileResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
 from apps.catalog.models import LegoSet, Part
@@ -17,7 +16,7 @@ from apps.inventory.models import InventoryItem
 from apps.orders.models import Order
 
 from .email import send_templated_email
-from .models import DataQualityIssue, Notification, RecentItem, SavedView
+from .models import DataQualityIssue, SavedView
 
 
 @require_GET
@@ -62,21 +61,6 @@ def test_email(request):
         )
         messages.success(request, "Testmail wurde an das konfigurierte Backend übergeben.")
     return redirect("backups:list")
-
-
-@login_required
-def notifications(request):
-    records = Notification.objects.filter(owner=request.user)[:200]
-    return render(request, "core/notifications.html", {"notifications": records})
-
-
-@login_required
-@require_POST
-def notification_read(request, pk):
-    item = get_object_or_404(Notification, pk=pk, owner=request.user)
-    item.read_at = timezone.now()
-    item.save(update_fields=["read_at"])
-    return redirect("notifications")
 
 
 @login_required
@@ -139,14 +123,6 @@ def saved_view_load(request, pk):
     if query:
         target = f"{target}?{query}"
     return redirect(target)
-
-
-@login_required
-def recent_items(request):
-    return render(
-        request, "core/recent_items.html",
-        {"recent_items": RecentItem.objects.filter(owner=request.user)[:50]},
-    )
 
 
 @login_required

@@ -411,6 +411,25 @@ class OrganizerListRenderingTests(TestCase):
         self.assertEqual(response.context["rows"][0]["record"], preferred)
         self.assertContains(response, "Standard")
 
+    def test_organizer_lists_are_paginated_without_silent_limit(self):
+        Collection.objects.bulk_create(
+            [Collection(owner=self.user, name=f"Collection {index:03d}") for index in range(501)]
+        )
+
+        first = self.client.get(reverse("organizer:list", args=["collections"]))
+        self.assertEqual(first.context["page_obj"].paginator.count, 501)
+        self.assertEqual(len(first.context["page_obj"].object_list), 50)
+        self.assertContains(first, 'class="pagination"')
+
+        last = self.client.get(reverse("organizer:list", args=["collections"]), {"page": 11})
+        self.assertEqual(len(last.context["page_obj"].object_list), 1)
+        self.assertContains(last, "Collection 000")
+
+    def test_organizer_area_navigation_is_compact_on_mobile(self):
+        response = self.client.get(reverse("organizer:list", args=["collections"]))
+        self.assertContains(response, 'class="filters organizer-area-nav"')
+        self.assertContains(response, 'aria-current="page">Sammlungen</a>')
+
 
 class MinifigureInventoryInteractionTests(TestCase):
     def setUp(self):

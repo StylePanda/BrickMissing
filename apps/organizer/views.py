@@ -266,13 +266,17 @@ def area_list(request, area):
         if area == "labels"
         else records.order_by("-pk")
     )
-    records = records[:500]
+    page_obj = Paginator(records, 50).get_page(request.GET.get("page"))
     display = AREA_DISPLAY[area]
     rows = []
-    for record in records:
+    for record in page_obj.object_list:
         label, secondary = display(record)
         rows.append({"record": record, "label": label, "secondary": secondary})
-    return render(request, "organizer/list.html", {"rows": rows, "title": title, "area": area})
+    return render(
+        request,
+        "organizer/list.html",
+        {"rows": rows, "title": title, "area": area, "page_obj": page_obj},
+    )
 
 
 @login_required
