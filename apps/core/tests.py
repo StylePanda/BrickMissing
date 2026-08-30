@@ -219,6 +219,18 @@ class InterfaceQualityTests(TestCase):
                 content = self.client.get(reverse(route_name)).content.decode()
                 self.assertIn(f"<summary>{label}</summary>", content)
 
+    def test_minifigures_navigation_does_not_activate_organisation_group(self):
+        response = self.client.get(reverse("organizer:minifigure_list"))
+        navigation = re.search(
+            r'<nav id="main-navigation".*?</nav>',
+            response.content.decode(),
+            re.DOTALL,
+        ).group()
+
+        self.assertIn('aria-current="page">Minifiguren</a>', navigation)
+        self.assertIn('<details class="nav-group is-active" data-nav-group><summary>Minifiguren</summary>', navigation)
+        self.assertNotIn('<details class="nav-group is-active" data-nav-group><summary>Organisation</summary>', navigation)
+
     def test_missing_parts_has_exactly_one_primary_navigation_item(self):
         response = self.client.get(reverse("catalog:missing_parts"))
         navigation = re.search(r'<nav id="main-navigation".*?</nav>', response.content.decode(), re.DOTALL).group()
