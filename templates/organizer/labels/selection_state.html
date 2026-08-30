@@ -1,0 +1,4 @@
+<div data-label-selection-state>
+  {% for selected_id in hidden_selected_ids %}<input type="hidden" name="item" value="{{ selected_id }}" data-label-preserved-item>{% endfor %}
+  {% if label_type != 'colors' %}<div data-set-controls><label><span class="sr-only">Sets suchen</span><input type="search" name="q" value="{{ query }}" placeholder="Setnummer oder Name suchen" data-label-search></label><div class="label-selection-head"><strong>Sets auswählen</strong><button type="button" class="ghost" data-label-select-none>Alle abwählen</button></div><div class="label-set-list">{% for lego_set in sets %}<label><input type="checkbox" name="item" value="{{ lego_set.pk }}"{% if lego_set.pk|stringformat:'s' in selected_ids %} checked{% endif %}><span><strong>{{ lego_set.set_number }}</strong><small>{{ lego_set.name }}</small></span></label>{% empty %}<p>Keine eigenen Sets gefunden.</p>{% endfor %}</div></div>{% endif %}
+</div>

@@ -43,6 +43,25 @@
     studio.dataset.ready = "true";
     const form = studio.querySelector("[data-label-form]");
     const endpoint = form.action || window.location.pathname;
+    function bindSelectionControls() {
+      const search = form.querySelector("[data-label-search]");
+      if (search && !search.dataset.labelsReady) {
+        search.dataset.labelsReady = "true";
+        search.addEventListener("input", () => {
+          window.clearTimeout(timer);
+          timer = window.setTimeout(() => refresh(), 180);
+        });
+      }
+      const selectNone = form.querySelector("[data-label-select-none]");
+      if (selectNone && !selectNone.dataset.labelsReady) {
+        selectNone.dataset.labelsReady = "true";
+        selectNone.addEventListener("click", () => {
+          form.querySelectorAll('input[type="checkbox"][name="item"]').forEach((item) => { item.checked = false; });
+          form.querySelectorAll("[data-label-preserved-item]").forEach((item) => item.remove());
+          refresh();
+        });
+      }
+    }
     function buildHistoryUrl(formData) {
       const url = new URL(window.location.pathname, window.location.origin);
       ["type", "q", "start", "images", "qr_target", "checked_text", "checked_count"]
@@ -81,9 +100,22 @@
           studio.replaceWith(replacement);
           init();
         } else {
-          const replacement = documentCopy.querySelector("[data-label-preview]");
-          if (!replacement) throw new Error("Die Serverantwort enthält keine Etikettenvorschau.");
-          studio.querySelector("[data-label-preview]").replaceWith(replacement);
+          const replacementState = documentCopy.querySelector("[data-label-selection-state]");
+          const replacementPreview = documentCopy.querySelector("[data-label-preview]");
+          if (!replacementState || !replacementPreview) throw new Error("Die Serverantwort enthält keine vollständige Studio-Aktualisierung.");
+          const activeSearch = document.activeElement === form.querySelector("[data-label-search]");
+          const selectionStart = activeSearch ? document.activeElement.selectionStart : null;
+          const selectionEnd = activeSearch ? document.activeElement.selectionEnd : null;
+          form.querySelector("[data-label-selection-state]").replaceWith(replacementState);
+          studio.querySelector("[data-label-preview]").replaceWith(replacementPreview);
+          bindSelectionControls();
+          if (activeSearch) {
+            const updatedSearch = form.querySelector("[data-label-search]");
+            updatedSearch?.focus();
+            if (selectionStart !== null && selectionEnd !== null) {
+              updatedSearch?.setSelectionRange(selectionStart, selectionEnd);
+            }
+          }
         }
         window.history.replaceState({}, "", buildHistoryUrl(formData));
       } catch (error) {
@@ -114,7 +146,7 @@
       window.clearTimeout(timer);
       refresh({full: event.target.name === "type"});
     });
-    form.querySelectorAll("[data-label-search],[data-label-text]").forEach((input) => input.addEventListener("input", () => {
+    form.querySelectorAll("[data-label-text]").forEach((input) => input.addEventListener("input", () => {
       window.clearTimeout(timer); timer = window.setTimeout(() => refresh(), 180);
     }));
     const selectAll = document.querySelector("[data-label-select-all]");
@@ -126,11 +158,7 @@
         activeStudio?.querySelector("[data-label-form]")?.dispatchEvent(new Event("change", {bubbles: true}));
       });
     }
-    form.querySelector("[data-label-select-none]")?.addEventListener("click", () => {
-      form.querySelectorAll('input[type="checkbox"][name="item"]').forEach((item) => { item.checked = false; });
-      form.querySelectorAll("[data-label-preserved-item]").forEach((item) => item.remove());
-      refresh();
-    });
+    bindSelectionControls();
     const printButton = document.querySelector("[data-label-print]");
     if (printButton && !printButton.dataset.labelsReady) {
       printButton.dataset.labelsReady = "true";

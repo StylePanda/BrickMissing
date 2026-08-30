@@ -41,10 +41,20 @@ document.addEventListener("keydown", (event) => {
   }
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
     event.preventDefault();
-    const field = document.getElementById("global-search");
-    if (field) field.focus(); else window.location.assign("/suche/");
+    const field = document.getElementById("collection-search");
+    if (field) {
+      field.focus();
+      field.select();
+    } else {
+      window.location.assign(document.body.dataset.dashboardSearchUrl);
+    }
   }
 });
+if (window.location.hash === "#collection-search") {
+  const field = document.getElementById("collection-search");
+  field?.focus();
+  field?.select();
+}
 
 document.querySelectorAll("form[data-confirm]").forEach((form) => {
   form.addEventListener("submit", (event) => {

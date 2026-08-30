@@ -6,9 +6,11 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Count, F, Q, Sum
+from django.db.models import Case, Count, F, IntegerField, Q, Sum, Value, When
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from apps.audit.models import AuditEvent
@@ -35,6 +37,18 @@ from .services import soft_delete, update_part
 
 def _page(request, queryset, size=50):
     return Paginator(queryset, size).get_page(request.GET.get("page"))
+
+
+def _set_inventory_return_url(request, lego_set):
+    fallback = f"{reverse('catalog:set_detail', args=[lego_set.pk])}#set-inventory"
+    target = request.POST.get("next", "").strip()
+    if target and url_has_allowed_host_and_scheme(
+        target,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return target
+    return fallback
 
 
 @login_required
@@ -150,7 +164,22 @@ def set_detail(request, pk):
         "-missing": ("-missing_amount", "name"),
     }
     sort = sort if sort in inventory_sorting else "name"
-    inventory = inventory.annotate(missing_amount=F("required_quantity") - F("owned_quantity")).order_by(*inventory_sorting[sort])
+    inventory = inventory.annotate(
+        missing_amount=F("required_quantity") - F("owned_quantity")
+    )
+    if sort == "color" and len(selected_colors) > 1:
+        inventory = inventory.annotate(
+            selected_color_order=Case(
+                *[
+                    When(color_name=color, then=Value(position))
+                    for position, color in enumerate(selected_colors)
+                ],
+                default=Value(len(selected_colors)),
+                output_field=IntegerField(),
+            )
+        ).order_by("selected_color_order", "name", "pk")
+    else:
+        inventory = inventory.order_by(*inventory_sorting[sort])
     page_obj = Paginator(inventory, 50).get_page(request.GET.get("page"))
     all_inventory = lego_set.inventory_items.all()
     colors = list(all_inventory.exclude(color_name="").values_list("color_name", flat=True).distinct().order_by("color_name"))
@@ -906,4 +935,4 @@ def set_inventory_quantity(request, set_pk, pk):
     item.full_clean()
     item.save(update_fields=["owned_quantity", "updated_at"])
     AuditEvent.objects.create(actor=request.user, target_user=request.user, action="set_inventory.quantity_changed", entity_type="set_inventory_item", entity_id=str(item.pk), details={"owned_quantity": quantity}, request_id=request.request_id)
-    return redirect("catalog:set_detail", pk=lego_set.pk)
+    return redirect(_set_inventory_return_url(request, lego_set))

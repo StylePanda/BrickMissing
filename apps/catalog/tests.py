@@ -1,6 +1,8 @@
 from decimal import Decimal
+from pathlib import Path
 from unittest.mock import patch
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
@@ -661,7 +663,10 @@ class CatalogFlowTests(TestCase):
         self.assertContains(response, "Ersatzteil")
         self.assertContains(response, "3 fehlt")
         update = reverse("catalog:set_inventory_quantity", args=[lego_set.pk, item.pk])
-        self.assertRedirects(self.client.post(update, {"owned_quantity": 3}), reverse("catalog:set_detail", args=[lego_set.pk]))
+        self.assertEqual(
+            self.client.post(update, {"owned_quantity": 3}).url,
+            f"{reverse('catalog:set_detail', args=[lego_set.pk])}#set-inventory",
+        )
         item.refresh_from_db()
         self.assertEqual(item.owned_quantity, 3)
 
@@ -832,9 +837,9 @@ class CatalogFlowTests(TestCase):
         update_url = reverse(
             "catalog:set_inventory_quantity", args=[lego_set.pk, item.pk]
         )
-        self.assertRedirects(
-            self.client.post(update_url, {"owned_quantity": 2}),
-            url,
+        self.assertEqual(
+            self.client.post(update_url, {"owned_quantity": 2}).url,
+            f"{url}#set-inventory",
         )
         item.refresh_from_db()
         self.assertEqual((item.owned_quantity, item.missing_quantity), (2, 1))
@@ -908,6 +913,7 @@ class CatalogFlowTests(TestCase):
             'id="set-inventory"',
             'id="minifigures-title"',
             'class="set-advanced no-print"',
+            'class="set-copies"',
         ):
             self.assertContains(response, marker)
         for content in (
@@ -933,6 +939,11 @@ class CatalogFlowTests(TestCase):
         self.assertContains(response, 'data-confirm="Set in den Papierkorb verschieben?"')
         self.assertContains(response, "csrfmiddlewaretoken")
         self.assertNotContains(response, "Figuren und benötigte Teile")
+        css = (Path(settings.BASE_DIR) / "static" / "css" / "app.css").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(".set-copies { padding: var(--space-1) var(--space-3); }", css)
+        self.assertIn(".set-copies[open]", css)
 
     def test_set_inventory_supports_multicolor_stock_filters_and_all_sorts(self):
         lego_set = LegoSet.objects.create(owner=self.user, set_number="75010", name="B-wing")
@@ -946,6 +957,192 @@ class CatalogFlowTests(TestCase):
         for ordering in ("name", "-name", "part_number", "-part_number", "color", "required", "-required", "owned", "-owned", "missing", "-missing"):
             with self.subTest(ordering=ordering):
                 self.assertEqual(self.client.get(reverse("catalog:set_detail", args=[lego_set.pk]), {"sort": ordering}).status_code, 200)
+
+    def test_set_inventory_multicolor_sort_respects_selected_order(self):
+        lego_set = LegoSet.objects.create(
+            owner=self.user, set_number="colors-1", name="Farbreihenfolge"
+        )
+        for color, names in (
+            ("Red", ("Red B", "Red A")),
+            ("Blue", ("Blue B", "Blue A")),
+            ("Green", ("Green B", "Green A")),
+        ):
+            for name in names:
+                SetInventoryItem.objects.create(
+                    lego_set=lego_set,
+                    part_number=name.lower().replace(" ", "-"),
+                    name=name,
+                    color_name=color,
+                    required_quantity=2,
+                    owned_quantity=1,
+                )
+        url = reverse("catalog:set_detail", args=[lego_set.pk])
+
+        def colors_for(selection):
+            response = self.client.get(url, {"color": selection, "sort": "color"})
+            return response, [item.color_name for item in response.context["page_obj"]]
+
+        two, two_colors = colors_for(["Red", "Blue"])
+        self.assertEqual(two_colors, ["Red", "Red", "Blue", "Blue"])
+        three, three_colors = colors_for(["Green", "Red", "Blue"])
+        self.assertEqual(
+            three_colors, ["Green", "Green", "Red", "Red", "Blue", "Blue"]
+        )
+        _, reversed_colors = colors_for(["Blue", "Red"])
+        self.assertEqual(reversed_colors, ["Blue", "Blue", "Red", "Red"])
+        self.assertEqual(
+            [item.name for item in two.context["page_obj"]],
+            ["Red A", "Red B", "Blue A", "Blue B"],
+        )
+        view_source = (Path(settings.BASE_DIR) / "apps" / "catalog" / "views.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("selected_color_order=Case(", view_source)
+        self.assertNotIn("list(inventory)", view_source)
+
+    def test_set_inventory_color_sort_single_and_unfiltered_behavior(self):
+        lego_set = LegoSet.objects.create(
+            owner=self.user, set_number="colors-2", name="Allgemeine Farbsortierung"
+        )
+        for color in ("Red", "Blue", "Green"):
+            SetInventoryItem.objects.create(
+                lego_set=lego_set,
+                part_number=color,
+                name=color,
+                color_name=color,
+                required_quantity=1,
+                owned_quantity=1,
+            )
+        url = reverse("catalog:set_detail", args=[lego_set.pk])
+        single = self.client.get(url, {"color": "Red", "sort": "color"})
+        self.assertEqual([item.color_name for item in single.context["page_obj"]], ["Red"])
+        unfiltered = self.client.get(url, {"sort": "color"})
+        self.assertEqual(
+            [item.color_name for item in unfiltered.context["page_obj"]],
+            ["Blue", "Green", "Red"],
+        )
+
+    def test_set_inventory_multicolor_sort_combines_search_stock_and_spares(self):
+        lego_set = LegoSet.objects.create(
+            owner=self.user, set_number="colors-3", name="Kombinierte Filter"
+        )
+        SetInventoryItem.objects.create(
+            lego_set=lego_set, part_number="red-normal", name="Needle Red",
+            color_name="Red", required_quantity=2, owned_quantity=1,
+        )
+        SetInventoryItem.objects.create(
+            lego_set=lego_set, part_number="blue-spare", name="Needle Blue",
+            color_name="Blue", required_quantity=3, owned_quantity=1, is_spare=True,
+        )
+        SetInventoryItem.objects.create(
+            lego_set=lego_set, part_number="red-complete", name="Needle Complete",
+            color_name="Red", required_quantity=1, owned_quantity=1,
+        )
+        url = reverse("catalog:set_detail", args=[lego_set.pk])
+        response = self.client.get(
+            url,
+            {
+                "q": "Needle",
+                "stock": "partial",
+                "art": "all",
+                "color": ["Blue", "Red"],
+                "sort": "color",
+            },
+        )
+        self.assertEqual(
+            [(item.color_name, item.part_number) for item in response.context["page_obj"]],
+            [("Blue", "blue-spare"), ("Red", "red-normal")],
+        )
+        spare = self.client.get(
+            url,
+            {"art": "spare", "color": ["Red", "Blue"], "sort": "color"},
+        )
+        self.assertEqual(
+            [item.part_number for item in spare.context["page_obj"]], ["blue-spare"]
+        )
+
+    def test_set_inventory_multicolor_sort_is_stable_across_pagination(self):
+        lego_set = LegoSet.objects.create(
+            owner=self.user, set_number="colors-4", name="Farbpagination"
+        )
+        SetInventoryItem.objects.bulk_create(
+            [
+                SetInventoryItem(
+                    lego_set=lego_set,
+                    part_number=f"red-{index:03d}",
+                    name=f"Red {index:03d}",
+                    color_name="Red",
+                    required_quantity=1,
+                    owned_quantity=0,
+                )
+                for index in range(70)
+            ]
+            + [
+                SetInventoryItem(
+                    lego_set=lego_set,
+                    part_number=f"blue-{index:03d}",
+                    name=f"Blue {index:03d}",
+                    color_name="Blue",
+                    required_quantity=1,
+                    owned_quantity=0,
+                )
+                for index in range(10)
+            ]
+        )
+        url = reverse("catalog:set_detail", args=[lego_set.pk])
+        params = {"color": ["Red", "Blue"], "sort": "color"}
+        page_one = self.client.get(url, params)
+        page_two = self.client.get(url, {**params, "page": 2})
+        first = list(page_one.context["page_obj"])
+        second = list(page_two.context["page_obj"])
+        self.assertEqual([item.color_name for item in first], ["Red"] * 50)
+        self.assertEqual(
+            [item.color_name for item in second], ["Red"] * 20 + ["Blue"] * 10
+        )
+        identifiers = [item.pk for item in first + second]
+        self.assertEqual(len(identifiers), len(set(identifiers)))
+        self.assertEqual(len(identifiers), 80)
+        for fragment in ("color=Red", "color=Blue", "page=2", "#set-inventory"):
+            self.assertContains(page_one, fragment)
+
+    def test_set_inventory_quantity_preserves_safe_context_and_rejects_external_next(self):
+        lego_set = LegoSet.objects.create(
+            owner=self.user, set_number="return-1", name="Rückkehrkontext"
+        )
+        item = SetInventoryItem.objects.create(
+            lego_set=lego_set, part_number="3001", name="Stein",
+            color_name="Red", required_quantity=4, owned_quantity=0,
+        )
+        update = reverse("catalog:set_inventory_quantity", args=[lego_set.pk, item.pk])
+        detail = reverse("catalog:set_detail", args=[lego_set.pk])
+        internal = (
+            f"{detail}?page=2&q=Stein&stock=missing&art=normal&color=Red&sort=name"
+            "#set-inventory"
+        )
+        self.assertEqual(
+            self.client.post(update, {"owned_quantity": 2, "next": internal}).url,
+            internal,
+        )
+        item.refresh_from_db()
+        self.assertEqual(item.owned_quantity, 2)
+        self.assertEqual(
+            self.client.post(
+                update,
+                {"owned_quantity": 3, "next": "https://evil.example/steal"},
+            ).url,
+            f"{detail}#set-inventory",
+        )
+
+    def test_part_list_links_existing_set_without_extra_relation_lookup(self):
+        lego_set = LegoSet.objects.create(
+            owner=self.user, set_number="linked-1", name="Verlinktes Set"
+        )
+        Part.objects.create(
+            owner=self.user, lego_set=lego_set, element_id="3001", name="Stein"
+        )
+        response = self.client.get(reverse("catalog:part_list"))
+        self.assertContains(response, reverse("catalog:set_detail", args=[lego_set.pk]))
+        self.assertContains(response, lego_set.set_number)
 
     def test_missing_workbench_combines_v7_parity_filters(self):
         lego_set = LegoSet.objects.create(owner=self.user, set_number="123", name="Filterset")

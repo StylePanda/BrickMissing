@@ -246,6 +246,20 @@ class InterfaceQualityTests(TestCase):
         redirect_response = self.client.get(reverse("global_search"), {"q": "SEARCH-SET"})
         self.assertRedirects(redirect_response, "/?q=SEARCH-SET")
 
+    def test_ctrl_k_targets_dashboard_collection_search(self):
+        response = self.client.get(reverse("catalog:set_list"))
+        self.assertContains(
+            response,
+            f'data-dashboard-search-url="{reverse("dashboard")}#collection-search"',
+        )
+        source = (Path(settings.BASE_DIR) / "static" / "js" / "app.js").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('getElementById("collection-search")', source)
+        self.assertIn('window.location.hash === "#collection-search"', source)
+        self.assertNotIn('getElementById("global-search")', source)
+        self.assertNotIn('window.location.assign("/suche/")', source)
+
     def test_custom_error_pages_render(self):
         for template_name, expected in (
             ("400.html", "Die Anfrage konnte nicht verarbeitet werden."),
@@ -366,7 +380,11 @@ class SavedViewAndQualityTests(TestCase):
             for index in range(3)
         ])
         response = self.client.get(reverse("quality"))
-        self.assertContains(response, "Betroffen")
+        self.assertContains(response, "Problemarten")
+        self.assertNotContains(response, "Fehlerarten")
+        self.assertContains(response, "Warnung")
+        self.assertContains(response, 'class="table-wrap"')
+        self.assertContains(response, 'class="quality-details"')
         self.assertContains(response, "3")
         self.assertEqual(response.context["issue_groups"][0]["count"], 3)
         self.assertEqual(DataQualityIssue.objects.filter(owner=self.user).count(), 3)
@@ -395,3 +413,28 @@ class SavedViewAndQualityTests(TestCase):
         )
         self.assertEqual(PriceObservation.objects.get(pk=orphan.pk).owner_id, None)
         self.assertEqual(PriceObservation.objects.get(pk=owned.pk).owner_id, self.user.pk)
+
+    def test_quality_localizes_error_severity_and_saved_views_have_mobile_hook(self):
+        DataQualityIssue.objects.create(
+            owner=self.user,
+            issue_key="broken",
+            entity_type="set",
+            entity_id="1",
+            severity="error",
+            message="Defekter Datensatz",
+        )
+        self.assertContains(self.client.get(reverse("quality")), ">Fehler</span>")
+        SavedView.objects.create(
+            owner=self.user,
+            name="Mobile",
+            area="parts",
+            path="/teile/",
+            configuration={},
+        )
+        saved = self.client.get(reverse("saved_views"))
+        self.assertContains(saved, 'class="row saved-view-manager-row"')
+        css = (Path(settings.BASE_DIR) / "static" / "css" / "app.css").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(".saved-view-manager-row", css)
+        self.assertIn(".quality-details", css)

@@ -562,6 +562,80 @@ class MinifigurePageTests(TestCase):
         self.part.refresh_from_db()
         self.assertEqual(self.part.owned_quantity, 2)
 
+    def _create_paged_figures(self, count=35, lego_set=None):
+        lego_set = lego_set or self.lego_set
+        figures = []
+        for index in range(count):
+            figure = SetMinifigure.objects.create(
+                owner=self.user,
+                lego_set=lego_set,
+                figure_number=f"paged-{index:03d}",
+                name=f"Paged Figure {index:03d}",
+            )
+            MinifigurePart.objects.create(
+                minifigure=figure,
+                part_number=f"part-{index:03d}",
+                name=f"Part Paged {index:03d}",
+                quantity=1,
+            )
+            figures.append(figure)
+        return figures
+
+    def test_pagination_renders_only_current_page_figures_and_parts(self):
+        figures = self._create_paged_figures()
+        url = reverse("organizer:minifigure_list")
+        first = self.client.get(url, {"q": "Paged", "sort": "figure_number"})
+        second = self.client.get(
+            url, {"q": "Paged", "sort": "figure_number", "page": 2}
+        )
+        first_records = [record for group in first.context["groups"] for record in group["figures"]]
+        second_records = [record for group in second.context["groups"] for record in group["figures"]]
+        self.assertEqual([len(first_records), len(second_records)], [30, 5])
+        rendered = [record["figure"].pk for record in first_records + second_records]
+        self.assertEqual(len(rendered), len(set(rendered)))
+        self.assertEqual(set(rendered), {figure.pk for figure in figures})
+        self.assertContains(first, "Part Paged 029")
+        self.assertNotContains(first, "Part Paged 030")
+        self.assertContains(second, "Part Paged 030")
+        self.assertContains(first, "Seite 1 von 2")
+        for fragment in ("q=Paged", "sort=figure_number", "page=2"):
+            self.assertContains(first, fragment)
+
+    def test_pagination_applies_set_filter_and_sort_before_grouping(self):
+        other_set = LegoSet.objects.create(
+            owner=self.user, set_number="9990", name="Paged other set"
+        )
+        self._create_paged_figures(31, lego_set=other_set)
+        url = reverse("organizer:minifigure_list")
+        response = self.client.get(
+            url,
+            {"set": other_set.pk, "sort": "-figure_number", "page": 2},
+        )
+        records = [record for group in response.context["groups"] for record in group["figures"]]
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]["figure"].lego_set_id, other_set.pk)
+        self.assertEqual(response.context["page_obj"].paginator.count, 31)
+        self.assertContains(response, f"set={other_set.pk}")
+        self.assertContains(response, "sort=-figure_number")
+        self.assertEqual(
+            self.client.get(url, {"set": other_set.pk}).context["page_obj"].number, 1
+        )
+
+    def test_pagination_empty_single_page_and_progress_accessible_name(self):
+        url = reverse("organizer:minifigure_list")
+        empty = self.client.get(url, {"q": "does-not-exist"})
+        self.assertEqual(empty.context["page_obj"].paginator.count, 0)
+        self.assertContains(empty, "Keine Minifiguren gefunden")
+        self.assertNotContains(empty, 'class="pagination"')
+        single = self.client.get(url, {"q": self.figure.figure_number})
+        self.assertEqual(single.context["page_obj"].paginator.count, 1)
+        self.assertNotContains(single, 'class="pagination"')
+        self.assertContains(
+            single,
+            f'aria-label="Vollständigkeit von {self.figure.name}: 50 Prozent"',
+        )
+        self.assertNotContains(single, 'class="panel section-heading"')
+
 
 class LabelStudioTests(TestCase):
     def setUp(self):
@@ -775,6 +849,61 @@ class LabelStudioTests(TestCase):
             HTTP_X_REQUESTED_WITH="XMLHttpRequest",
         )
         self.assertEqual(allowed.status_code, 200)
+
+    def test_ajax_search_updates_visible_sets_and_preserves_hidden_selection(self):
+        second = LegoSet.objects.create(
+            owner=self.user, set_number="8000-1", name="Second searchable set"
+        )
+        url = reverse("organizer:label_studio")
+        filtered = self.client.post(
+            url,
+            {
+                "selection": 1,
+                "type": "full",
+                "q": "Second",
+                "item": self.lego_set.pk,
+            },
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(filtered.status_code, 200)
+        self.assertTemplateUsed(filtered, "organizer/labels/studio_update.html")
+        self.assertTemplateUsed(filtered, "organizer/labels/preview.html")
+        self.assertContains(filtered, "data-label-selection-state")
+        self.assertContains(filtered, "data-label-preview")
+        self.assertEqual(list(filtered.context["sets"]), [second])
+        self.assertEqual(filtered.context["hidden_selected_ids"], [str(self.lego_set.pk)])
+        self.assertContains(filtered, "data-label-preserved-item")
+
+        combined = self.client.post(
+            url,
+            {
+                "selection": 1,
+                "type": "full",
+                "q": "",
+                "item": [self.lego_set.pk, second.pk],
+            },
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(
+            set(combined.context["selected_ids"]),
+            {str(self.lego_set.pk), str(second.pk)},
+        )
+        self.assertEqual(set(combined.context["sets"]), {self.lego_set, second})
+        self.assertContains(combined, 'class="print-label label-full"', count=2)
+
+    def test_label_studio_uses_number_neutral_subtitle_and_partial_contract(self):
+        response = self.client.get(reverse("organizer:label_studio"))
+        self.assertContains(response, "Eigenständige, maßgenaue Vorlagen")
+        self.assertNotContains(response, "Vier eigenständige")
+        source = (Path(settings.BASE_DIR) / "static" / "js" / "labels.js").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('querySelector("[data-label-selection-state]")', source)
+        self.assertIn('querySelector("[data-label-preview]")', source)
+        history_builder = source.split("function buildHistoryUrl", 1)[1].split(
+            "async function refresh", 1
+        )[0]
+        self.assertNotIn('"item"', history_builder)
 
     def test_large_post_selection_images_type_switch_invalid_ids_and_owner_scope(self):
         additional_sets = [

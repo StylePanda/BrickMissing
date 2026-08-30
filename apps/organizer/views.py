@@ -4,6 +4,7 @@ from urllib.parse import quote
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
 from django.db import models, transaction
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -161,7 +162,6 @@ def minifigure_list(request):
     figures = (
         SetMinifigure.objects.filter(owner=request.user, lego_set__deleted_at__isnull=True)
         .select_related("lego_set")
-        .prefetch_related("parts")
     )
     query = request.GET.get("q", "").strip()
     if query:
@@ -174,24 +174,58 @@ def minifigure_list(request):
     set_id = request.GET.get("set", "")
     if set_id:
         figures = figures.filter(lego_set_id=set_id)
-    records = [_minifigure_record(figure) for figure in figures]
     sort = request.GET.get("sort", "set_number")
     if sort not in MINIFIGURE_SORTS:
         sort = "set_number"
-    key_name = sort.lstrip("-")
-    reverse_sort = sort.startswith("-")
-    status_order = {"complete": 0, "partial": 1, "missing": 2, "unknown": 3}
-
-    def sort_key(record):
-        if key_name == "set_number":
-            return record["figure"].lego_set.set_number.casefold()
-        if key_name in {"name", "figure_number"}:
-            return getattr(record["figure"], key_name).casefold()
-        if key_name == "completeness":
-            return status_order[record["status"]]
-        return record[key_name]
-
-    records.sort(key=sort_key, reverse=reverse_sort)
+    integer_field = models.IntegerField()
+    figures = figures.annotate(
+        required_total=models.functions.Coalesce(
+            models.Sum(
+                "parts__quantity",
+                filter=models.Q(parts__is_spare=False),
+                output_field=integer_field,
+            ),
+            models.Value(0),
+            output_field=integer_field,
+        ),
+        owned_total=models.functions.Coalesce(
+            models.Sum(
+                models.functions.Least(
+                    models.F("parts__owned_quantity"), models.F("parts__quantity")
+                ),
+                filter=models.Q(parts__is_spare=False),
+                output_field=integer_field,
+            ),
+            models.Value(0),
+            output_field=integer_field,
+        ),
+    ).annotate(
+        missing_total=models.F("required_total") - models.F("owned_total"),
+        completeness_order=models.Case(
+            models.When(required_total=0, then=models.Value(3)),
+            models.When(missing_total=0, then=models.Value(0)),
+            models.When(owned_total=0, then=models.Value(2)),
+            default=models.Value(1),
+            output_field=integer_field,
+        ),
+    )
+    ordering = {
+        "set_number": ("lego_set__set_number", "pk"),
+        "-set_number": ("-lego_set__set_number", "pk"),
+        "name": ("name", "pk"),
+        "-name": ("-name", "pk"),
+        "figure_number": ("figure_number", "pk"),
+        "-figure_number": ("-figure_number", "pk"),
+        "completeness": ("completeness_order", "name", "pk"),
+        "-missing": ("-missing_total", "name", "pk"),
+        "missing": ("missing_total", "name", "pk"),
+        "-required": ("-required_total", "name", "pk"),
+        "-owned": ("-owned_total", "name", "pk"),
+    }
+    page_obj = Paginator(
+        figures.order_by(*ordering[sort]).prefetch_related("parts"), 30
+    ).get_page(request.GET.get("page"))
+    records = [_minifigure_record(figure) for figure in page_obj.object_list]
     groups = OrderedDict()
     for record in records:
         lego_set = record["figure"].lego_set
@@ -205,7 +239,8 @@ def minifigure_list(request):
         "organizer/minifigure_list.html",
         {
             "groups": list(groups.values()),
-            "figure_count": len(records),
+            "figure_count": page_obj.paginator.count,
+            "page_obj": page_obj,
             "query": query,
             "set_id": set_id,
             "available_sets": available_sets,
@@ -654,7 +689,7 @@ def label_studio(request):
             "public_origin": _public_origin(request),
         }
     if request.headers.get("X-Requested-With") == "XMLHttpRequest":
-        return render(request, "organizer/labels/preview.html", context)
+        return render(request, "organizer/labels/studio_update.html", context)
     return render(
         request,
         "organizer/label_studio.html",

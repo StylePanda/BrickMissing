@@ -48,6 +48,13 @@ class OrderReceiptTests(TestCase):
         missing.refresh_from_db()
         self.assertEqual(missing.status, Part.Status.ORDERED)
 
+    def test_order_pages_use_organization_area_label(self):
+        for route_name in ("orders:list", "orders:import"):
+            with self.subTest(route=route_name):
+                response = self.client.get(reverse(route_name))
+                self.assertContains(response, '<p class="eyebrow">Organisation</p>')
+                self.assertNotContains(response, '<p class="eyebrow">Werkzeuge</p>')
+
     def test_receipt_rejects_overdelivery_and_foreign_order(self):
         self.assertEqual(self.client.post(reverse("orders:receive_item", args=[self.order.pk, self.item.pk]), {"quantity": 4}).status_code, 400)
         foreign = Order.objects.create(owner=self.other, supplier="Other")
