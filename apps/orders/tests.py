@@ -110,6 +110,12 @@ class OrderReceiptTests(TestCase):
         second = self.client.get(reverse("orders:list"), {"q": "Bulk", "page": 2})
         self.assertEqual(len(second.context["page_obj"].object_list), 1)
 
+    def test_order_search_uses_enter_submit_form_without_filter_button(self):
+        response = self.client.get(reverse("orders:list"))
+        self.assertContains(response, '<form class="filters order-search" method="get">')
+        self.assertContains(response, 'name="q"')
+        self.assertNotContains(response, ">Filtern</button>")
+
     def test_order_detail_positions_are_paginated_and_receive_keeps_context(self):
         OrderItem.objects.bulk_create(
             [OrderItem(order=self.order, part_number=f"P-{index:03d}", quantity=1) for index in range(51)]

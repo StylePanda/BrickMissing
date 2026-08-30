@@ -609,6 +609,12 @@ dd { margin: 0; }
   .organizer-area-nav { align-items: center; flex-wrap: nowrap; overflow-x: auto; padding: var(--space-2); }
   .organizer-area-nav > * { flex: 0 0 auto; width: auto; white-space: nowrap; }
 }
+.order-search { align-items: center; }
+.order-search label { display: flex; align-items: center; }
+.order-search input:not([type="hidden"]) { flex: 1 1 320px; min-width: 0; }
+@media (max-width: 640px) {
+  .order-search { align-items: stretch; }
+}
 @media (max-width: 1024px) {
   .set-detail-hero { grid-template-columns: minmax(210px, 30%) minmax(0, 1fr); }
   .set-hero-media .hero-image { height: clamp(210px, 28vw, 290px); }
