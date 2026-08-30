@@ -4,6 +4,7 @@ from django.shortcuts import render
 LEGAL_SETTING_NAMES = (
     "LEGAL_OPERATOR_NAME",
     "LEGAL_OPERATOR_ADDRESS",
+    "LEGAL_OPERATOR_CITY",
     "LEGAL_OPERATOR_EMAIL",
     "LEGAL_OPERATOR_COUNTRY",
     "LEGAL_COMPANY_NAME",
@@ -18,7 +19,9 @@ LEGAL_SETTING_NAMES = (
 
 
 def legal_context():
-    return {name.removeprefix("LEGAL_").lower(): getattr(settings, name, "") for name in LEGAL_SETTING_NAMES}
+    context = {name.removeprefix("LEGAL_").lower(): getattr(settings, name, "") for name in LEGAL_SETTING_NAMES}
+    context["operator_residence"] = context.get("operator_city", "")
+    return context
 
 
 def imprint(request):

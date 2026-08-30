@@ -9,6 +9,7 @@ from django.urls import reverse
 LEGAL_BASE = {
     "LEGAL_OPERATOR_NAME": "Max Mustermann",
     "LEGAL_OPERATOR_ADDRESS": "Musterweg 1, 1010 Wien",
+    "LEGAL_OPERATOR_CITY": "1010 Wien",
     "LEGAL_OPERATOR_EMAIL": "kontakt@example.test",
     "LEGAL_OPERATOR_COUNTRY": "Österreich",
 }
@@ -56,7 +57,7 @@ class LegalPageTests(TestCase):
     def test_imprint_contains_structured_private_project_information(self):
         response = self.client.get(reverse("legal:imprint"))
         for text in (
-            "Betreiber / Medieninhaber",
+            "Medieninhaber",
             "Kontakt",
             "Inhaltliche Ausrichtung",
             "private, nichtkommerzielle Webanwendung",
@@ -64,12 +65,23 @@ class LegalPageTests(TestCase):
         ):
             self.assertContains(response, text)
 
-    def test_imprint_states_ecg_legal_basis_with_official_ris_link(self):
+    def test_imprint_states_minimal_media_law_basis_with_official_ris_link(self):
         response = self.client.get(reverse("legal:imprint"))
-        self.assertContains(response, "§ 5 E-Commerce-Gesetz (ECG)")
+        self.assertNotContains(response, "E-Commerce-Gesetz")
         self.assertContains(response, "ris.bka.gv.at")
-        self.assertContains(response, "§ 24 Mediengesetz (MedienG)")
-        self.assertContains(response, "§ 25 Mediengesetz (MedienG)")
+        self.assertContains(response, "§ 25 Abs. 5 Mediengesetz (MedienG)")
+        self.assertContains(response, "Wohnort: 1010 Wien")
+        self.assertNotContains(response, "Musterweg 1")
+
+    @override_settings(
+        LEGAL_OPERATOR_ADDRESS="Musterstraße 1, 1150 Wien, Österreich",
+        LEGAL_OPERATOR_CITY="1150 Wien",
+    )
+    def test_imprint_uses_explicit_city_not_address_or_country(self):
+        response = self.client.get(reverse("legal:imprint"))
+        self.assertContains(response, "Wohnort: 1150 Wien")
+        self.assertNotContains(response, "Musterstraße 1")
+        self.assertNotContains(response, "Österreich</span>")
 
     @override_settings(
         SECRET_KEY="do-not-render-secret",  # noqa: S106
