@@ -1376,11 +1376,15 @@ class DashboardTotalLegoPartsTests(TestCase):
         )
 
         response = self.client.get(reverse("dashboard"))
-        self.assertEqual(response.context["lego_parts_total"], 15)
+        self.assertEqual(response.context["lego_parts_total"], 17)
+        self.assertEqual(response.context["lego_parts_owned"], 15)
+        self.assertEqual(response.context["lego_parts_missing"], 2)
         self.assertContains(response, "LEGO-Teile gesamt")
-        self.assertContains(response, ">15<")
+        self.assertContains(response, ">17<")
 
     def test_total_lego_parts_is_zero_without_active_set_inventory(self):
         response = self.client.get(reverse("dashboard"))
         self.assertEqual(response.context["lego_parts_total"], 0)
+        self.assertEqual(response.context["lego_parts_owned"], 0)
+        self.assertEqual(response.context["lego_parts_missing"], 0)
         self.assertContains(response, "LEGO-Teile gesamt")
