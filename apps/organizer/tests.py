@@ -1308,3 +1308,69 @@ class LabelStudioTests(TestCase):
                 self.assertEqual(response.status_code, 200)
                 self.assertEqual(mocked_qr.call_args.args[0], destination)
                 self.assertEqual(mocked_qr.call_args.kwargs["border"], 4)
+
+
+class WishlistBrowseTests(TestCase):
+    def setUp(self):
+        users = get_user_model()
+        self.user = users.objects.create_user(
+            "browse", "browse@example.test", "A-very-long-password-123", email_verified=True
+        )
+        self.other = users.objects.create_user(
+            "browse-other", "browse-other@example.test", "A-very-long-password-123", email_verified=True
+        )
+        self.client.force_login(self.user)
+        WishlistItem.objects.create(
+            owner=self.user, entity_type="set", reference="31212-1", name="Milky Way",
+            status="wish", priority="high", theme="LEGO Art", year=2024, piece_count=3091,
+        )
+        WishlistItem.objects.create(
+            owner=self.user, entity_type="set", reference="10300-1", name="Time Machine",
+            status="planned", priority="normal", theme="Icons", year=2022, piece_count=856,
+        )
+        WishlistItem.objects.create(
+            owner=self.other, entity_type="set", reference="99999-1", name="Foreign", theme="Secret"
+        )
+
+    def test_search_filters_name_reference_and_theme_owner_scoped(self):
+        for query, expected in (("milky", "Milky Way"), ("31212", "Milky Way"), ("icons", "Time Machine")):
+            with self.subTest(query=query):
+                response = self.client.get(reverse("organizer:list", args=["wishlist"]), {"q": query})
+                self.assertContains(response, expected)
+                self.assertNotContains(response, "Foreign")
+
+    def test_status_priority_theme_filters_and_options_are_scoped(self):
+        response = self.client.get(
+            reverse("organizer:list", args=["wishlist"]),
+            {"status": "wish", "priority": "high", "theme": "LEGO Art"},
+        )
+        self.assertContains(response, "Milky Way")
+        self.assertNotContains(response, "Time Machine")
+        self.assertContains(response, "LEGO Art")
+        self.assertNotContains(response, "Secret")
+
+    def test_sorting_and_invalid_values_are_safe(self):
+        response = self.client.get(reverse("organizer:list", args=["wishlist"]), {"sort": "priority_high"})
+        self.assertLess(response.content.find(b"Milky Way"), response.content.find(b"Time Machine"))
+        response = self.client.get(
+            reverse("organizer:list", args=["wishlist"]), {"status": "invalid", "priority": "invalid", "sort": "invalid"}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "2 Wünsche")
+
+    def test_pagination_preserves_filters_and_reset_is_visible(self):
+        for index in range(51):
+            WishlistItem.objects.create(owner=self.user, entity_type="set", reference=f"{40000 + index}-1", name=f"Set {index}")
+        response = self.client.get(reverse("organizer:list", args=["wishlist"]), {"q": "set", "status": "wish", "sort": "name"})
+        self.assertTrue(response.context["has_filters"])
+        self.assertContains(response, "Zurücksetzen")
+        self.assertContains(response, "q=set")
+        self.assertContains(response, "status=wish")
+        self.assertContains(response, "sort=name")
+
+    def test_empty_and_filter_empty_states_are_distinct(self):
+        response = self.client.get(reverse("organizer:list", args=["wishlist"]), {"q": "does-not-exist"})
+        self.assertContains(response, "Keine Wünsche entsprechen deinen aktuellen Filtern.")
+        WishlistItem.objects.filter(owner=self.user).delete()
+        response = self.client.get(reverse("organizer:list", args=["wishlist"]))
+        self.assertContains(response, "Noch keine Sets auf deiner Wunschliste.")

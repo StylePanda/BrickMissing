@@ -443,6 +443,29 @@ dd { margin: 0; }
   .organizer-list .row-thumb { width: min(220px, 100%); height: 165px; justify-self: center; }
   .organizer-list .row:has(.row-thumb) > form, .organizer-list .row:has(.row-thumb) > form button { width: 100%; }
 }
+.wishlist-filters { align-items: end; }
+.wishlist-filters label { flex: 1 1 180px; min-width: 0; }
+.wishlist-filters label:first-child { flex-basis: 280px; }
+.wishlist-filters input, .wishlist-filters select { width: 100%; min-width: 0; }
+.wishlist-result-count { margin: var(--space-3) 0; color: var(--color-text-muted); }
+.wishlist-list { display: grid; gap: 0; }
+.wishlist-card { display: grid; grid-template-columns: 180px minmax(0, 1fr) auto; align-items: center; gap: var(--space-5); min-width: 0; padding: var(--space-4) 0; border-bottom: 1px solid var(--color-border-subtle); }
+.wishlist-card:not(:has(.wishlist-card-image)) { grid-template-columns: minmax(0, 1fr) auto; }
+.wishlist-card:first-child { padding-top: 0; }
+.wishlist-card:last-child { padding-bottom: 0; border-bottom: 0; }
+.wishlist-card-image { display: flex; width: 180px; height: 135px; align-items: center; justify-content: center; overflow: hidden; border-radius: var(--radius-sm); background: #fff; }
+.wishlist-card-image img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.wishlist-card-content { min-width: 0; }
+.wishlist-card-content h2 { margin: 0; overflow-wrap: anywhere; font-size: 1.15rem; }
+.wishlist-reference, .wishlist-meta, .wishlist-price, .wishlist-note { margin: var(--space-1) 0 0; }
+.wishlist-state { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-3) 0 0; }
+.wishlist-note { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; color: var(--color-text-muted); }
+.wishlist-card > form { margin: 0; }
+@media (max-width: 640px) {
+  .wishlist-card { grid-template-columns: 1fr; justify-items: stretch; }
+  .wishlist-card-image { width: min(220px, 100%); height: 165px; justify-self: center; }
+  .wishlist-card > form, .wishlist-card > form button { width: 100%; }
+}
 .minifigure-filters{display:grid;grid-template-columns:minmax(220px,1fr) minmax(180px,.45fr) minmax(220px,.45fr) auto;gap:var(--space-3);align-items:end}
 .minifigure-set-group{margin-block:var(--space-5);overflow:hidden;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface)}
 .minifigure-set-group>header,.minifigure-row{display:flex;align-items:center;justify-content:space-between;gap:var(--space-5);padding:var(--space-4)}

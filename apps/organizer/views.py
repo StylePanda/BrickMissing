@@ -144,6 +144,34 @@ MINIFIGURE_SORTS = {
     "-owned": "Vorhandene Teile absteigend",
 }
 
+WISHLIST_STATUS_CHOICES = (
+    ("wish", "Wunsch"),
+    ("planned", "Geplant"),
+    ("purchased", "Gekauft"),
+)
+WISHLIST_PRIORITY_CHOICES = (
+    ("low", "Niedrig"),
+    ("normal", "Normal"),
+    ("high", "Hoch"),
+    ("urgent", "Dringend"),
+)
+WISHLIST_SORTS = {
+    "newest": ("-created_at", "-pk"),
+    "oldest": ("created_at", "pk"),
+    "name": ("name", "pk"),
+    "-name": ("-name", "-pk"),
+    "reference": ("reference", "pk"),
+    "-reference": ("-reference", "-pk"),
+    "priority_high": ("priority_order", "-created_at", "-pk"),
+    "priority_low": ("priority_order", "-created_at", "-pk"),
+    "price": ("target_price_empty", "target_price", "-created_at", "-pk"),
+    "-price": ("target_price_empty", "-target_price", "-created_at", "-pk"),
+    "pieces": ("piece_count_empty", "piece_count", "-created_at", "-pk"),
+    "-pieces": ("piece_count_empty", "-piece_count", "-created_at", "-pk"),
+    "year": ("year_empty", "year", "-created_at", "-pk"),
+    "-year": ("year_empty", "-year", "-created_at", "-pk"),
+}
+
 
 def _minifigure_record(figure):
     parts = list(figure.parts.all())
@@ -274,6 +302,91 @@ def _area(name):
 def area_list(request, area):
     model, title, _ = _area(area)
     records = model.objects.filter(owner=request.user)
+    if area == "wishlist":
+        records = records.filter(entity_type="set")
+        query = request.GET.get("q", "").strip()[:200]
+        status = request.GET.get("status", "")
+        priority = request.GET.get("priority", "")
+        theme = request.GET.get("theme", "").strip()
+        if query:
+            records = records.filter(
+                models.Q(reference__icontains=query)
+                | models.Q(name__icontains=query)
+                | models.Q(theme__icontains=query)
+            )
+        valid_statuses = {value for value, _ in WISHLIST_STATUS_CHOICES}
+        valid_priorities = {value for value, _ in WISHLIST_PRIORITY_CHOICES}
+        if status not in valid_statuses:
+            status = ""
+        if priority not in valid_priorities:
+            priority = ""
+        if status:
+            records = records.filter(status=status)
+        if priority:
+            records = records.filter(priority=priority)
+        if theme:
+            records = records.filter(theme=theme)
+        themes = list(
+            WishlistItem.objects.filter(owner=request.user, entity_type="set")
+            .exclude(theme="")
+            .values_list("theme", flat=True)
+            .distinct()
+            .order_by("theme")
+        )
+        sort = request.GET.get("sort", "newest")
+        if sort not in WISHLIST_SORTS:
+            sort = "newest"
+        priority_order = models.Case(
+            models.When(priority="urgent", then=models.Value(0)),
+            models.When(priority="high", then=models.Value(1)),
+            models.When(priority="normal", then=models.Value(2)),
+            default=models.Value(3),
+            output_field=models.IntegerField(),
+        )
+        if sort == "priority_low":
+            priority_order = models.Case(
+                models.When(priority="low", then=models.Value(0)),
+                models.When(priority="normal", then=models.Value(1)),
+                models.When(priority="high", then=models.Value(2)),
+                default=models.Value(3),
+                output_field=models.IntegerField(),
+            )
+        records = records.annotate(
+            priority_order=priority_order,
+            target_price_empty=models.Case(
+                models.When(target_price__gt=0, then=models.Value(0)),
+                default=models.Value(1), output_field=models.IntegerField(),
+            ),
+            piece_count_empty=models.Case(
+                models.When(piece_count__isnull=False, piece_count__gt=0, then=models.Value(0)),
+                default=models.Value(1), output_field=models.IntegerField(),
+            ),
+            year_empty=models.Case(
+                models.When(year__isnull=False, then=models.Value(0)),
+                default=models.Value(1), output_field=models.IntegerField(),
+            ),
+        ).order_by(*WISHLIST_SORTS[sort])
+        page_obj = Paginator(records, 50).get_page(request.GET.get("page"))
+        has_filters = any((query, status, priority, theme)) or sort != "newest"
+        return render(
+            request,
+            "organizer/wishlist_list.html",
+            {
+                "title": title,
+                "area": area,
+                "page_obj": page_obj,
+                "query": query,
+                "status": status,
+                "priority": priority,
+                "theme": theme,
+                "themes": themes,
+                "statuses": WISHLIST_STATUS_CHOICES,
+                "priorities": WISHLIST_PRIORITY_CHOICES,
+                "sort": sort,
+                "has_filters": has_filters,
+                "result_count": page_obj.paginator.count,
+            },
+        )
     records = (
         records.order_by("-is_default", "name", "pk")
         if area == "labels"
