@@ -112,7 +112,7 @@ def set_list(request):
 @login_required
 def set_detail(request, pk):
     lego_set = get_object_or_404(
-        LegoSet.objects.prefetch_related("inventory_items", "parts", "copies", "minifigures_inventory__parts"),
+        LegoSet.objects.prefetch_related("parts", "copies", "minifigures_inventory__parts"),
         pk=pk,
         owner=request.user,
         deleted_at__isnull=True,
@@ -151,13 +151,14 @@ def set_detail(request, pk):
     }
     sort = sort if sort in inventory_sorting else "name"
     inventory = inventory.annotate(missing_amount=F("required_quantity") - F("owned_quantity")).order_by(*inventory_sorting[sort])
+    page_obj = Paginator(inventory, 50).get_page(request.GET.get("page"))
     all_inventory = lego_set.inventory_items.all()
     colors = list(all_inventory.exclude(color_name="").values_list("color_name", flat=True).distinct().order_by("color_name"))
     stats = all_inventory.aggregate(positions=Count("pk"), required=Sum("required_quantity"), owned=Sum("owned_quantity"))
     stats = {key: value or 0 for key, value in stats.items()}
     stats["missing"] = max(stats["required"] - stats["owned"], 0)
     stats["percent"] = min(round(stats["owned"] * 100 / stats["required"]), 100) if stats["required"] else 0
-    return render(request, "catalog/set_detail.html", {"lego_set": lego_set, "inventory_items": inventory, "inventory_stats": stats, "inventory_kind": kind, "inventory_query": query, "inventory_stock": stock, "inventory_sort": sort, "color_groups": grouped_colors(colors), "selected_colors": selected_colors, "color_summary": f"{len(selected_colors)} Farben" if selected_colors else "Alle Farben", "derived_completeness": _set_completeness(lego_set)})
+    return render(request, "catalog/set_detail.html", {"lego_set": lego_set, "page_obj": page_obj, "inventory_stats": stats, "inventory_kind": kind, "inventory_query": query, "inventory_stock": stock, "inventory_sort": sort, "color_groups": grouped_colors(colors), "selected_colors": selected_colors, "color_summary": f"{len(selected_colors)} Farben" if selected_colors else "Alle Farben", "derived_completeness": _set_completeness(lego_set)})
 
 
 @login_required

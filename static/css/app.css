@@ -571,7 +571,10 @@ dd { margin: 0; }
 .inventory-progress-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-3); }
 .inventory-progress-row .inventory-progress { margin: 0; }
 .inventory-progress-row strong { white-space: nowrap; font-size: .9rem; }
-.inventory-bulk-actions { background: var(--color-background-elevated); }
+.inventory-bulk-actions { padding: var(--space-1) var(--space-3); background: var(--color-background-elevated); }
+.inventory-bulk-actions > summary { display: flex; min-height: 36px; align-items: center; }
+.inventory-bulk-actions[open] { padding: var(--space-3) var(--space-4); }
+.inventory-bulk-actions[open] > summary { margin-bottom: var(--space-3); }
 .inventory-table { min-width: 1120px; table-layout: auto; }
 .inventory-table th:nth-child(3), .inventory-table td:nth-child(3) { min-width: 240px; }
 .inventory-table td:nth-child(5), .inventory-table td:nth-child(7) { font-variant-numeric: tabular-nums; }

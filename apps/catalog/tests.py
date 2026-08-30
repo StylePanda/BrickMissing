@@ -665,6 +665,190 @@ class CatalogFlowTests(TestCase):
         item.refresh_from_db()
         self.assertEqual(item.owned_quantity, 3)
 
+    def test_set_detail_sticker_text_matches_the_boolean_information_available(self):
+        lego_set = LegoSet.objects.create(
+            owner=self.user, set_number="sticker-1", name="Stickerstatus"
+        )
+        url = reverse("catalog:set_detail", args=[lego_set.pk])
+
+        self.assertContains(
+            self.client.get(url), "<dt>Sticker</dt><dd>Unbekannt</dd>", html=True
+        )
+        lego_set.has_stickers = True
+        lego_set.save(update_fields=["has_stickers"])
+        self.assertContains(
+            self.client.get(url), "<dt>Sticker</dt><dd>Vorhanden</dd>", html=True
+        )
+
+    def test_set_inventory_is_paginated_without_duplicates_or_global_stat_changes(self):
+        lego_set = LegoSet.objects.create(
+            owner=self.user, set_number="pagination-1", name="Großes Set"
+        )
+        SetInventoryItem.objects.bulk_create(
+            [
+                SetInventoryItem(
+                    lego_set=lego_set,
+                    part_number=f"part-{index:03d}",
+                    name=f"Teil {index:03d}",
+                    color_name="Red",
+                    required_quantity=2,
+                    owned_quantity=1,
+                )
+                for index in range(123)
+            ]
+        )
+        url = reverse("catalog:set_detail", args=[lego_set.pk])
+        responses = [
+            self.client.get(url, {"sort": "part_number", "page": page})
+            for page in (1, 2, 3)
+        ]
+        pages = [list(response.context["page_obj"]) for response in responses]
+
+        self.assertEqual([len(page) for page in pages], [50, 50, 23])
+        rendered_ids = [item.pk for page in pages for item in page]
+        self.assertEqual(len(rendered_ids), len(set(rendered_ids)))
+        self.assertEqual(
+            set(rendered_ids),
+            set(lego_set.inventory_items.values_list("pk", flat=True)),
+        )
+        self.assertEqual(
+            responses[0].context["inventory_stats"],
+            {
+                "positions": 123,
+                "required": 246,
+                "owned": 123,
+                "missing": 123,
+                "percent": 50,
+            },
+        )
+        self.assertContains(responses[0], "Soll-/Ist-Bestand mit 123 Positionen.")
+        self.assertContains(responses[0], "Seite 1 von 3")
+        self.assertContains(responses[1], "Seite 2 von 3")
+        self.assertContains(responses[2], "Seite 3 von 3")
+
+    def test_set_inventory_pagination_preserves_all_filters_and_sorting(self):
+        lego_set = LegoSet.objects.create(
+            owner=self.user, set_number="pagination-2", name="Filterset"
+        )
+        SetInventoryItem.objects.bulk_create(
+            [
+                SetInventoryItem(
+                    lego_set=lego_set,
+                    part_number=f"normal-{index:03d}",
+                    name=f"Needle {index:03d}",
+                    color_name="Red",
+                    required_quantity=2,
+                    owned_quantity=1,
+                )
+                for index in range(60)
+            ]
+            + [
+                SetInventoryItem(
+                    lego_set=lego_set,
+                    part_number=f"spare-{index:03d}",
+                    name=f"Needle spare {index:03d}",
+                    color_name="Red",
+                    required_quantity=2,
+                    owned_quantity=1,
+                    is_spare=True,
+                )
+                for index in range(8)
+            ]
+            + [
+                SetInventoryItem(
+                    lego_set=lego_set,
+                    part_number="other-color",
+                    name="Needle Blue",
+                    color_name="Blue",
+                    required_quantity=2,
+                    owned_quantity=1,
+                )
+            ]
+        )
+        url = reverse("catalog:set_detail", args=[lego_set.pk])
+        filters = {
+            "q": "Needle",
+            "stock": "partial",
+            "art": "normal",
+            "color": "Red",
+            "sort": "-part_number",
+            "page": 2,
+        }
+        response = self.client.get(url, filters)
+        page = list(response.context["page_obj"])
+
+        self.assertEqual(response.context["page_obj"].paginator.count, 60)
+        self.assertEqual(len(page), 10)
+        self.assertEqual(
+            [item.part_number for item in page],
+            [f"normal-{index:03d}" for index in range(9, -1, -1)],
+        )
+        for parameter in (
+            "q=Needle",
+            "stock=partial",
+            "art=normal",
+            "color=Red",
+            "sort=-part_number",
+            "page=1",
+        ):
+            self.assertContains(response, parameter)
+        self.assertEqual(
+            self.client.get(url, {key: value for key, value in filters.items() if key != "page"})
+            .context["page_obj"]
+            .number,
+            1,
+        )
+        spare_response = self.client.get(url, {"art": "spare", "color": "Red"})
+        self.assertEqual(spare_response.context["page_obj"].paginator.count, 8)
+        self.assertContains(
+            spare_response, '<span class="badge info">Ersatzteil</span>', count=8
+        )
+        self.assertNotContains(spare_response, 'class="pagination"')
+        self.assertEqual(response.context["inventory_stats"]["positions"], 69)
+        self.assertEqual(response.context["inventory_stats"]["percent"], 50)
+
+    def test_set_inventory_pagination_empty_single_page_and_page_two_quantity_action(self):
+        lego_set = LegoSet.objects.create(
+            owner=self.user, set_number="pagination-3", name="Aktionen"
+        )
+        SetInventoryItem.objects.bulk_create(
+            [
+                SetInventoryItem(
+                    lego_set=lego_set,
+                    part_number=f"action-{index:03d}",
+                    name=f"Action {index:03d}",
+                    color_name="Black",
+                    required_quantity=3,
+                    owned_quantity=0,
+                )
+                for index in range(51)
+            ]
+        )
+        url = reverse("catalog:set_detail", args=[lego_set.pk])
+
+        page_two = self.client.get(url, {"page": 2, "sort": "part_number"})
+        self.assertEqual(len(page_two.context["page_obj"]), 1)
+        item = list(page_two.context["page_obj"])[0]
+        update_url = reverse(
+            "catalog:set_inventory_quantity", args=[lego_set.pk, item.pk]
+        )
+        self.assertRedirects(
+            self.client.post(update_url, {"owned_quantity": 2}),
+            url,
+        )
+        item.refresh_from_db()
+        self.assertEqual((item.owned_quantity, item.missing_quantity), (2, 1))
+
+        empty = self.client.get(url, {"q": "kein-treffer"})
+        self.assertEqual(empty.context["page_obj"].paginator.count, 0)
+        self.assertContains(empty, "Keine passenden Teile vorhanden.")
+        self.assertNotContains(empty, 'class="pagination"')
+
+        single_page = self.client.get(url, {"q": "Action 000"})
+        self.assertEqual(single_page.context["page_obj"].paginator.count, 1)
+        self.assertNotContains(single_page, 'class="pagination"')
+        self.assertNotContains(single_page, 'type="hidden" name="page"')
+
     def test_set_detail_redesign_keeps_identity_status_actions_and_sections(self):
         lego_set = LegoSet.objects.create(
             owner=self.user,
