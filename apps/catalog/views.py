@@ -55,6 +55,35 @@ def _set_inventory_return_url(request, lego_set):
 def dashboard(request):
     sets = LegoSet.objects.filter(owner=request.user, deleted_at__isnull=True)
     parts = Part.objects.filter(owner=request.user, deleted_at__isnull=True)
+    normal_set_parts_total = SetInventoryItem.objects.filter(
+        lego_set__owner=request.user,
+        lego_set__deleted_at__isnull=True,
+        is_spare=False,
+        required_quantity__gt=0,
+    ).aggregate(
+        total=Sum(
+            Case(
+                When(owned_quantity__lt=F("required_quantity"), then=F("owned_quantity")),
+                default=F("required_quantity"),
+                output_field=IntegerField(),
+            )
+        )
+    )["total"] or 0
+    minifigure_parts_total = MinifigurePart.objects.filter(
+        minifigure__owner=request.user,
+        minifigure__lego_set__owner=request.user,
+        minifigure__lego_set__deleted_at__isnull=True,
+        is_spare=False,
+        quantity__gt=0,
+    ).aggregate(
+        total=Sum(
+            Case(
+                When(owned_quantity__lt=F("quantity"), then=F("owned_quantity")),
+                default=F("quantity"),
+                output_field=IntegerField(),
+            )
+        )
+    )["total"] or 0
     query = request.GET.get("q", "").strip()[:200]
     search_sets = search_parts = search_minifigures = None
     if query:
@@ -72,6 +101,7 @@ def dashboard(request):
         {
             "set_count": sets.count(),
             "part_count": parts.count(),
+            "lego_parts_total": normal_set_parts_total + minifigure_parts_total,
             "missing_count": parts.filter(status=Part.Status.MISSING).aggregate(
                 total=Sum("quantity")
             )["total"]

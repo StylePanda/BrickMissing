@@ -6,13 +6,15 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from apps.accounts.totp import encrypt_secret
 from apps.core.models import SavedView
+from apps.inventory.models import InventoryItem
 from apps.organizer.models import MinifigurePart, SetMinifigure
 
 from .colors import color_category
-from .models import LegoSet, Part, SetInventoryItem
+from .models import LegoSet, Part, SetCopy, SetInventoryItem
 from .services import set_completeness
 from .views import parse_batch_set_numbers
 
@@ -1309,3 +1311,76 @@ class SetDetailMinifigureCompletenessTests(TestCase):
         ])
         self.assertEqual((status, required, owned), ("complete", 1, 1))
         self.assertContains(response, "Vollständig")
+
+
+class DashboardTotalLegoPartsTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            "statsowner", "statsowner@example.test", "A-long-safe-password-123"
+        )
+        self.other = get_user_model().objects.create_user(
+            "statsother", "statsother@example.test", "A-long-safe-password-123"
+        )
+        self.client.force_login(self.user)
+
+    def test_total_lego_parts_uses_capped_active_set_and_minifigure_quantities(self):
+        first = LegoSet.objects.create(
+            owner=self.user, set_number="stats-1", name="Stats A", total_parts=9999
+        )
+        SetInventoryItem.objects.create(
+            lego_set=first, part_number="3001", name="Brick", required_quantity=10, owned_quantity=12
+        )
+        SetInventoryItem.objects.create(
+            lego_set=first, part_number="spare", name="Spare", required_quantity=5, owned_quantity=5, is_spare=True
+        )
+        SetInventoryItem.objects.create(
+            lego_set=first, part_number="removed", name="Removed", required_quantity=0, owned_quantity=4
+        )
+        figure = SetMinifigure.objects.create(
+            owner=self.user, lego_set=first, figure_number="fig-1", name="Figure"
+        )
+        MinifigurePart.objects.create(
+            minifigure=figure, part_number="head", name="Head", quantity=3, owned_quantity=4
+        )
+        MinifigurePart.objects.create(
+            minifigure=figure, part_number="spare-head", name="Spare head", quantity=2, owned_quantity=2, is_spare=True
+        )
+        MinifigurePart.objects.create(
+            minifigure=figure, part_number="old", name="Old", quantity=0, owned_quantity=2
+        )
+
+        second = LegoSet.objects.create(owner=self.user, set_number="stats-2", name="Stats B")
+        SetInventoryItem.objects.create(
+            lego_set=second, part_number="3002", name="Plate", required_quantity=4, owned_quantity=2
+        )
+        SetCopy.objects.create(owner=self.user, lego_set=first)
+        SetCopy.objects.create(owner=self.user, lego_set=first)
+
+        deleted = LegoSet.objects.create(owner=self.user, set_number="stats-3", name="Deleted")
+        SetInventoryItem.objects.create(
+            lego_set=deleted, part_number="deleted", name="Deleted", required_quantity=100, owned_quantity=100
+        )
+        deleted.deleted_at = timezone.now()
+        deleted.save(update_fields=["deleted_at"])
+
+        foreign = LegoSet.objects.create(owner=self.other, set_number="stats-4", name="Foreign")
+        SetInventoryItem.objects.create(
+            lego_set=foreign, part_number="foreign", name="Foreign", required_quantity=100, owned_quantity=100
+        )
+        Part.objects.create(
+            owner=self.user, lego_set=first, element_id="mirror", part_number="mirror",
+            name="Mirror", quantity=50, owned_quantity=50,
+        )
+        InventoryItem.objects.create(
+            owner=self.user, part_number="loose", name="Loose", quantity=500
+        )
+
+        response = self.client.get(reverse("dashboard"))
+        self.assertEqual(response.context["lego_parts_total"], 15)
+        self.assertContains(response, "LEGO-Teile gesamt")
+        self.assertContains(response, ">15<")
+
+    def test_total_lego_parts_is_zero_without_active_set_inventory(self):
+        response = self.client.get(reverse("dashboard"))
+        self.assertEqual(response.context["lego_parts_total"], 0)
+        self.assertContains(response, "LEGO-Teile gesamt")
