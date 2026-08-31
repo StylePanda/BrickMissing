@@ -262,6 +262,10 @@ input[type="file"]::file-selector-button { min-height: 34px; margin-right: var(-
 .filter-disclosure[open] > summary { margin-bottom: 0; }
 .set-filters { grid-template-columns: minmax(260px, 1.4fr) minmax(190px, .8fr) minmax(190px, .8fr) auto; }
 .filter-summary-hint { color: var(--color-text-muted); font-size: .78rem; font-weight: 500; }
+@media (min-width: 761px) and (max-width: 1100px) {
+  .set-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .set-filters > button { width: 100%; }
+}
 .dashboard-search { padding: var(--space-4); }
 .dashboard-search form { max-width: 960px; }
 .dashboard-search .filter-row { display: flex; align-items: center; gap: var(--space-3); }

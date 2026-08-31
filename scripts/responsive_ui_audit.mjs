@@ -212,6 +212,66 @@ async function auditSetFilters(client) {
   assert(result.cardsTop < 1100, "Set content is pushed unreasonably far below the filters");
 }
 
+async function auditTabletSetFilters(client, width) {
+  const result = await evaluate(client, `(() => {
+    const panelNode = document.querySelector(".set-filters");
+    const panel = panelNode?.getBoundingClientRect();
+    const nodes = [
+      ["search", panelNode?.querySelector("input[name=q]")],
+      ["theme", panelNode?.querySelector("input[name=theme]")],
+      ["sort", panelNode?.querySelector("select[name=sort]")],
+      ["button", panelNode?.querySelector("button[type=submit], button:not([type])")]
+    ];
+    const controls = nodes.map(([name, node]) => {
+      const rect = node?.getBoundingClientRect();
+      return {
+        name,
+        exists: Boolean(node),
+        left: rect?.left || 0,
+        right: rect?.right || 0,
+        top: rect?.top || 0,
+        bottom: rect?.bottom || 0,
+        width: rect?.width || 0,
+        height: rect?.height || 0,
+        disabled: Boolean(node?.disabled),
+        pointerEvents: node ? getComputedStyle(node).pointerEvents : "none",
+        topmost: node && rect
+          ? node.contains(document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2))
+            || document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2) === node
+          : false
+      };
+    });
+    return {
+      panel: panel && {left: panel.left, right: panel.right, top: panel.top, bottom: panel.bottom, width: panel.width},
+      controls,
+      documentWidth: document.documentElement.scrollWidth,
+      bodyWidth: document.body.scrollWidth
+    };
+  })()`);
+  assert(result.panel, "Set filter panel is missing at the tablet viewport");
+  assert(result.panel.width > 0, "Set filter panel has no width at the tablet viewport");
+  for (const control of result.controls) {
+    assert(control.exists, `${control.name} control is missing at ${width}px`);
+    assert(control.width > 0 && control.height > 0, `${control.name} control has no rendered size at ${width}px`);
+    assert(control.left >= result.panel.left - 1, `${control.name} crosses the filter panel's left edge at ${width}px`);
+    assert(control.right <= result.panel.right + 1, `${control.name} crosses the filter panel's right edge at ${width}px`);
+    assert(control.top >= result.panel.top - 1 && control.bottom <= result.panel.bottom + 1, `${control.name} crosses the filter panel vertically at ${width}px`);
+  }
+  for (let index = 0; index < result.controls.length; index += 1) {
+    for (let otherIndex = index + 1; otherIndex < result.controls.length; otherIndex += 1) {
+      const first = result.controls[index];
+      const second = result.controls[otherIndex];
+      const overlaps = first.left < second.right && first.right > second.left
+        && first.top < second.bottom && first.bottom > second.top;
+      assert(!overlaps, `${first.name} overlaps ${second.name} at ${width}px`);
+    }
+  }
+  const button = result.controls.find((control) => control.name === "button");
+  assert(!button.disabled && button.pointerEvents !== "none" && button.topmost, `Search button is not fully clickable at ${width}px`);
+  assert(result.documentWidth <= width + 1, `Set overview document overflows at ${width}px`);
+  assert(result.bodyWidth <= width + 1, `Set overview body overflows at ${width}px`);
+}
+
 async function auditDashboard(client) {
   const result = await evaluate(client, `(() => ({
     title: Boolean(document.querySelector("h1")),
@@ -293,6 +353,10 @@ try {
       await auditOverflow(client, name, width);
     }
   }
+
+  await setViewport(client, 768, 1024);
+  await navigate(client, routes.authenticated.sets);
+  await auditTabletSetFilters(client, 768);
 
   await setViewport(client, 390, 844);
   await navigate(client, routes.authenticated.sets);
