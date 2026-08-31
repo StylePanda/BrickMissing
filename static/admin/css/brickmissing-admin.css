@@ -35,45 +35,45 @@ html[data-theme="light"] {
 /* BrickMissing Midnight Violet is the single admin theme in every OS color mode. */
 :root, html[data-theme="light"], html[data-theme="dark"] {
   color-scheme: dark;
-  --primary: #9b6cff; --secondary: #1a1627; --accent: #c8b1ff;
-  --header-bg: #13101e; --header-color: #f6f3fb;
-  --breadcrumbs-bg: #1a1627; --breadcrumbs-fg: #c9c2d7; --breadcrumbs-link-fg: #c8b1ff;
-  --body-bg: #0d0b14; --body-fg: #f6f3fb; --body-quiet-color: #9890aa; --body-loud-color: #f6f3fb;
-  --darkened-bg: #1a1627; --selected-bg: #302642; --selected-row: #241e35;
-  --hairline-color: #292238; --border-color: #3b3250;
-  --link-fg: #c8b1ff; --link-hover-color: #f6f3fb; --link-selected-fg: #f6f3fb;
-  --button-bg: #9b6cff; --button-hover-bg: #b18cff;
-  --default-button-bg: #9b6cff; --default-button-hover-bg: #b18cff;
-  --object-tools-bg: #302642; --object-tools-hover-bg: #44355d;
+  --primary: #8b80f9; --secondary: #131722; --accent: #aaa3ff;
+  --header-bg: #0d1018; --header-color: #f4f5f8;
+  --breadcrumbs-bg: #131722; --breadcrumbs-fg: #b8bdc9; --breadcrumbs-link-fg: #aaa3ff;
+  --body-bg: #080a10; --body-fg: #f4f5f8; --body-quiet-color: #858c9d; --body-loud-color: #f4f5f8;
+  --darkened-bg: #131722; --selected-bg: #202536; --selected-row: #181d2a;
+  --hairline-color: #252b3b; --border-color: #3b4460;
+  --link-fg: #aaa3ff; --link-hover-color: #f4f5f8; --link-selected-fg: #f4f5f8;
+  --button-bg: #8b80f9; --button-hover-bg: #aaa3ff;
+  --default-button-bg: #8b80f9; --default-button-hover-bg: #aaa3ff;
+  --object-tools-bg: #202536; --object-tools-hover-bg: #2c3348;
 }
 
 html[data-theme="dark"] {
-  --primary: #9b6cff;
-  --secondary: #1a1627;
-  --accent: #9b6cff;
-  --header-bg: #13101e;
-  --header-color: #f1f4f9;
-  --breadcrumbs-bg: #1a1627;
-  --breadcrumbs-fg: #cbd3df;
-  --breadcrumbs-link-fg: #c8b1ff;
-  --body-bg: #0d0b14;
-  --body-fg: #f6f3fb;
-  --body-quiet-color: #a9a0b8;
-  --body-loud-color: #ffffff;
-  --darkened-bg: #1a1627;
-  --selected-bg: #302642;
-  --selected-row: #241e35;
-  --hairline-color: #302840;
-  --border-color: #453858;
-  --link-fg: #c8b1ff;
-  --link-hover-color: #e0d4ff;
-  --link-selected-fg: #e0d4ff;
-  --button-bg: #8355e7;
-  --button-hover-bg: #9b6cff;
-  --default-button-bg: #8355e7;
-  --default-button-hover-bg: #9b6cff;
-  --object-tools-bg: #302642;
-  --object-tools-hover-bg: #44355d;
+  --primary: #8b80f9;
+  --secondary: #131722;
+  --accent: #aaa3ff;
+  --header-bg: #0d1018;
+  --header-color: #f4f5f8;
+  --breadcrumbs-bg: #131722;
+  --breadcrumbs-fg: #b8bdc9;
+  --breadcrumbs-link-fg: #aaa3ff;
+  --body-bg: #080a10;
+  --body-fg: #f4f5f8;
+  --body-quiet-color: #858c9d;
+  --body-loud-color: #f4f5f8;
+  --darkened-bg: #131722;
+  --selected-bg: #202536;
+  --selected-row: #181d2a;
+  --hairline-color: #252b3b;
+  --border-color: #3b4460;
+  --link-fg: #aaa3ff;
+  --link-hover-color: #f4f5f8;
+  --link-selected-fg: #f4f5f8;
+  --button-bg: #8b80f9;
+  --button-hover-bg: #aaa3ff;
+  --default-button-bg: #8b80f9;
+  --default-button-hover-bg: #aaa3ff;
+  --object-tools-bg: #202536;
+  --object-tools-hover-bg: #2c3348;
 }
 
 * { box-sizing: border-box; }
@@ -87,7 +87,7 @@ body { font: 15px/1.55 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
 #site-name strong, #site-name small { display: block; }
 #site-name strong { font-size: 17px; letter-spacing: -.01em; }
 #site-name small { margin-top: 1px; color: #bac3d1; font-size: 12px; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; }
-.brickmissing-admin-mark { display: grid; width: 44px; height: 36px; place-items: center; border-radius: 8px; background: #9b6cff; color: #fff; font-size: 13px; font-weight: 900; letter-spacing: .04em; }
+.brickmissing-admin-mark { display: grid; width: 44px; height: 36px; place-items: center; border: 1px solid rgba(170,163,255,.42); border-radius: 8px; background: linear-gradient(145deg, rgba(139,128,249,.24), rgba(139,128,249,.06)); color: #aaa3ff; font-size: 13px; font-weight: 900; letter-spacing: .04em; }
 #user-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px 12px; margin: 0; line-height: 1.4; }
 #user-tools a, #user-tools button { display: inline-flex; min-height: 44px; align-items: center; border-radius: 6px; padding: 8px 10px; }
 #user-tools form { display: inline-flex; }

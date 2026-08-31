@@ -3,9 +3,11 @@ const root = document.documentElement;
 const savedTheme = localStorage.getItem("brickmissing-theme");
 if (savedTheme === "light" || savedTheme === "dark") root.dataset.theme = savedTheme;
 
-document.getElementById("theme-toggle")?.addEventListener("click", () => {
-  root.dataset.theme = root.dataset.theme === "dark" ? "light" : "dark";
-  localStorage.setItem("brickmissing-theme", root.dataset.theme);
+document.querySelectorAll("[data-theme-toggle]").forEach((toggle) => {
+  toggle.addEventListener("click", () => {
+    root.dataset.theme = root.dataset.theme === "dark" ? "light" : "dark";
+    localStorage.setItem("brickmissing-theme", root.dataset.theme);
+  });
 });
 
 const navToggle = document.querySelector(".nav-toggle");
@@ -18,6 +20,18 @@ navToggle?.addEventListener("click", () => {
   const open = mainNavigation?.classList.toggle("is-open") ?? false;
   navToggle.setAttribute("aria-expanded", String(open));
 });
+const responsiveDisclosureQuery = window.matchMedia("(max-width: 760px)");
+const syncResponsiveDisclosures = () => {
+  document.querySelectorAll("[data-responsive-disclosure]").forEach((disclosure) => {
+    if (!responsiveDisclosureQuery.matches) disclosure.open = true;
+    else if (!disclosure.dataset.mobileReady) {
+      disclosure.open = false;
+      disclosure.dataset.mobileReady = "true";
+    }
+  });
+};
+syncResponsiveDisclosures();
+responsiveDisclosureQuery.addEventListener?.("change", syncResponsiveDisclosures);
 document.querySelectorAll("[data-nav-group]").forEach((group) => {
   group.addEventListener("toggle", () => {
     if (!group.open) return;

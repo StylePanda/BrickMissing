@@ -307,11 +307,12 @@ class InterfaceQualityTests(TestCase):
                 )
                 self.assertIsNone(forbidden.search(template.read_text(encoding="utf-8")))
 
-    def test_midnight_violet_assets_and_wide_layout_exist(self):
+    def test_stylepanda_application_tokens_and_wide_layout_exist(self):
         static_root = Path(settings.BASE_DIR) / "static"
         css = (static_root / "css" / "app.css").read_text(encoding="utf-8")
         manifest = (static_root / "manifest.webmanifest").read_text(encoding="utf-8")
-        self.assertIn("--color-primary: #9b6cff", css)
+        self.assertIn("--color-primary: #8b80f9", css)
+        self.assertIn("--color-background: #080a10", css)
         self.assertIn("--container-wide: 1760px", css)
         self.assertIn("icons/brickmissing.svg", manifest)
         self.assertTrue((static_root / "icons" / "brickmissing.svg").is_file())
