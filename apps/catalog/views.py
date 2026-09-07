@@ -32,7 +32,7 @@ from .part_status import (
     workflow_status_label,
 )
 from .services import set_completeness as _set_completeness
-from .services import soft_delete, update_part
+from .services import soft_delete, update_part, with_set_completeness
 
 
 def _page(request, queryset, size=50):
@@ -133,7 +133,9 @@ def dashboard(request):
 
 @login_required
 def set_list(request):
-    queryset = LegoSet.objects.filter(owner=request.user, deleted_at__isnull=True)
+    queryset = with_set_completeness(
+        LegoSet.objects.filter(owner=request.user, deleted_at__isnull=True)
+    )
     query = request.GET.get("q", "").strip()
     if query:
         queryset = queryset.filter(
@@ -142,6 +144,15 @@ def set_list(request):
     theme = request.GET.get("theme", "").strip()
     if theme:
         queryset = queryset.filter(theme__iexact=theme)
+    completeness = request.GET.get("completeness", "all").strip()
+    if completeness not in {"all", "complete", "incomplete"}:
+        completeness = "all"
+    if completeness == "complete":
+        queryset = queryset.filter(completeness_key="complete")
+    elif completeness == "incomplete":
+        # No usable inventory is not proof of completeness, so unknown sets
+        # intentionally belong to the incomplete overview bucket.
+        queryset = queryset.exclude(completeness_key="complete")
     ordering = request.GET.get("sort", "-created_at")
     ordering = ordering if ordering in {"-created_at", "set_number", "name", "-year", "-current_value"} else "-created_at"
     queryset = queryset.order_by(ordering)
@@ -154,9 +165,17 @@ def set_list(request):
         except ValueError:
             continue
         sync_sets.append(lego_set)
+    empty_title = "Noch keine Sets vorhanden."
+    if not query and not theme and completeness == "complete":
+        empty_title = "Keine vollständigen Sets gefunden."
+    elif not query and not theme and completeness == "incomplete":
+        empty_title = "Keine unvollständigen Sets gefunden."
+    elif query or theme:
+        empty_title = "Keine passenden Sets gefunden."
     return render(request, "catalog/set_list.html", {
         "page_obj": _page(request, queryset), "query": query, "theme": theme,
-        "sort": ordering, "sync_sets": sync_sets,
+        "sort": ordering, "sync_sets": sync_sets, "completeness": completeness,
+        "empty_title": empty_title,
     })
 
 

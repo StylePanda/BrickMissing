@@ -1,33 +1,138 @@
 from django.db import transaction
+from django.db.models import (
+    Case,
+    CharField,
+    F,
+    IntegerField,
+    OuterRef,
+    Subquery,
+    Sum,
+    Value,
+    When,
+)
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from apps.audit.models import AuditEvent
 
-from .models import Part, PartHistory
+from .models import LegoSet, Part, PartHistory, SetInventoryItem
 from .part_status import synchronize_presence_marker
 
 
+def _quantity_total(queryset, group_field, quantity_field):
+    return (
+        queryset.values(group_field)
+        .annotate(total=Sum(quantity_field))
+        .values("total")[:1]
+    )
+
+
+def _missing_total(queryset, group_field, required_field):
+    return (
+        queryset.values(group_field)
+        .annotate(
+            total=Sum(
+                Case(
+                    When(
+                        **{
+                            "owned_quantity__lt": F(required_field),
+                            "then": F(required_field) - F("owned_quantity"),
+                        }
+                    ),
+                    default=Value(0),
+                    output_field=IntegerField(),
+                )
+            )
+        )
+        .values("total")[:1]
+    )
+
+
+def with_set_completeness(queryset):
+    """Annotate LegoSet rows using BrickMissing's authoritative completeness rule.
+
+    Only required, non-spare regular inventory and constituent minifigure parts
+    belonging to the same owner participate. Empty inventories remain unknown.
+    """
+    from apps.organizer.models import MinifigurePart
+
+    normal_items = SetInventoryItem.objects.filter(
+        lego_set_id=OuterRef("pk"),
+        is_spare=False,
+        required_quantity__gt=0,
+    )
+    minifigure_parts = MinifigurePart.objects.filter(
+        minifigure__lego_set_id=OuterRef("pk"),
+        minifigure__owner_id=OuterRef("owner_id"),
+        is_spare=False,
+        quantity__gt=0,
+    )
+    queryset = queryset.annotate(
+        _normal_required=Coalesce(
+            Subquery(
+                _quantity_total(normal_items, "lego_set_id", "required_quantity"),
+                output_field=IntegerField(),
+            ),
+            Value(0),
+        ),
+        _normal_missing=Coalesce(
+            Subquery(
+                _missing_total(normal_items, "lego_set_id", "required_quantity"),
+                output_field=IntegerField(),
+            ),
+            Value(0),
+        ),
+        _minifigure_required=Coalesce(
+            Subquery(
+                _quantity_total(minifigure_parts, "minifigure__lego_set_id", "quantity"),
+                output_field=IntegerField(),
+            ),
+            Value(0),
+        ),
+        _minifigure_missing=Coalesce(
+            Subquery(
+                _missing_total(minifigure_parts, "minifigure__lego_set_id", "quantity"),
+                output_field=IntegerField(),
+            ),
+            Value(0),
+        ),
+    ).annotate(
+        completeness_required=F("_normal_required") + F("_minifigure_required"),
+        completeness_missing=F("_normal_missing") + F("_minifigure_missing"),
+    )
+    return queryset.annotate(
+        completeness_key=Case(
+            When(completeness_required__lte=0, then=Value("unknown")),
+            When(completeness_missing__gt=0, then=Value("incomplete")),
+            default=Value("complete"),
+            output_field=CharField(),
+        )
+    )
+
+
 def set_completeness(lego_set):
-    inventory = list(lego_set.inventory_items.filter(is_spare=False))
-    minifigure_parts = [
-        part
-        for figure in lego_set.minifigures_inventory.all()
-        for part in figure.parts.all()
-        if not part.is_spare
-    ]
-    positions = inventory + minifigure_parts
-    required = sum(item.required_quantity if hasattr(item, "required_quantity") else item.quantity for item in positions)
-    owned = sum(min(item.owned_quantity, item.required_quantity if hasattr(item, "required_quantity") else item.quantity) for item in positions)
-    missing = max(required - owned, 0)
-    if required <= 0:
-        return {
-            "key": "unknown",
-            "label": "Unbekannt",
-            "required": required,
-            "owned": owned,
-            "missing": missing,
-        }
-    return {"key": "incomplete" if missing else "complete", "label": "Unvollständig" if missing else "Vollständig", "required": required, "owned": owned, "missing": missing}
+    result = (
+        with_set_completeness(
+            LegoSet.objects.filter(pk=lego_set.pk, owner_id=lego_set.owner_id)
+        )
+        .values("completeness_key", "completeness_required", "completeness_missing")
+        .get()
+    )
+    required = result["completeness_required"]
+    missing = result["completeness_missing"]
+    key = result["completeness_key"]
+    labels = {
+        "complete": "Vollständig",
+        "incomplete": "Unvollständig",
+        "unknown": "Unbekannt",
+    }
+    return {
+        "key": key,
+        "label": labels[key],
+        "required": required,
+        "owned": required - missing,
+        "missing": missing,
+    }
 
 
 def stored_completeness_value(result):
