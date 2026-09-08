@@ -481,7 +481,9 @@ def _matching_from_collections(part, normal_items, minifigure_parts):
     ]
 
 
-def owned_quantity_consistency_rows(user=None):
+def owned_quantity_consistency_rows(
+    user=None, *, part_id=None, set_number=None, include_consistent=False
+):
     """Return existing Part/allocation divergences without modifying data."""
     from apps.organizer.models import MinifigurePart
 
@@ -493,6 +495,10 @@ def owned_quantity_consistency_rows(user=None):
     ).select_related("lego_set")
     if user is not None:
         parts = parts.filter(owner=user)
+    if part_id is not None:
+        parts = parts.filter(pk=part_id)
+    if set_number is not None:
+        parts = parts.filter(lego_set__set_number=set_number)
     parts = list(parts.order_by("owner_id", "lego_set_id", "pk"))
     set_ids = {part.lego_set_id for part in parts}
     normal_by_set = {}
@@ -528,7 +534,7 @@ def owned_quantity_consistency_rows(user=None):
             continue
         required = sum(_allocation_values(kind, item)[0] for kind, item in matches)
         owned = sum(_allocation_values(kind, item)[1] for kind, item in matches)
-        if part.owned_quantity == owned:
+        if part.owned_quantity == owned and not include_consistent:
             continue
         timestamps = [
             item.updated_at
@@ -553,6 +559,16 @@ def owned_quantity_consistency_rows(user=None):
                 "authoritative_updated_at": max(timestamps) if timestamps else None,
                 "allocation_count": len(matches),
                 "allocation_types": ",".join(kind for kind, _item in matches),
+                "allocations": tuple(
+                    {
+                        "kind": kind,
+                        "id": str(item.pk),
+                        "required": _allocation_values(kind, item)[0],
+                        "owned": _allocation_values(kind, item)[1],
+                        "updated_at": item.updated_at if kind == "set" else None,
+                    }
+                    for kind, item in matches
+                ),
             }
         )
     return rows
@@ -642,17 +658,23 @@ def set_authoritative_owned_quantity(kind, allocation, quantity, actor):
             for candidate_kind, candidate in matches
             if candidate_kind == kind and candidate.pk == locked.pk
         ]
-        if target_matches and len(matches) != 1:
-            raise AmbiguousAuthoritativeAllocation(
-                "Die Inventarposition ist mit einem mehrdeutigen Fehlteil verknüpft."
-            )
         if target_matches:
-            mirrors.append(part)
+            required = sum(
+                _allocation_values(match_kind, item)[0]
+                for match_kind, item in matches
+            )
+            owned = sum(
+                quantity
+                if match_kind == kind and item.pk == locked.pk
+                else _allocation_values(match_kind, item)[1]
+                for match_kind, item in matches
+            )
+            mirrors.append((part, required, owned))
 
     _save_allocation_owned(kind, locked, quantity)
-    for part in mirrors:
-        part.quantity = maximum
-        part.owned_quantity = quantity
+    for part, required, owned in mirrors:
+        part.quantity = max(required, owned)
+        part.owned_quantity = owned
         synchronize_presence_marker(part)
         part.full_clean()
         part.save(

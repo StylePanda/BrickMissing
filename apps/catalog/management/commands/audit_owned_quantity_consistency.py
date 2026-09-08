@@ -42,6 +42,11 @@ class Command(BaseCommand):
         )
         self.stdout.write("\t".join(columns))
         for row in rows:
-            self.stdout.write("\t".join(str(row[column] or "") for column in columns))
+            self.stdout.write(
+                "\t".join(
+                    "" if row[column] is None else str(row[column])
+                    for column in columns
+                )
+            )
         self.stdout.write(f"divergences: {len(rows)}")
         self.stdout.write("audit_mode: read-only")

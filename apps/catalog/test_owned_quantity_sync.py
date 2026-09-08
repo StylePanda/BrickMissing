@@ -108,10 +108,11 @@ class OwnedQuantitySynchronizationTests(TestCase):
         )
         unavailable = self.client.post(
             reverse("data_portability:lego_unavailable"),
-            {"file": self.unavailable_upload()},
+            {"file": self.unavailable_upload(quantity=39)},
         )
         match = unavailable.context["results"][0]["matches"][0]
         self.assertEqual(match.authoritative_missing_quantity, 6)
+        self.assertContains(unavailable, "<dt>LEGO-Menge</dt><dd>39</dd>", html=True)
         self.assertContains(unavailable, "<dt>Aktuell fehlend</dt><dd>6</dd>", html=True)
 
     def test_existing_contradiction_is_displayed_from_authoritative_inventory(self):
