@@ -1,5 +1,6 @@
 from django.db import transaction
 from django.db.models import (
+    BooleanField,
     Case,
     CharField,
     Exists,
@@ -142,9 +143,16 @@ def with_authoritative_missing_quantity(queryset):
 
     A Part linked to a set is an optional workflow mirror.  Its quantity fields
     can lag behind the actual set or minifigure inventory, so an exact
-    set/ElementID/color match delegates to those authoritative rows.  Parts
-    without such a match (including manually entered loose parts) retain their
-    own established quantity semantics.
+    set/ElementID/color match delegates to those authoritative rows.  When an
+    inventory row legitimately has no ElementID, its exact part number may
+    instead match the Part's design identity.  Parts without either match
+    (including manually entered loose parts) retain their own established
+    quantity semantics.
+
+    Exact ElementID matches take precedence within each inventory source.  A
+    blank-ElementID fallback is therefore never added to an exact allocation.
+    Matching rows are aggregated rather than arbitrarily selected, consistent
+    with set completeness treating every inventory position as an allocation.
 
     Missing amounts are capped per inventory allocation before they are added.
     Consequently, an over-owned allocation can never cancel a shortage in a
@@ -152,40 +160,97 @@ def with_authoritative_missing_quantity(queryset):
     """
     from apps.organizer.models import MinifigurePart
 
-    normal_items = SetInventoryItem.objects.filter(
+    # Rebrickable's part_num is a design/part identity.  Legacy imports and the
+    # missing-part workflow can retain that exact value in any of Part's three
+    # identifier fields, so each exact relationship is accepted independently.
+    # No case folding, substring comparison, or ElementID/design conversion is
+    # performed.
+    part_identity = (
+        Q(part_number=OuterRef("design_id"))
+        | Q(part_number=OuterRef("part_number"))
+        | Q(part_number=OuterRef("element_id"))
+    )
+    normal_base = SetInventoryItem.objects.filter(
         lego_set_id=OuterRef("lego_set_id"),
         lego_set__owner_id=OuterRef("owner_id"),
         lego_set__deleted_at__isnull=True,
-        element_id=OuterRef("element_id"),
         color_name=OuterRef("color"),
         is_spare=False,
     )
-    minifigure_parts = MinifigurePart.objects.filter(
+    normal_exact = normal_base.exclude(element_id="").filter(
+        element_id=OuterRef("element_id")
+    )
+    normal_fallback = normal_base.filter(part_identity, element_id="")
+    minifigure_base = MinifigurePart.objects.filter(
         minifigure__lego_set_id=OuterRef("lego_set_id"),
         minifigure__owner_id=OuterRef("owner_id"),
         minifigure__lego_set__deleted_at__isnull=True,
-        element_id=OuterRef("element_id"),
         color_name=OuterRef("color"),
         is_spare=False,
     )
+    minifigure_exact = minifigure_base.exclude(element_id="").filter(
+        element_id=OuterRef("element_id")
+    )
+    minifigure_fallback = minifigure_base.filter(part_identity, element_id="")
     queryset = queryset.annotate(
-        _has_normal_inventory=Exists(normal_items),
-        _has_minifigure_inventory=Exists(minifigure_parts),
-        _normal_inventory_missing=Coalesce(
+        _has_exact_normal_inventory=Exists(normal_exact),
+        _has_fallback_normal_inventory=Exists(normal_fallback),
+        _has_exact_minifigure_inventory=Exists(minifigure_exact),
+        _has_fallback_minifigure_inventory=Exists(minifigure_fallback),
+        _exact_normal_inventory_missing=Coalesce(
             Subquery(
-                _missing_total(normal_items, "lego_set_id", "required_quantity"),
+                _missing_total(normal_exact, "lego_set_id", "required_quantity"),
                 output_field=IntegerField(),
             ),
             Value(0),
         ),
-        _minifigure_inventory_missing=Coalesce(
+        _fallback_normal_inventory_missing=Coalesce(
             Subquery(
-                _missing_total(
-                    minifigure_parts, "minifigure__lego_set_id", "quantity"
-                ),
+                _missing_total(normal_fallback, "lego_set_id", "required_quantity"),
                 output_field=IntegerField(),
             ),
             Value(0),
+        ),
+        _exact_minifigure_inventory_missing=Coalesce(
+            Subquery(
+                _missing_total(minifigure_exact, "minifigure__lego_set_id", "quantity"),
+                output_field=IntegerField(),
+            ),
+            Value(0),
+        ),
+        _fallback_minifigure_inventory_missing=Coalesce(
+            Subquery(
+                _missing_total(minifigure_fallback, "minifigure__lego_set_id", "quantity"),
+                output_field=IntegerField(),
+            ),
+            Value(0),
+        ),
+    ).annotate(
+        _has_normal_inventory=Case(
+            When(_has_exact_normal_inventory=True, then=Value(True)),
+            default=F("_has_fallback_normal_inventory"),
+            output_field=BooleanField(),
+        ),
+        _has_minifigure_inventory=Case(
+            When(_has_exact_minifigure_inventory=True, then=Value(True)),
+            default=F("_has_fallback_minifigure_inventory"),
+            output_field=BooleanField(),
+        ),
+        _normal_inventory_missing=Case(
+            When(
+                _has_exact_normal_inventory=True,
+                then=F("_exact_normal_inventory_missing"),
+            ),
+            default=F("_fallback_normal_inventory_missing"),
+            output_field=IntegerField(),
+        ),
+        _minifigure_inventory_missing=Case(
+            When(
+                _has_exact_minifigure_inventory=True,
+                then=F("_exact_minifigure_inventory_missing"),
+            ),
+            default=F("_fallback_minifigure_inventory_missing"),
+            output_field=IntegerField(),
         ),
     )
     return queryset.annotate(

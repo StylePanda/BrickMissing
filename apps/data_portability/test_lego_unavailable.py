@@ -111,7 +111,7 @@ class LegoUnavailablePageTests(TestCase):
         SetInventoryItem.objects.create(
             lego_set=self.lego_set,
             part_number=self.part.part_number,
-            element_id=self.part.element_id,
+            element_id="",
             name=self.part.name,
             color_name=self.part.color,
             required_quantity=10,
