@@ -17,6 +17,14 @@ class Command(BaseCommand):
         parser.add_argument("--user-id")
         parser.add_argument("--part-id")
         parser.add_argument("--set-number")
+        parser.add_argument(
+            "--resolve-ambiguous-from-authority",
+            action="store_true",
+            help=(
+                "Explicit user-approved historical policy: retain authoritative "
+                "allocation ownership for otherwise ambiguous rows."
+            ),
+        )
 
     def _user(self, identifier):
         if not identifier:
@@ -53,6 +61,9 @@ class Command(BaseCommand):
             "user": user,
             "part_id": options["part_id"],
             "set_number": options["set_number"],
+            "resolve_ambiguous_from_authority": options[
+                "resolve_ambiguous_from_authority"
+            ],
         }
         plans = classify_owned_quantity_consistency(**filters)
         self.stdout.write(
@@ -89,6 +100,7 @@ class Command(BaseCommand):
         self.stdout.write(f"applied_writes: {changed}")
         self.stdout.write(f"divergences: {remaining_divergences}")
         self.stdout.write(f"ambiguous: {remaining_ambiguous}")
+        self.stdout.write(f"unresolved_ambiguities: {remaining_ambiguous}")
         self.stdout.write("failed: 0")
         if remaining_divergences or remaining_ambiguous:
             raise CommandError(

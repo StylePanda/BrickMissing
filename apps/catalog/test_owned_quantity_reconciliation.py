@@ -13,6 +13,7 @@ from .owned_quantity_reconciliation import (
     AMBIGUOUS,
     PROVEN_ALLOCATION_USER_EDIT,
     PROVEN_PART_USER_EDIT,
+    USER_APPROVED_AUTHORITY_RESOLUTION,
     apply_reconciliation,
     classify_owned_quantity_consistency,
 )
@@ -157,6 +158,12 @@ class OwnedQuantityReconciliationTests(TestCase):
         self.event("set_inventory.quantity_changed", item, 30)
         plan = classify_owned_quantity_consistency(self.user)[0]
         self.assertEqual(plan.classification, PROVEN_ALLOCATION_USER_EDIT)
+        approved_plan = classify_owned_quantity_consistency(
+            self.user, resolve_ambiguous_from_authority=True
+        )[0]
+        self.assertEqual(
+            approved_plan.classification, PROVEN_ALLOCATION_USER_EDIT
+        )
 
     def test_no_event_and_mismatching_latest_event_are_ambiguous(self):
         _set, item, part = self.allocation("none")
@@ -226,7 +233,7 @@ class OwnedQuantityReconciliationTests(TestCase):
         self.assertEqual((part.quantity, part.owned_quantity), (18, 8))
         self.assertEqual(second.owned_quantity, 6)
 
-    def test_normal_plus_minifigure_is_not_collapsed_and_allocation_wins(self):
+    def test_user_policy_preserves_normal_plus_minifigure_allocations(self):
         lego_set, item, part = self.allocation(
             "normal-mini", part_owned=1, inventory_owned=2, required=10
         )
@@ -245,22 +252,59 @@ class OwnedQuantityReconciliationTests(TestCase):
             quantity=4,
             owned_quantity=3,
         )
-        AuditEvent.objects.create(
-            actor=self.user,
-            target_user=self.user,
-            action="minifigure_part.quantity_changed",
-            entity_type="minifigure_part",
-            entity_id=str(component.pk),
-            details={"owned_quantity": 3},
+        plan = classify_owned_quantity_consistency(
+            self.user, resolve_ambiguous_from_authority=True
+        )[0]
+        self.assertEqual(plan.classification, USER_APPROVED_AUTHORITY_RESOLUTION)
+        apply_reconciliation(
+            [plan], user=self.user, resolve_ambiguous_from_authority=True
         )
-        plan = classify_owned_quantity_consistency(self.user)[0]
-        self.assertEqual(plan.classification, PROVEN_ALLOCATION_USER_EDIT)
-        apply_reconciliation([plan], user=self.user)
         item.refresh_from_db()
         component.refresh_from_db()
         part.refresh_from_db()
         self.assertEqual((item.owned_quantity, component.owned_quantity), (2, 3))
         self.assertEqual((part.quantity, part.owned_quantity), (14, 5))
+        event = AuditEvent.objects.get(action="ownership.reconciled", entity_id=part.pk)
+        self.assertEqual(
+            event.details["resolution_source"],
+            "user_approved_authoritative_policy",
+        )
+
+    def test_user_policy_preserves_multiple_minifigure_allocations(self):
+        lego_set = LegoSet.objects.create(
+            owner=self.user, set_number="multi-mini", name="Multiple figures"
+        )
+        first_figure = SetMinifigure.objects.create(
+            owner=self.user, lego_set=lego_set, figure_number="fig-a", name="A"
+        )
+        second_figure = SetMinifigure.objects.create(
+            owner=self.user, lego_set=lego_set, figure_number="fig-b", name="B"
+        )
+        first = MinifigurePart.objects.create(
+            minifigure=first_figure, part_number="973", element_id="mini-973",
+            name="Torso A", color_name="Blue", quantity=2, owned_quantity=1,
+        )
+        second = MinifigurePart.objects.create(
+            minifigure=second_figure, part_number="973", element_id="mini-973",
+            name="Torso B", color_name="Blue", quantity=3, owned_quantity=2,
+        )
+        mirror = Part.objects.create(
+            owner=self.user, lego_set=lego_set, element_id="mini-973",
+            design_id="973", part_number="973", name="Torso mirror", color="Blue",
+            quantity=5, owned_quantity=0,
+        )
+        plan = classify_owned_quantity_consistency(
+            self.user, resolve_ambiguous_from_authority=True
+        )[0]
+        self.assertEqual(plan.classification, USER_APPROVED_AUTHORITY_RESOLUTION)
+        apply_reconciliation(
+            [plan], user=self.user, resolve_ambiguous_from_authority=True
+        )
+        first.refresh_from_db()
+        second.refresh_from_db()
+        mirror.refresh_from_db()
+        self.assertEqual((first.owned_quantity, second.owned_quantity), (1, 2))
+        self.assertEqual((mirror.quantity, mirror.owned_quantity), (5, 3))
 
     def test_audit_isolation_and_zero_values_are_not_unknown(self):
         _set, item, part = self.allocation("zero", part_owned=0, inventory_owned=3)
@@ -321,7 +365,6 @@ class OwnedQuantityReconciliationTests(TestCase):
             inventory_owned=25,
         )
         item_b = SetInventoryItem.objects.get(lego_set__set_number="set-sim-3711b")
-        self.event("set_inventory.quantity_changed", item_b, 25)
 
         audit_before = StringIO()
         call_command(
@@ -337,19 +380,26 @@ class OwnedQuantityReconciliationTests(TestCase):
             "reconcile_owned_quantity_consistency",
             "--user-id",
             str(self.user.pk),
+            "--resolve-ambiguous-from-authority",
             stdout=dry_run,
         )
         self.assertIn("mode: DRY-RUN", dry_run.getvalue())
         self.assertIn("proposed_writes: 2", dry_run.getvalue())
+        self.assertIn("unresolved_ambiguities: 0", dry_run.getvalue())
+        self.assertIn("USER_APPROVED_AUTHORITY_RESOLUTION", dry_run.getvalue())
 
         applied = StringIO()
         call_command(
             "reconcile_owned_quantity_consistency",
             "--user-id",
             str(self.user.pk),
+            "--resolve-ambiguous-from-authority",
             "--apply",
             stdout=applied,
         )
+        self.assertIn("divergences: 0", applied.getvalue())
+        self.assertIn("unresolved_ambiguities: 0", applied.getvalue())
+        self.assertIn("failed: 0", applied.getvalue())
         audit_after = StringIO()
         call_command(
             "audit_owned_quantity_consistency",
@@ -367,3 +417,26 @@ class OwnedQuantityReconciliationTests(TestCase):
         )
         item_a.refresh_from_db()
         self.assertEqual(item_a.owned_quantity, 36)
+        item_b.refresh_from_db()
+        self.assertEqual(item_b.owned_quantity, 25)
+
+        repeated = StringIO()
+        call_command(
+            "reconcile_owned_quantity_consistency",
+            "--user-id",
+            str(self.user.pk),
+            "--resolve-ambiguous-from-authority",
+            stdout=repeated,
+        )
+        self.assertIn("proposed_writes: 0", repeated.getvalue())
+        self.assertIn("unresolved_ambiguities: 0", repeated.getvalue())
+        repeated_apply = StringIO()
+        call_command(
+            "reconcile_owned_quantity_consistency",
+            "--user-id",
+            str(self.user.pk),
+            "--resolve-ambiguous-from-authority",
+            "--apply",
+            stdout=repeated_apply,
+        )
+        self.assertIn("applied_writes: 0", repeated_apply.getvalue())

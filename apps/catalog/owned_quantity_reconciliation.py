@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from django.core.management.base import CommandError
 from django.db import transaction
@@ -16,6 +16,11 @@ PROVEN_ALLOCATION_USER_EDIT = "PROVEN_ALLOCATION_USER_EDIT"
 DERIVED_STALE_MIRROR = "DERIVED_STALE_MIRROR"
 EXACTLY_EQUAL_AFTER_NORMALIZATION = "EXACTLY_EQUAL_AFTER_NORMALIZATION"
 AMBIGUOUS = "AMBIGUOUS"
+USER_APPROVED_AUTHORITY_RESOLUTION = "USER_APPROVED_AUTHORITY_RESOLUTION"
+USER_APPROVED_REASON = (
+    "Explicit user-approved historical policy: retain authoritative allocation "
+    "ownership and synchronize Part mirror."
+)
 
 PART_ACTION = "missing_part.quantity_changed"
 ALLOCATION_ACTIONS = {
@@ -67,7 +72,12 @@ def _event_owned(event):
 
 
 def classify_owned_quantity_consistency(
-    user=None, *, part_id=None, set_number=None, include_consistent=False
+    user=None,
+    *,
+    part_id=None,
+    set_number=None,
+    include_consistent=False,
+    resolve_ambiguous_from_authority=False,
 ):
     rows = owned_quantity_consistency_rows(
         user,
@@ -196,11 +206,31 @@ def classify_owned_quantity_consistency(
                     event.pk,
                 )
             )
+    if resolve_ambiguous_from_authority:
+        plans = [
+            replace(
+                plan,
+                classification=USER_APPROVED_AUTHORITY_RESOLUTION,
+                proposed_winner="authoritative allocation",
+                proposed_final_owned=plan.row["authoritative_owned"],
+                reason=USER_APPROVED_REASON,
+            )
+            if plan.classification == AMBIGUOUS
+            else plan
+            for plan in plans
+        ]
     return plans
 
 
 @transaction.atomic
-def apply_reconciliation(plans, *, user=None, part_id=None, set_number=None):
+def apply_reconciliation(
+    plans,
+    *,
+    user=None,
+    part_id=None,
+    set_number=None,
+    resolve_ambiguous_from_authority=False,
+):
     candidate_ids = [plan.row["part_id"] for plan in plans if plan.would_write]
     if not candidate_ids:
         return 0
@@ -243,6 +273,7 @@ def apply_reconciliation(plans, *, user=None, part_id=None, set_number=None):
         part_id=part_id,
         set_number=set_number,
         include_consistent=True,
+        resolve_ambiguous_from_authority=resolve_ambiguous_from_authority,
     )
     original = {plan.row["part_id"]: plan.state_token for plan in plans}
     current = {plan.row["part_id"]: plan.state_token for plan in locked_plans}
@@ -291,6 +322,11 @@ def apply_reconciliation(plans, *, user=None, part_id=None, set_number=None):
                 entity_id=str(part.pk),
                 details={
                     "classification": plan.classification,
+                    "resolution_source": (
+                        "user_approved_authoritative_policy"
+                        if plan.classification == USER_APPROVED_AUTHORITY_RESOLUTION
+                        else "retained_explicit_quantity_event"
+                    ),
                     "part_owned_before": plan.row["part_owned"],
                     "authoritative_owned_before": plan.row["authoritative_owned"],
                     "final_owned": final_owned,
