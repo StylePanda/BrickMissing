@@ -12,6 +12,7 @@ from django.views.decorators.http import require_POST
 
 from apps.accounts.forms import PersonalDataExportForm
 from apps.audit.models import AuditEvent
+from apps.catalog.colors import grouped_colors
 from apps.catalog.models import LegoSet, Part
 from apps.core.rate_limit import limited
 
@@ -23,6 +24,38 @@ from .services import parse_csv_upload, parse_json_upload
 def _csv_safe(value):
     text = str(value or "")
     return "'" + text if text[:1] in {"=", "+", "-", "@", "\t", "\r"} else text
+
+
+def _eligible_missing_parts(user):
+    return Part.objects.filter(
+        owner=user,
+        status=Part.Status.MISSING,
+        deleted_at__isnull=True,
+        quantity__gt=F("owned_quantity"),
+    ).exclude(element_id="")
+
+
+def _export_color_values(user):
+    return list(
+        _eligible_missing_parts(user)
+        .exclude(color="")
+        .order_by("color")
+        .values_list("color", flat=True)
+        .distinct()
+    )
+
+
+def _import_page_context(user, *, error=None, selected_colors=(), colors=None):
+    color_values = _export_color_values(user) if colors is None else colors
+    selected_colors = list(selected_colors)
+    return {
+        "error": error,
+        "color_groups": grouped_colors(color_values),
+        "selected_colors": selected_colors,
+        "color_summary": (
+            f"{len(selected_colors)} Farben" if selected_colors else "Alle Farben"
+        ),
+    }
 
 
 @login_required
@@ -76,17 +109,48 @@ def export_json(request):
 
 @login_required
 def export_missing_csv(request):
+    requested_colors = list(
+        dict.fromkeys(color for color in request.GET.getlist("color") if color)
+    )
+    if requested_colors:
+        available_colors = _export_color_values(request.user)
+        if any(color not in available_colors for color in requested_colors):
+            return render(
+                request,
+                "data_portability/import.html",
+                _import_page_context(
+                    request.user,
+                    error="Die Farbauswahl ist ungültig. Bitte wähle verfügbare Farben aus.",
+                    selected_colors=[
+                        color for color in requested_colors if color in available_colors
+                    ],
+                    colors=available_colors,
+                ),
+                status=400,
+            )
+
     output = io.StringIO(newline="")
     writer = csv.writer(output, lineterminator="\n")
     writer.writerow(["elementId", "quantity"])
-    records = Part.objects.filter(
-        owner=request.user,
-        status=Part.Status.MISSING,
-        deleted_at__isnull=True,
-        quantity__gt=F("owned_quantity"),
-    ).exclude(element_id="").values("element_id").annotate(
-        export_quantity=Sum(F("quantity") - F("owned_quantity"))
-    ).order_by("element_id")
+    eligible_parts = _eligible_missing_parts(request.user)
+    if requested_colors:
+        eligible_parts = eligible_parts.filter(color__in=requested_colors)
+    records = list(
+        eligible_parts.values("element_id")
+        .annotate(export_quantity=Sum(F("quantity") - F("owned_quantity")))
+        .order_by("element_id")
+    )
+    if requested_colors and not records:
+        return render(
+            request,
+            "data_portability/import.html",
+            _import_page_context(
+                request.user,
+                error="Für die ausgewählten Farben gibt es keine exportierbaren Teile.",
+                selected_colors=requested_colors,
+            ),
+            status=400,
+        )
     for record in records:
         writer.writerow([_csv_safe(record["element_id"]), record["export_quantity"]])
     response = HttpResponse("\ufeff" + output.getvalue(), content_type="text/csv; charset=utf-8")
@@ -147,7 +211,11 @@ def personal_export_download(request):
 
 @login_required
 def import_page(request):
-    return render(request, "data_portability/import.html")
+    return render(
+        request,
+        "data_portability/import.html",
+        _import_page_context(request.user),
+    )
 
 
 def _preview(request, source_format):
@@ -161,7 +229,10 @@ def _preview(request, source_format):
         )
     except ValidationError as exc:
         return render(
-            request, "data_portability/import.html", {"error": exc.messages[0]}, status=400
+            request,
+            "data_portability/import.html",
+            _import_page_context(request.user, error=exc.messages[0]),
+            status=400,
         )
     new = duplicates = 0
     for raw in payload["sets"]:

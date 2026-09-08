@@ -202,6 +202,290 @@ class ImportExportTests(TestCase):
             ["elementId,quantity", "shared-element,5"],
         )
 
+    def test_missing_csv_default_matches_pre_filter_regression_fixture(self):
+        Part.objects.create(
+            owner=self.user,
+            element_id="300321",
+            name="Brick",
+            color="Black",
+            quantity=10,
+            owned_quantity=2,
+        )
+        Part.objects.create(
+            owner=self.user,
+            element_id="300321",
+            name="Brick",
+            color="White",
+            quantity=12,
+            owned_quantity=2,
+        )
+        expected = (
+            Path(__file__).with_name("test_fixtures") / "lego_export_default.csv"
+        ).read_text(encoding="utf-8")
+
+        response = self.client.get(reverse("data_portability:export_csv"))
+
+        self.assertEqual(response.content.decode("utf-8-sig"), expected)
+        self.assertEqual(response["Content-Type"], "text/csv; charset=utf-8")
+        self.assertEqual(
+            response["Content-Disposition"],
+            'attachment; filename="brickmissing-fehlteile.csv"',
+        )
+
+    def test_missing_csv_empty_color_parameter_keeps_all_colors_default(self):
+        Part.objects.create(
+            owner=self.user,
+            element_id="default-element",
+            name="Default",
+            color="Black",
+        )
+
+        response = self.client.get(
+            reverse("data_portability:export_csv"), {"color": ""}
+        )
+
+        self.assertEqual(
+            response.content.decode("utf-8-sig").splitlines(),
+            ["elementId,quantity", "default-element,1"],
+        )
+
+    def test_missing_csv_filters_one_color_without_changing_quantity(self):
+        Part.objects.create(
+            owner=self.user,
+            element_id="black-element",
+            name="Black",
+            color="Black",
+            quantity=4,
+            owned_quantity=1,
+        )
+        Part.objects.create(
+            owner=self.user,
+            element_id="white-element",
+            name="White",
+            color="White",
+            quantity=7,
+            owned_quantity=0,
+        )
+
+        response = self.client.get(
+            reverse("data_portability:export_csv"), {"color": "Black"}
+        )
+
+        self.assertEqual(
+            response.content.decode("utf-8-sig").splitlines(),
+            ["elementId,quantity", "black-element,3"],
+        )
+
+    def test_missing_csv_filters_multiple_colors_with_or_logic(self):
+        for color, element_id in (
+            ("Black", "black-element"),
+            ("Red", "red-element"),
+            ("White", "white-element"),
+        ):
+            Part.objects.create(
+                owner=self.user,
+                element_id=element_id,
+                name=color,
+                color=color,
+                quantity=2,
+            )
+
+        response = self.client.get(
+            reverse("data_portability:export_csv"),
+            {"color": ["Black", "White"]},
+        )
+
+        self.assertEqual(
+            response.content.decode("utf-8-sig").splitlines(),
+            ["elementId,quantity", "black-element,2", "white-element,2"],
+        )
+
+    def test_missing_csv_keeps_existing_element_id_behavior(self):
+        Part.objects.create(
+            owner=self.user,
+            element_id="primary-element",
+            design_id="alternate-design",
+            name="Primary",
+            color="Black",
+        )
+        Part.objects.create(
+            owner=self.user,
+            element_id="",
+            design_id="design-without-element",
+            name="No primary",
+            color="Black",
+        )
+
+        response = self.client.get(
+            reverse("data_portability:export_csv"), {"color": "Black"}
+        )
+
+        self.assertEqual(
+            response.content.decode("utf-8-sig").splitlines(),
+            ["elementId,quantity", "primary-element,1"],
+        )
+
+    def test_missing_csv_default_preserves_unknown_color_behavior(self):
+        Part.objects.create(
+            owner=self.user,
+            element_id="blank-color",
+            name="Blank",
+            color="",
+        )
+        Part.objects.create(
+            owner=self.user,
+            element_id="unmapped-color",
+            name="Unmapped",
+            color="[No Color/Any Color]",
+        )
+
+        response = self.client.get(reverse("data_portability:export_csv"))
+
+        self.assertEqual(
+            response.content.decode("utf-8-sig").splitlines(),
+            ["elementId,quantity", "blank-color,1", "unmapped-color,1"],
+        )
+
+    def test_missing_csv_rejects_invalid_color_safely(self):
+        Part.objects.create(
+            owner=self.user,
+            element_id="black-element",
+            name="Black",
+            color="Black",
+        )
+
+        response = self.client.get(
+            reverse("data_portability:export_csv"), {"color": "not-authorized"}
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertContains(response, "Die Farbauswahl ist ungültig", status_code=400)
+        self.assertNotIn("not-authorized", response.content.decode())
+
+    def test_missing_csv_rejects_mixed_valid_and_invalid_colors(self):
+        Part.objects.create(
+            owner=self.user,
+            element_id="black-element",
+            name="Black",
+            color="Black",
+        )
+
+        response = self.client.get(
+            reverse("data_portability:export_csv"),
+            {"color": ["Black", "not-authorized"]},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertContains(response, "Die Farbauswahl ist ungültig", status_code=400)
+
+    @patch("apps.data_portability.views._export_color_values", return_value=["Red"])
+    def test_missing_csv_selected_color_with_zero_rows_shows_clear_message(self, _colors):
+        response = self.client.get(
+            reverse("data_portability:export_csv"), {"color": "Red"}
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertContains(
+            response,
+            "Für die ausgewählten Farben gibt es keine exportierbaren Teile.",
+            status_code=400,
+        )
+        self.assertNotIn("text/csv", response["Content-Type"])
+
+    def test_missing_csv_color_filter_never_exports_another_users_parts(self):
+        other = get_user_model().objects.create_user(
+            "color-other",
+            "color-other@example.test",
+            "A-very-long-password-123",
+            email_verified=True,
+        )
+        Part.objects.create(
+            owner=self.user,
+            element_id="own-black",
+            name="Own",
+            color="Black",
+        )
+        Part.objects.create(
+            owner=other,
+            element_id="foreign-black",
+            name="Foreign",
+            color="Black",
+        )
+
+        response = self.client.get(
+            reverse("data_portability:export_csv"), {"color": "Black"}
+        )
+
+        self.assertEqual(
+            response.content.decode("utf-8-sig").splitlines(),
+            ["elementId,quantity", "own-black,1"],
+        )
+
+    def test_missing_csv_duplicate_color_parameters_do_not_duplicate_rows(self):
+        Part.objects.create(
+            owner=self.user,
+            element_id="black-element",
+            name="Black",
+            color="Black",
+            quantity=3,
+        )
+
+        response = self.client.get(
+            reverse("data_portability:export_csv"),
+            {"color": ["Black", "Black"]},
+        )
+
+        self.assertEqual(
+            response.content.decode("utf-8-sig").splitlines(),
+            ["elementId,quantity", "black-element,3"],
+        )
+
+    def test_export_ui_defaults_to_all_colors_and_is_user_scoped(self):
+        other = get_user_model().objects.create_user(
+            "ui-other",
+            "ui-other@example.test",
+            "A-very-long-password-123",
+            email_verified=True,
+        )
+        Part.objects.create(
+            owner=self.user,
+            element_id="own-black",
+            name="Own",
+            color="Black",
+        )
+        Part.objects.create(
+            owner=other,
+            element_id="foreign-secret",
+            name="Foreign",
+            color="Secret Color",
+        )
+
+        response = self.client.get(reverse("data_portability:import_page"))
+
+        self.assertContains(response, "Farben")
+        self.assertContains(response, "Alle Farben")
+        self.assertContains(response, 'name="color" value="Black"')
+        self.assertNotContains(response, "Secret Color")
+
+    def test_export_ui_renders_multiple_retained_selections(self):
+        for color in ("Black", "White"):
+            Part.objects.create(
+                owner=self.user,
+                element_id=f"{color}-element",
+                name=color,
+                color=color,
+            )
+
+        response = self.client.get(
+            reverse("data_portability:export_csv"),
+            {"color": ["Black", "White", "invalid"]},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertContains(response, "2 Farben", status_code=400)
+        self.assertContains(response, 'value="Black" checked', status_code=400)
+        self.assertContains(response, 'value="White" checked', status_code=400)
+
     def test_adversarial_import_matrix_never_returns_500(self):
         cases = [
             ("json", SimpleUploadedFile("bad.json", b"\xff", content_type="application/json")),
