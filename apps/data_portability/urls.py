@@ -11,6 +11,11 @@ urlpatterns = [
         name="personal_export_download",
     ),
     path("daten/import/", views.import_page, name="import_page"),
+    path(
+        "daten/lego-nicht-verfuegbar/",
+        views.lego_unavailable,
+        name="lego_unavailable",
+    ),
     path("daten/import/json/", views.import_json, name="import_json"),
     path("daten/import/csv/", views.import_csv, name="import_csv"),
     path("daten/import/<uuid:pk>/bestaetigen/", views.import_confirm, name="import_confirm"),

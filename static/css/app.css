@@ -613,6 +613,36 @@ dd { margin: 0; }
   .minifigure-filters { grid-template-columns: 1fr; }
 }
 
+/* LEGO Pick a Brick unavailable-pieces read-only analysis. */
+.lego-unavailable-upload { margin-bottom: var(--space-6); }
+.lego-unavailable-summary { margin-bottom: var(--space-5); }
+.lego-unavailable-filters { grid-template-columns: auto minmax(220px, 1fr) auto; margin-bottom: var(--space-5); }
+.lego-unavailable-filters .status-tabs { margin: 0; }
+.lego-unavailable-filters .status-tabs button[aria-pressed="true"] { border-color: var(--color-primary); background: var(--color-surface-hover); color: var(--color-primary-hover); }
+.lego-unavailable-filters > p { margin: 0; white-space: nowrap; }
+.lego-unavailable-results, .lego-part-matches { display: grid; gap: var(--space-4); }
+.lego-unavailable-row { min-width: 0; overflow: hidden; }
+.lego-unavailable-row > header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); }
+.lego-unavailable-row h2, .lego-unavailable-row h3 { overflow-wrap: anywhere; }
+.lego-response-data, .lego-part-details dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); margin: 0; }
+.lego-response-data > div, .lego-part-details dl > div { min-width: 0; }
+.lego-response-data dt, .lego-part-details dt { color: var(--color-text-muted); font-size: .8rem; font-weight: 750; }
+.lego-response-data dd, .lego-part-details dd { margin: var(--space-1) 0 0; overflow-wrap: anywhere; }
+.lego-response-data .lego-error { grid-column: 1 / -1; }
+.lego-part-match { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-4); border-top: 1px solid var(--color-border-subtle); padding-top: var(--space-4); }
+.lego-part-details { min-width: 0; }
+.lego-part-details h3, .lego-part-details p { margin: 0 0 var(--space-2); }
+@media (max-width: 760px) {
+  .lego-unavailable-filters { grid-template-columns: 1fr; }
+  .lego-unavailable-filters .status-tabs { display: grid; grid-template-columns: 1fr; }
+  .lego-unavailable-filters > p { white-space: normal; }
+  .lego-response-data, .lego-part-details dl { grid-template-columns: 1fr; }
+  .lego-response-data .lego-error { grid-column: auto; }
+}
+@media (max-width: 374px) {
+  .lego-part-match { grid-template-columns: 1fr; }
+}
+
 /* Phase 13.4F.3: set detail hierarchy and responsive workbench. */
 .set-detail-hero { display: grid; grid-template-columns: minmax(240px, 360px) minmax(0, 1fr); gap: clamp(var(--space-5), 3vw, var(--space-10)); align-items: center; padding: clamp(var(--space-5), 3vw, var(--space-8)); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-lg); background: radial-gradient(circle at 12% 18%, rgb(155 108 255 / .13), transparent 42%), var(--color-surface); }
 .set-hero-media { display: grid; min-width: 0; place-items: center; }

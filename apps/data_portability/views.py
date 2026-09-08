@@ -8,7 +8,7 @@ from django.db.models import F, Sum
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_http_methods, require_POST
 
 from apps.accounts.forms import PersonalDataExportForm
 from apps.audit.models import AuditEvent
@@ -16,6 +16,7 @@ from apps.catalog.colors import grouped_colors
 from apps.catalog.models import LegoSet, Part
 from apps.core.rate_limit import limited
 
+from .lego_unavailable import analyze_lego_unavailable, parse_lego_unavailable_upload
 from .models import ImportBatch
 from .personal_export import build_personal_data_export
 from .services import parse_csv_upload, parse_json_upload
@@ -215,6 +216,26 @@ def import_page(request):
         request,
         "data_portability/import.html",
         _import_page_context(request.user),
+    )
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def lego_unavailable(request):
+    context = {}
+    status = 200
+    if request.method == "POST":
+        try:
+            rows = parse_lego_unavailable_upload(request.FILES.get("file"))
+            context.update(analyze_lego_unavailable(rows, request.user))
+        except ValidationError as exc:
+            context["error"] = exc.messages[0]
+            status = 400
+    return render(
+        request,
+        "data_portability/lego_unavailable.html",
+        context,
+        status=status,
     )
 
 

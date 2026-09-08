@@ -1,0 +1,94 @@
+{% extends "base.html" %}{% load static %}
+{% block title %}Nicht verfügbare LEGO-Teile{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow">LEGO Pick a Brick</p>
+    <h1>Nicht verfügbare LEGO-Teile</h1>
+    <p class="muted">Ordne die von LEGO zurückgemeldeten ElementIDs deinen Fehlteilen zu. Die Analyse ist schreibgeschützt und ändert keine Daten.</p>
+  </div>
+  <a class="button" href="{% url 'data_portability:import_page' %}">Zurück zu Import &amp; Export</a>
+</div>
+
+{% if error %}<div class="notice warn" role="alert">{{ error }}</div>{% endif %}
+
+<form method="post" enctype="multipart/form-data" class="panel sectioned-form lego-unavailable-upload">
+  {% csrf_token %}
+  <fieldset>
+    <legend>LEGO-Ergebnisdatei</legend>
+    <div class="form-field">
+      <label for="lego-unavailable-file">CSV- oder JSON-Datei</label>
+      <input id="lego-unavailable-file" name="file" type="file" accept=".csv,.json,text/csv,application/json" required aria-describedby="lego-unavailable-help">
+      <small id="lego-unavailable-help">Erwartete Felder: elementId, quantity, error. UTF-8, höchstens 2 MiB. Die Datei wird nicht gespeichert.</small>
+    </div>
+  </fieldset>
+  <div class="form-actions"><button class="primary" type="submit">Datei analysieren</button></div>
+</form>
+
+{% if results %}
+<section aria-labelledby="analysis-summary-title">
+  <h2 id="analysis-summary-title">Zusammenfassung</h2>
+  <div class="stats lego-unavailable-summary">
+    <article><span>LEGO-Einträge</span><strong>{{ summary.entries }}</strong></article>
+    <article><span>Gefunden</span><strong>{{ summary.matched }}</strong></article>
+    <article><span>Nicht zugeordnet</span><strong>{{ summary.unmatched }}</strong></article>
+    <article><span>Gesamtmenge</span><strong>{{ summary.quantity }}</strong></article>
+  </div>
+</section>
+
+<section class="filters lego-unavailable-filters" aria-label="Analyse filtern" data-lego-analysis-filters>
+  <div class="status-tabs" role="group" aria-label="Zuordnungsstatus">
+    <button type="button" aria-pressed="true" data-match-filter="all">Alle</button>
+    <button type="button" aria-pressed="false" data-match-filter="matched">Gefunden</button>
+    <button type="button" aria-pressed="false" data-match-filter="unmatched">Nicht zugeordnet</button>
+  </div>
+  <label for="lego-analysis-search">ElementID / Teilname / Setnummer
+    <input id="lego-analysis-search" type="search" data-match-search autocomplete="off">
+  </label>
+  <p class="muted" role="status" aria-live="polite" data-match-count>{{ summary.entries }} Einträge sichtbar</p>
+</section>
+
+<div class="lego-unavailable-results" data-lego-analysis-results>
+  {% for result in results %}
+  <article class="panel lego-unavailable-row" data-match-state="{% if result.matched %}matched{% else %}unmatched{% endif %}" data-search-text="{{ result.element_id }} {% for part in result.matches %}{{ part.name }} {{ part.part_number }} {{ part.design_id }} {% if part.lego_set %}{{ part.lego_set.set_number }} {{ part.lego_set.name }}{% endif %} {% endfor %}">
+    <header>
+      <div><span class="eyebrow">ElementID</span><h2>{{ result.element_id }}</h2></div>
+      <span class="badge {% if result.matched %}found{% else %}missing{% endif %}">{% if result.matched %}Gefunden{% else %}Nicht zugeordnet{% endif %}</span>
+    </header>
+    <dl class="lego-response-data">
+      <div><dt>LEGO-Menge</dt><dd>{{ result.quantity }}</dd></div>
+      <div class="lego-error"><dt>LEGO-Fehler</dt><dd>{{ result.error }}</dd></div>
+    </dl>
+    {% if result.matches %}
+      {% if result.matches|length > 1 %}<p><strong>{{ result.matches|length }} BrickMissing-Zuordnungen</strong></p>{% endif %}
+      <div class="lego-part-matches">
+      {% for part in result.matches %}
+        <section class="lego-part-match">
+          <div class="lego-part-image">
+          {% if part.image_url %}<button class="part-image-trigger compact-image" type="button" aria-label="Bild von {{ part.name }} vergrößern" data-lightbox-image="{{ part.image_url|proxied_image_url }}" data-lightbox-title="{{ part.name }}"><img src="{{ part.image_url|proxied_image_url }}" alt="{{ part.name }}" loading="lazy" data-image-fallback></button>{% else %}<span class="part-placeholder compact-image">Kein Bild</span>{% endif %}
+          </div>
+          <div class="lego-part-details">
+            <h3>{{ part.name }}</h3>
+            <p>{{ part.color|default:"Keine Farbangabe" }}</p>
+            <dl>
+              {% if part.part_number and part.part_number != result.element_id %}<div><dt>Teilenummer</dt><dd>{{ part.part_number }}</dd></div>{% endif %}
+              {% if part.design_id and part.design_id != result.element_id and part.design_id != part.part_number %}<div><dt>Design-ID</dt><dd>{{ part.design_id }}</dd></div>{% endif %}
+              <div><dt>Aktuell fehlend</dt><dd>{{ part.missing_quantity }}</dd></div>
+              <div><dt>Status</dt><dd>{{ part.get_status_display }}</dd></div>
+              <div><dt>Set</dt><dd>{% if part.lego_set %}<a href="{% url 'catalog:set_detail' part.lego_set.pk %}">{{ part.lego_set.set_number }} – {{ part.lego_set.name }}</a>{% else %}Ohne Set-Zuordnung{% endif %}</dd></div>
+            </dl>
+          </div>
+        </section>
+      {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty"><strong>Nicht zugeordnet</strong><span>Keine aktive eigene BrickMissing-Position mit dieser ElementID gefunden.</span></div>
+    {% endif %}
+  </article>
+  {% endfor %}
+</div>
+<p class="empty" hidden data-no-analysis-results>Keine Einträge entsprechen dem aktuellen Filter.</p>
+<dialog id="image-lightbox" class="image-lightbox" aria-labelledby="image-lightbox-title"><button class="lightbox-close" type="button" data-lightbox-close aria-label="Bildansicht schließen">×</button><img alt=""><p id="image-lightbox-title"></p></dialog>
+<script src="{% static 'js/lego-unavailable.js' %}?v=8.0" defer></script>
+{% endif %}
+{% endblock %}
