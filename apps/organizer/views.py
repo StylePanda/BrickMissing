@@ -4,6 +4,7 @@ from urllib.parse import quote
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db import models, transaction
 from django.http import Http404, HttpResponse, JsonResponse
@@ -14,7 +15,11 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 from apps.accounts.totp import decrypt_secret, qr_svg
 from apps.audit.models import AuditEvent
 from apps.catalog.models import LegoSet
-from apps.catalog.services import set_completeness
+from apps.catalog.services import (
+    AmbiguousAuthoritativeAllocation,
+    set_authoritative_owned_quantity,
+    set_completeness,
+)
 from apps.core.services import record_recent
 from apps.integrations.services import RebrickableError, rebrickable_set_metadata
 from apps.inventory.models import InventoryItem, WarehouseLocation
@@ -995,6 +1000,7 @@ def moc_version_activate(request, moc_pk, pk):
 
 
 @login_required
+@transaction.atomic
 def child_edit(request, area, parent_pk, pk=None):
     if area == "mocs":
         parent = get_object_or_404(Moc, pk=parent_pk, owner=request.user)
@@ -1049,6 +1055,24 @@ def child_edit(request, area, parent_pk, pk=None):
         setattr(saved, relation, parent)
         saved.full_clean()
         saved.save()
+        if isinstance(saved, MinifigurePart):
+            try:
+                saved = set_authoritative_owned_quantity(
+                    "minifigure", saved, saved.owned_quantity, request.user
+                )
+            except ValidationError as exc:
+                transaction.set_rollback(True)
+                form.add_error(None, exc)
+                return render(
+                    request,
+                    "organizer/form.html",
+                    {
+                        "form": form,
+                        "title": "Bestandteil bearbeiten" if instance else "Bestandteil hinzufügen",
+                        "area": area,
+                    },
+                    status=409,
+                )
         AuditEvent.objects.create(
             actor=request.user,
             target_user=request.user,
@@ -1077,10 +1101,12 @@ def minifigure_part_quantity(request, figure_pk, pk):
         quantity = -1
     if not 0 <= quantity <= part.quantity:
         return HttpResponse("Der vorhandene Bestand ist ungültig.", status=400)
-    part.owned_quantity = quantity
-    part.full_clean()
-    part.save(update_fields=["owned_quantity"])
-    part.refresh_from_db()
+    try:
+        part = set_authoritative_owned_quantity(
+            "minifigure", part, quantity, request.user
+        )
+    except AmbiguousAuthoritativeAllocation as exc:
+        return HttpResponse(exc.messages[0], status=409)
     AuditEvent.objects.create(actor=request.user, target_user=request.user, action="minifigure_part.quantity_changed", entity_type="minifigure_part", entity_id=str(part.pk), details={"owned_quantity": quantity}, request_id=request.request_id)
     if request.headers.get("Accept") == "application/json":
         figure_record = _minifigure_record(
@@ -1133,9 +1159,15 @@ def minifigure_inventory_action(request, figure_pk, action):
     figure = get_object_or_404(SetMinifigure, pk=figure_pk, owner=request.user)
     parts = figure.parts.select_for_update()
     if action == "complete":
-        parts.update(owned_quantity=models.F("quantity"))
+        for part in parts:
+            set_authoritative_owned_quantity(
+                "minifigure", part, part.quantity, request.user
+            )
     elif action == "missing":
-        parts.update(owned_quantity=0)
+        for part in parts:
+            set_authoritative_owned_quantity(
+                "minifigure", part, 0, request.user
+            )
     else:
         return HttpResponse("Die Aktion ist ungültig.", status=400)
     AuditEvent.objects.create(actor=request.user, target_user=request.user, action=f"minifigure_inventory.{action}", entity_type="set_minifigure", entity_id=str(figure.pk), request_id=request.request_id)

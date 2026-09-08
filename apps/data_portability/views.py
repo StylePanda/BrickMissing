@@ -16,6 +16,7 @@ from apps.catalog.models import LegoSet, Part
 from apps.catalog.services import (
     authoritative_lego_export_parts,
     authoritative_lego_export_rows,
+    set_part_owned_quantity,
 )
 from apps.core.rate_limit import limited
 
@@ -341,11 +342,15 @@ def import_confirm(request, pk):
                 existing.status = Part.Status.MISSING if existing.owned_quantity < existing.quantity else Part.Status.FOUND
                 existing.full_clean()
                 existing.save()
+                set_part_owned_quantity(
+                    existing, existing.owned_quantity, request.user
+                )
                 counters["updated"] += 1
             else:
                 item = Part(owner=request.user, lego_set=lego_set, **values)
                 item.full_clean()
                 item.save()
+                set_part_owned_quantity(item, item.owned_quantity, request.user)
                 counters["created"] += 1
         locked.committed_at = timezone.now()
         locked.report = counters

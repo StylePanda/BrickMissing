@@ -1,6 +1,7 @@
 from django.contrib import admin
 
 from .models import LegoSet, Part, PartHistory, SetCopy, SetInventoryItem
+from .services import set_authoritative_owned_quantity, set_part_owned_quantity
 
 LegoSet._meta.verbose_name = "LEGO-Set"
 LegoSet._meta.verbose_name_plural = "LEGO-Sets"
@@ -29,5 +30,20 @@ class PartAdmin(admin.ModelAdmin):
     list_filter = ("status", "priority", "deleted_at")
     list_per_page = 50
 
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        set_part_owned_quantity(obj, obj.owned_quantity, obj.owner)
 
-admin.site.register([SetCopy, SetInventoryItem, PartHistory])
+
+@admin.register(SetInventoryItem)
+class SetInventoryItemAdmin(admin.ModelAdmin):
+    list_per_page = 50
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        set_authoritative_owned_quantity(
+            "set", obj, obj.owned_quantity, obj.lego_set.owner
+        )
+
+
+admin.site.register([SetCopy, PartHistory])

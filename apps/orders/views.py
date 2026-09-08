@@ -14,6 +14,7 @@ from django.views.decorators.http import require_POST
 
 from apps.audit.models import AuditEvent
 from apps.catalog.models import Part
+from apps.catalog.services import with_authoritative_missing_quantity
 from apps.core.services import record_recent
 from apps.inventory.models import InventoryItem
 from apps.inventory.services import change_inventory
@@ -71,14 +72,21 @@ def order_import(request):
     payload = {"source": request.POST.get("source", "generic"), "order_number": request.POST.get("order_number", "").strip()[:100], "order_date": order_date, "supplier": request.POST.get("supplier", "").strip()[:100], "items": items, "errors": errors}
     matches = []
     for item in items:
-        part_qs = Part.objects.filter(owner=request.user, deleted_at__isnull=True, status=Part.Status.MISSING, part_number=item["part_number"], quantity__gt=models.F("owned_quantity")).select_related("lego_set").order_by("lego_set_id", "pk")
+        part_qs = with_authoritative_missing_quantity(
+            Part.objects.filter(
+                owner=request.user,
+                deleted_at__isnull=True,
+                status=Part.Status.MISSING,
+                part_number=item["part_number"],
+            ).select_related("lego_set")
+        ).filter(authoritative_missing_quantity__gt=0).order_by("lego_set_id", "pk")
         mini_qs = MinifigurePart.objects.filter(minifigure__owner=request.user, minifigure__lego_set__deleted_at__isnull=True, part_number=item["part_number"], quantity__gt=models.F("owned_quantity"), is_spare=False).select_related("minifigure", "minifigure__lego_set").order_by("minifigure__lego_set_id", "minifigure_id", "pk")
         candidates = []
         for candidate in part_qs:
             color_match = bool(item["color"]) and candidate.color.strip().casefold() == item["color"].strip().casefold()
             if item["color"] and not color_match:
                 continue
-            candidates.append({"kind": "part", "id": str(candidate.pk), "set_name": candidate.lego_set.set_number if candidate.lego_set else "", "open": candidate.missing_quantity, "quality": "EXACT" if color_match else "POSSIBLE"})
+            candidates.append({"kind": "part", "id": str(candidate.pk), "set_name": candidate.lego_set.set_number if candidate.lego_set else "", "open": candidate.authoritative_missing_quantity, "quality": "EXACT" if color_match else "POSSIBLE"})
         for candidate in mini_qs:
             color_match = bool(item["color"]) and candidate.color_name.strip().casefold() == item["color"].strip().casefold()
             if item["color"] and not color_match:

@@ -1,5 +1,7 @@
 from django.contrib import admin
 
+from apps.catalog.services import set_authoritative_owned_quantity
+
 from .forms import LABELS
 from .models import (
     Collection,
@@ -82,4 +84,9 @@ class LoanAdmin(GermanLabelsAdmin):
 
 @admin.register(PersonalNote, LabelTemplate, CollectionMember, MocPart, MocVersion, MinifigurePart, WorkshopDocument)
 class OrganizerRecordAdmin(GermanLabelsAdmin):
-    pass
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        if isinstance(obj, MinifigurePart):
+            set_authoritative_owned_quantity(
+                "minifigure", obj, obj.owned_quantity, obj.minifigure.owner
+            )

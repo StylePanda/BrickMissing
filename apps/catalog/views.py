@@ -4,6 +4,7 @@ from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Case, Count, F, IntegerField, Q, Sum, Value, When
@@ -28,11 +29,18 @@ from .models import LegoSet, Part, SetCopy, SetInventoryItem
 from .part_status import (
     group_workflow_status,
     stock_state,
-    synchronize_presence_marker,
     workflow_status_label,
 )
+from .services import (
+    AmbiguousAuthoritativeAllocation,
+    set_authoritative_owned_quantity,
+    set_part_owned_quantity,
+    soft_delete,
+    update_part,
+    with_authoritative_missing_quantity,
+    with_set_completeness,
+)
 from .services import set_completeness as _set_completeness
-from .services import soft_delete, update_part, with_set_completeness
 
 
 def _page(request, queryset, size=50):
@@ -487,8 +495,10 @@ def set_delete(request, pk):
 
 @login_required
 def part_list(request):
-    queryset = Part.objects.filter(owner=request.user, deleted_at__isnull=True).select_related(
-        "lego_set"
+    queryset = with_authoritative_missing_quantity(
+        Part.objects.filter(owner=request.user, deleted_at__isnull=True).select_related(
+            "lego_set"
+        )
     )
     query = request.GET.get("q", "").strip()
     status = request.GET.get("status", "")
@@ -503,7 +513,9 @@ def part_list(request):
         queryset = queryset.filter(status=status)
     ordering = request.GET.get("sort", "name")
     ordering = ordering if ordering in {"name", "element_id", "color", "-quantity", "-updated_at"} else "name"
-    queryset = queryset.order_by(ordering)
+    queryset = queryset.order_by(
+        "-authoritative_required_quantity" if ordering == "-quantity" else ordering
+    )
     return render(
         request,
         "catalog/part_list.html",
@@ -519,11 +531,12 @@ def part_list(request):
 
 @login_required
 def missing_parts(request):
-    queryset = Part.objects.filter(
-        owner=request.user,
-        deleted_at__isnull=True,
-        quantity__gt=F("owned_quantity"),
-    ).select_related("lego_set")
+    queryset = with_authoritative_missing_quantity(
+        Part.objects.filter(
+            owner=request.user,
+            deleted_at__isnull=True,
+        ).select_related("lego_set")
+    ).filter(authoritative_missing_quantity__gt=0)
     query = request.GET.get("q", "").strip()
     selected_colors = [value for value in request.GET.getlist("color") if value]
     status = request.GET.get("status", "")
@@ -559,9 +572,9 @@ def missing_parts(request):
         queryset = queryset.filter(lego_set__isnull=True)
     rarity = request.GET.get("rarity", "all")
     if rarity == "single":
-        queryset = queryset.filter(quantity=1)
+        queryset = queryset.filter(authoritative_required_quantity=1)
     elif rarity == "multiple":
-        queryset = queryset.filter(quantity__gte=2)
+        queryset = queryset.filter(authoritative_required_quantity__gte=2)
     ordering = request.GET.get("sort", "name")
     sort_fields = {
         "name": "name", "-name": "name", "part_number": "part_number",
@@ -600,11 +613,11 @@ def missing_parts(request):
             "image_url": part.image_url, "required": 0, "owned": 0, "missing": 0,
             "allocations": [], "statuses": set(), "cost": 0,
         })
-        group["required"] += part.quantity
-        group["owned"] += part.owned_quantity
-        group["missing"] += part.missing_quantity
+        group["required"] += part.authoritative_required_quantity
+        group["owned"] += part.authoritative_owned_quantity
+        group["missing"] += part.authoritative_missing_quantity
         group["statuses"].add(part.status)
-        group["cost"] += part.unit_price * part.quantity
+        group["cost"] += part.unit_price * part.authoritative_required_quantity
         if not group["image_url"] and part.image_url:
             group["image_url"] = part.image_url
         group["allocations"].append(part)
@@ -702,11 +715,20 @@ def missing_parts(request):
             if not allocations:
                 continue
             group["allocations"] = allocations
-            group["required"] = sum(part.quantity for part in allocations)
-            group["owned"] = sum(part.owned_quantity for part in allocations)
-            group["missing"] = sum(part.missing_quantity for part in allocations)
+            group["required"] = sum(
+                part.authoritative_required_quantity for part in allocations
+            )
+            group["owned"] = sum(
+                part.authoritative_owned_quantity for part in allocations
+            )
+            group["missing"] = sum(
+                part.authoritative_missing_quantity for part in allocations
+            )
             group["statuses"] = {part.status for part in allocations}
-            group["cost"] = sum(part.unit_price * part.quantity for part in allocations)
+            group["cost"] = sum(
+                part.unit_price * part.authoritative_required_quantity
+                for part in allocations
+            )
         normalized_groups.append(group)
     groups = normalized_groups
     for group in groups:
@@ -804,15 +826,14 @@ def _bounded_quantity(value, maximum):
 @require_POST
 @transaction.atomic
 def missing_part_quantity(request, pk):
-    part = get_object_or_404(Part.objects.select_for_update(), pk=pk, owner=request.user, deleted_at__isnull=True)
-    quantity = _bounded_quantity(request.POST.get("owned_quantity"), part.quantity)
-    if quantity is None:
-        return HttpResponse("Der vorhandene Bestand ist ungültig.", status=400)
-    part.owned_quantity = quantity
-    synchronize_presence_marker(part)
-    part.full_clean()
-    part.save(update_fields=["owned_quantity", "is_present", "updated_at"])
-    part.refresh_from_db()
+    part = get_object_or_404(Part, pk=pk, owner=request.user, deleted_at__isnull=True)
+    try:
+        quantity = int(request.POST.get("owned_quantity", ""))
+        part = set_part_owned_quantity(part, quantity, request.user)
+    except (TypeError, ValueError, ValidationError) as exc:
+        message = exc.messages[0] if isinstance(exc, ValidationError) else str(exc)
+        status = 409 if isinstance(exc, AmbiguousAuthoritativeAllocation) else 400
+        return HttpResponse(message, status=status)
     AuditEvent.objects.create(actor=request.user, target_user=request.user, action="missing_part.quantity_changed", entity_type="part", entity_id=str(part.pk), details={"owned_quantity": quantity}, request_id=request.request_id)
     if request.headers.get("X-Requested-With") == "XMLHttpRequest":
         stock_key, stock_label = stock_state(part.quantity, part.owned_quantity)
@@ -836,33 +857,69 @@ def missing_part_status(request, pk):
     part.status = status
     part.full_clean()
     part.save(update_fields=["status", "updated_at"])
-    part.refresh_from_db()
+    part = with_authoritative_missing_quantity(
+        Part.objects.select_related("lego_set").filter(pk=part.pk)
+    ).get()
     AuditEvent.objects.create(actor=request.user, target_user=request.user, action="missing_part.status_changed", entity_type="part", entity_id=str(part.pk), details={"status": status}, request_id=request.request_id)
     if request.headers.get("X-Requested-With") == "XMLHttpRequest":
         return JsonResponse({"ok": True, "part": {
-            "id": str(part.pk), "owned": part.owned_quantity,
-            "missing": part.missing_quantity, "status": part.status,
+            "id": str(part.pk), "owned": part.authoritative_owned_quantity,
+            "missing": part.authoritative_missing_quantity, "status": part.status,
             "status_label": workflow_status_label(part.status),
         }})
     return redirect("catalog:missing_parts")
 
 
 @login_required
+@transaction.atomic
 def part_edit(request, pk=None):
     part = (
-        get_object_or_404(Part, pk=pk, owner=request.user, deleted_at__isnull=True) if pk else None
+        get_object_or_404(
+            with_authoritative_missing_quantity(Part.objects.select_related("lego_set")),
+            pk=pk,
+            owner=request.user,
+            deleted_at__isnull=True,
+        )
+        if pk
+        else None
     )
     form = PartForm(request.POST or None, instance=part, owner=request.user)
+    if part and (part._has_normal_inventory or part._has_minifigure_inventory):
+        form.fields["quantity"].disabled = True
+    if request.method == "GET" and part:
+        form.initial["quantity"] = part.authoritative_required_quantity
+        form.initial["owned_quantity"] = part.authoritative_owned_quantity
     if request.method == "GET" and part:
         record_recent(request.user, "part", part.pk, part.name, request.path)
     if request.method == "POST" and form.is_valid():
         if part:
-            update_part(part, form.cleaned_data, request.user, request.request_id)
+            try:
+                update_part(part, form.cleaned_data, request.user, request.request_id)
+            except ValidationError as exc:
+                transaction.set_rollback(True)
+                form.add_error(None, exc)
+                return render(
+                    request,
+                    "catalog/part_form.html",
+                    {"form": form, "title": "Teil bearbeiten"},
+                    status=409,
+                )
         else:
             instance = form.save(commit=False)
             instance.owner = request.user
             instance.full_clean()
             instance.save()
+            try:
+                set_part_owned_quantity(instance, instance.owned_quantity, request.user)
+            except ValidationError as exc:
+                transaction.set_rollback(True)
+                form.add_error(None, exc)
+                return render(
+                    request,
+                    "catalog/part_form.html",
+                    {"form": form, "title": "Teil hinzufügen"},
+                    status=409,
+                )
             AuditEvent.objects.create(
                 actor=request.user,
                 target_user=request.user,
@@ -959,6 +1016,7 @@ def set_copy_edit(request, set_pk, pk=None):
 
 
 @login_required
+@transaction.atomic
 def set_inventory_edit(request, set_pk, pk=None):
     lego_set = get_object_or_404(LegoSet, pk=set_pk, owner=request.user, deleted_at__isnull=True)
     instance = get_object_or_404(SetInventoryItem, pk=pk, lego_set=lego_set) if pk else None
@@ -968,6 +1026,26 @@ def set_inventory_edit(request, set_pk, pk=None):
         saved.lego_set = lego_set
         saved.full_clean()
         saved.save()
+        try:
+            set_authoritative_owned_quantity(
+                "set", saved, saved.owned_quantity, request.user
+            )
+        except ValidationError as exc:
+            transaction.set_rollback(True)
+            form.add_error(None, exc)
+            return render(
+                request,
+                "catalog/form.html",
+                {
+                    "form": form,
+                    "title": (
+                        "Soll-/Ist-Teil bearbeiten"
+                        if instance
+                        else "Soll-/Ist-Teil hinzufügen"
+                    ),
+                },
+                status=409,
+            )
         AuditEvent.objects.create(actor=request.user, target_user=request.user, action="set_inventory.saved", entity_type="set_inventory_item", entity_id=str(saved.pk), request_id=request.request_id)
         return redirect("catalog:set_detail", pk=lego_set.pk)
     return render(request, "catalog/form.html", {"form": form, "title": "Soll-/Ist-Teil bearbeiten" if instance else "Soll-/Ist-Teil hinzufügen"})
@@ -982,9 +1060,13 @@ def set_inventory_action(request, set_pk, action):
     lego_set = get_object_or_404(LegoSet, pk=set_pk, owner=request.user, deleted_at__isnull=True)
     records = lego_set.inventory_items.select_for_update()
     if action == "complete":
-        records.update(owned_quantity=F("required_quantity"))
+        for item in records:
+            set_authoritative_owned_quantity(
+                "set", item, item.required_quantity, request.user
+            )
     elif action == "missing":
-        records.update(owned_quantity=0)
+        for item in records:
+            set_authoritative_owned_quantity("set", item, 0, request.user)
     elif action == "create-missing":
         added = 0
         for item in records.filter(owned_quantity__lt=F("required_quantity"), is_spare=False):
@@ -994,6 +1076,9 @@ def set_inventory_action(request, set_pk, action):
                 if part.missing_quantity <= 0:
                     part.quantity = max(part.quantity, part.owned_quantity + quantity)
                     part.save(update_fields=["quantity", "updated_at"])
+            set_authoritative_owned_quantity(
+                "set", item, item.owned_quantity, request.user
+            )
             added += 1
         added += MinifigurePart.objects.filter(
             minifigure__lego_set=lego_set,
@@ -1020,8 +1105,11 @@ def set_inventory_quantity(request, set_pk, pk):
     quantity = _bounded_quantity(request.POST.get("owned_quantity"), item.required_quantity)
     if quantity is None:
         return HttpResponse("Der vorhandene Bestand ist ungültig.", status=400)
-    item.owned_quantity = quantity
-    item.full_clean()
-    item.save(update_fields=["owned_quantity", "updated_at"])
+    try:
+        item = set_authoritative_owned_quantity(
+            "set", item, quantity, request.user
+        )
+    except AmbiguousAuthoritativeAllocation as exc:
+        return HttpResponse(exc.messages[0], status=409)
     AuditEvent.objects.create(actor=request.user, target_user=request.user, action="set_inventory.quantity_changed", entity_type="set_inventory_item", entity_id=str(item.pk), details={"owned_quantity": quantity}, request_id=request.request_id)
     return redirect(_set_inventory_return_url(request, lego_set))

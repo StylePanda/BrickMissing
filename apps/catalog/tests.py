@@ -261,7 +261,7 @@ class CatalogFlowTests(TestCase):
         response = self.client.post(reverse("catalog:set_inventory_action", args=[lego_set.pk, "create-missing"]))
         self.assertRedirects(response, reverse("catalog:set_detail", args=[lego_set.pk]))
         part = Part.objects.get(owner=self.user, lego_set=lego_set)
-        self.assertEqual(part.quantity, 3)
+        self.assertEqual((part.quantity, part.owned_quantity), (4, 1))
 
     def test_set_inventory_bulk_keeps_workflow_state_and_counts_minifigure_parts(self):
         lego_set = LegoSet.objects.create(owner=self.user, set_number="100-2", name="Test")
@@ -278,7 +278,7 @@ class CatalogFlowTests(TestCase):
         response = self.client.post(reverse("catalog:set_inventory_action", args=[lego_set.pk, "create-missing"]))
         self.assertRedirects(response, reverse("catalog:set_detail", args=[lego_set.pk]))
         part = Part.objects.get(owner=self.user, lego_set=lego_set)
-        self.assertEqual(part.quantity, 2)
+        self.assertEqual((part.quantity, part.owned_quantity), (5, 3))
         part.status = Part.Status.ORDERED
         part.save(update_fields=["status"])
         self.client.post(reverse("catalog:set_inventory_action", args=[lego_set.pk, "create-missing"]))

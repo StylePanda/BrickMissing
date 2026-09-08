@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import (
     BooleanField,
@@ -225,6 +226,68 @@ def with_authoritative_missing_quantity(queryset):
             ),
             Value(0),
         ),
+        _exact_normal_inventory_required=Coalesce(
+            Subquery(
+                _quantity_total(normal_exact, "lego_set_id", "required_quantity"),
+                output_field=IntegerField(),
+            ),
+            Value(0),
+        ),
+        _fallback_normal_inventory_required=Coalesce(
+            Subquery(
+                _quantity_total(normal_fallback, "lego_set_id", "required_quantity"),
+                output_field=IntegerField(),
+            ),
+            Value(0),
+        ),
+        _exact_normal_inventory_owned=Coalesce(
+            Subquery(
+                _quantity_total(normal_exact, "lego_set_id", "owned_quantity"),
+                output_field=IntegerField(),
+            ),
+            Value(0),
+        ),
+        _fallback_normal_inventory_owned=Coalesce(
+            Subquery(
+                _quantity_total(normal_fallback, "lego_set_id", "owned_quantity"),
+                output_field=IntegerField(),
+            ),
+            Value(0),
+        ),
+        _exact_minifigure_inventory_required=Coalesce(
+            Subquery(
+                _quantity_total(minifigure_exact, "minifigure__lego_set_id", "quantity"),
+                output_field=IntegerField(),
+            ),
+            Value(0),
+        ),
+        _fallback_minifigure_inventory_required=Coalesce(
+            Subquery(
+                _quantity_total(
+                    minifigure_fallback, "minifigure__lego_set_id", "quantity"
+                ),
+                output_field=IntegerField(),
+            ),
+            Value(0),
+        ),
+        _exact_minifigure_inventory_owned=Coalesce(
+            Subquery(
+                _quantity_total(
+                    minifigure_exact, "minifigure__lego_set_id", "owned_quantity"
+                ),
+                output_field=IntegerField(),
+            ),
+            Value(0),
+        ),
+        _fallback_minifigure_inventory_owned=Coalesce(
+            Subquery(
+                _quantity_total(
+                    minifigure_fallback, "minifigure__lego_set_id", "owned_quantity"
+                ),
+                output_field=IntegerField(),
+            ),
+            Value(0),
+        ),
     ).annotate(
         _has_normal_inventory=Case(
             When(_has_exact_normal_inventory=True, then=Value(True)),
@@ -252,6 +315,38 @@ def with_authoritative_missing_quantity(queryset):
             default=F("_fallback_minifigure_inventory_missing"),
             output_field=IntegerField(),
         ),
+        _normal_inventory_required=Case(
+            When(
+                _has_exact_normal_inventory=True,
+                then=F("_exact_normal_inventory_required"),
+            ),
+            default=F("_fallback_normal_inventory_required"),
+            output_field=IntegerField(),
+        ),
+        _normal_inventory_owned=Case(
+            When(
+                _has_exact_normal_inventory=True,
+                then=F("_exact_normal_inventory_owned"),
+            ),
+            default=F("_fallback_normal_inventory_owned"),
+            output_field=IntegerField(),
+        ),
+        _minifigure_inventory_required=Case(
+            When(
+                _has_exact_minifigure_inventory=True,
+                then=F("_exact_minifigure_inventory_required"),
+            ),
+            default=F("_fallback_minifigure_inventory_required"),
+            output_field=IntegerField(),
+        ),
+        _minifigure_inventory_owned=Case(
+            When(
+                _has_exact_minifigure_inventory=True,
+                then=F("_exact_minifigure_inventory_owned"),
+            ),
+            default=F("_fallback_minifigure_inventory_owned"),
+            output_field=IntegerField(),
+        ),
     )
     return queryset.annotate(
         authoritative_missing_quantity=Case(
@@ -265,8 +360,305 @@ def with_authoritative_missing_quantity(queryset):
             When(quantity__gt=F("owned_quantity"), then=F("quantity") - F("owned_quantity")),
             default=Value(0),
             output_field=IntegerField(),
-        )
+        ),
+        authoritative_required_quantity=Case(
+            When(
+                Q(_has_normal_inventory=True) | Q(_has_minifigure_inventory=True),
+                then=(
+                    F("_normal_inventory_required")
+                    + F("_minifigure_inventory_required")
+                ),
+            ),
+            default=F("quantity"),
+            output_field=IntegerField(),
+        ),
+        authoritative_owned_quantity=Case(
+            When(
+                Q(_has_normal_inventory=True) | Q(_has_minifigure_inventory=True),
+                then=F("_normal_inventory_owned") + F("_minifigure_inventory_owned"),
+            ),
+            default=F("owned_quantity"),
+            output_field=IntegerField(),
+        ),
     )
+
+
+class AmbiguousAuthoritativeAllocation(ValidationError):
+    """Raised before writes when one Part maps to multiple allocations."""
+
+
+def _part_identity_values(part):
+    return {value for value in (part.design_id, part.part_number, part.element_id) if value}
+
+
+def _matching_authoritative_allocations(part, *, lock=False):
+    """Return exact-precedence normal/minifigure allocations for one Part."""
+    from apps.organizer.models import MinifigurePart
+
+    if not part.lego_set_id or part.lego_set.deleted_at is not None:
+        return []
+    if part.lego_set.owner_id != part.owner_id:
+        return []
+
+    normal = SetInventoryItem.objects.filter(
+        lego_set_id=part.lego_set_id,
+        lego_set__owner_id=part.owner_id,
+        lego_set__deleted_at__isnull=True,
+        color_name=part.color,
+        is_spare=False,
+    )
+    minifigure = MinifigurePart.objects.filter(
+        minifigure__lego_set_id=part.lego_set_id,
+        minifigure__owner_id=part.owner_id,
+        minifigure__lego_set__deleted_at__isnull=True,
+        color_name=part.color,
+        is_spare=False,
+    )
+    if lock:
+        normal = normal.select_for_update()
+        minifigure = minifigure.select_for_update()
+    exact_normal = list(normal.exclude(element_id="").filter(element_id=part.element_id))
+    exact_minifigure = list(
+        minifigure.exclude(element_id="").filter(element_id=part.element_id)
+    )
+    identities = _part_identity_values(part)
+    fallback_normal = (
+        []
+        if exact_normal or not identities
+        else list(normal.filter(element_id="", part_number__in=identities))
+    )
+    fallback_minifigure = (
+        []
+        if exact_minifigure or not identities
+        else list(minifigure.filter(element_id="", part_number__in=identities))
+    )
+    return [
+        *(("set", item) for item in exact_normal or fallback_normal),
+        *(("minifigure", item) for item in exact_minifigure or fallback_minifigure),
+    ]
+
+
+def _allocation_values(kind, allocation):
+    if kind == "set":
+        return allocation.required_quantity, allocation.owned_quantity
+    return allocation.quantity, allocation.owned_quantity
+
+
+def _save_allocation_owned(kind, allocation, quantity):
+    allocation.owned_quantity = quantity
+    allocation.full_clean()
+    fields = ["owned_quantity"]
+    if kind == "set":
+        fields.append("updated_at")
+    allocation.save(update_fields=fields)
+
+
+def _matching_from_collections(part, normal_items, minifigure_parts):
+    identities = _part_identity_values(part)
+    exact_normal = [
+        item
+        for item in normal_items
+        if item.element_id and item.element_id == part.element_id
+    ]
+    exact_minifigure = [
+        item
+        for item in minifigure_parts
+        if item.element_id and item.element_id == part.element_id
+    ]
+    fallback_normal = [
+        item
+        for item in normal_items
+        if not item.element_id and item.part_number in identities
+    ]
+    fallback_minifigure = [
+        item
+        for item in minifigure_parts
+        if not item.element_id and item.part_number in identities
+    ]
+    return [
+        *(("set", item) for item in exact_normal or fallback_normal),
+        *(("minifigure", item) for item in exact_minifigure or fallback_minifigure),
+    ]
+
+
+def owned_quantity_consistency_rows(user=None):
+    """Return existing Part/allocation divergences without modifying data."""
+    from apps.organizer.models import MinifigurePart
+
+    parts = Part.objects.filter(
+        lego_set__isnull=False,
+        lego_set__deleted_at__isnull=True,
+        lego_set__owner_id=F("owner_id"),
+        deleted_at__isnull=True,
+    ).select_related("lego_set")
+    if user is not None:
+        parts = parts.filter(owner=user)
+    parts = list(parts.order_by("owner_id", "lego_set_id", "pk"))
+    set_ids = {part.lego_set_id for part in parts}
+    normal_by_set = {}
+    for item in SetInventoryItem.objects.filter(
+        lego_set_id__in=set_ids,
+        lego_set__deleted_at__isnull=True,
+        is_spare=False,
+    ).select_related("lego_set"):
+        normal_by_set.setdefault(item.lego_set_id, []).append(item)
+    minifigure_by_set = {}
+    for item in MinifigurePart.objects.filter(
+        minifigure__lego_set_id__in=set_ids,
+        minifigure__lego_set__deleted_at__isnull=True,
+        minifigure__owner_id=F("minifigure__lego_set__owner_id"),
+        is_spare=False,
+    ).select_related("minifigure", "minifigure__lego_set"):
+        minifigure_by_set.setdefault(item.minifigure.lego_set_id, []).append(item)
+
+    rows = []
+    for part in parts:
+        normal = [
+            item
+            for item in normal_by_set.get(part.lego_set_id, ())
+            if item.color_name == part.color
+        ]
+        minifigure = [
+            item
+            for item in minifigure_by_set.get(part.lego_set_id, ())
+            if item.color_name == part.color
+        ]
+        matches = _matching_from_collections(part, normal, minifigure)
+        if not matches:
+            continue
+        required = sum(_allocation_values(kind, item)[0] for kind, item in matches)
+        owned = sum(_allocation_values(kind, item)[1] for kind, item in matches)
+        if part.owned_quantity == owned:
+            continue
+        timestamps = [
+            item.updated_at
+            for kind, item in matches
+            if kind == "set" and item.updated_at is not None
+        ]
+        rows.append(
+            {
+                "part_id": str(part.pk),
+                "owner_id": str(part.owner_id),
+                "set_id": str(part.lego_set_id),
+                "set_number": part.lego_set.set_number,
+                "element_id": part.element_id,
+                "design_or_part_number": part.design_id or part.part_number,
+                "color": part.color,
+                "part_required": part.quantity,
+                "part_owned": part.owned_quantity,
+                "authoritative_required": required,
+                "authoritative_owned": owned,
+                "difference": part.owned_quantity - owned,
+                "part_updated_at": part.updated_at,
+                "authoritative_updated_at": max(timestamps) if timestamps else None,
+                "allocation_count": len(matches),
+                "allocation_types": ",".join(kind for kind, _item in matches),
+            }
+        )
+    return rows
+
+
+@transaction.atomic
+def set_part_owned_quantity(part, quantity, actor):
+    """Atomically write a Part edit through its authoritative allocation."""
+    locked = (
+        Part.objects.select_for_update()
+        .select_related("lego_set")
+        .get(pk=part.pk, owner=actor, deleted_at__isnull=True)
+    )
+    matches = _matching_authoritative_allocations(locked, lock=True)
+    if len(matches) > 1:
+        raise AmbiguousAuthoritativeAllocation(
+            "Die Bestandsmenge kann nicht eindeutig einer Inventarposition zugeordnet werden."
+        )
+    maximum = locked.quantity
+    if matches:
+        kind, allocation = matches[0]
+        maximum, _owned = _allocation_values(kind, allocation)
+    if not isinstance(quantity, int) or not 0 <= quantity <= maximum:
+        raise ValidationError("Der vorhandene Bestand ist ungültig.")
+    if matches:
+        _save_allocation_owned(kind, allocation, quantity)
+        locked.quantity = maximum
+    locked.owned_quantity = quantity
+    synchronize_presence_marker(locked)
+    locked.full_clean()
+    locked.save(update_fields=["quantity", "owned_quantity", "is_present", "updated_at"])
+    return locked
+
+
+def _allocation_owner_and_set(kind, allocation):
+    if kind == "set":
+        return allocation.lego_set.owner_id, allocation.lego_set
+    return allocation.minifigure.owner_id, allocation.minifigure.lego_set
+
+
+def _candidate_part_mirrors(kind, allocation, *, lock=False):
+    owner_id, lego_set = _allocation_owner_and_set(kind, allocation)
+    queryset = Part.objects.filter(
+        owner_id=owner_id,
+        lego_set=lego_set,
+        lego_set__deleted_at__isnull=True,
+        deleted_at__isnull=True,
+        color=allocation.color_name,
+    ).select_related("lego_set")
+    if allocation.element_id:
+        queryset = queryset.filter(element_id=allocation.element_id)
+    else:
+        queryset = queryset.filter(
+            Q(design_id=allocation.part_number)
+            | Q(part_number=allocation.part_number)
+            | Q(element_id=allocation.part_number)
+        )
+    return queryset.select_for_update() if lock else queryset
+
+
+@transaction.atomic
+def set_authoritative_owned_quantity(kind, allocation, quantity, actor):
+    """Update a known inventory row and all unambiguous Part mirrors atomically."""
+    from apps.organizer.models import MinifigurePart
+
+    model = SetInventoryItem if kind == "set" else MinifigurePart
+    lookup = {"pk": allocation.pk}
+    if kind == "set":
+        lookup.update(lego_set__owner=actor, lego_set__deleted_at__isnull=True)
+        related = ("lego_set",)
+    else:
+        lookup.update(
+            minifigure__owner=actor,
+            minifigure__lego_set__deleted_at__isnull=True,
+        )
+        related = ("minifigure", "minifigure__lego_set")
+    locked = model.objects.select_for_update().select_related(*related).get(**lookup)
+    maximum, _owned = _allocation_values(kind, locked)
+    if not isinstance(quantity, int) or not 0 <= quantity <= maximum:
+        raise ValidationError("Der vorhandene Bestand ist ungültig.")
+
+    mirrors = []
+    for part in _candidate_part_mirrors(kind, locked, lock=True):
+        matches = _matching_authoritative_allocations(part, lock=True)
+        target_matches = [
+            candidate
+            for candidate_kind, candidate in matches
+            if candidate_kind == kind and candidate.pk == locked.pk
+        ]
+        if target_matches and len(matches) != 1:
+            raise AmbiguousAuthoritativeAllocation(
+                "Die Inventarposition ist mit einem mehrdeutigen Fehlteil verknüpft."
+            )
+        if target_matches:
+            mirrors.append(part)
+
+    _save_allocation_owned(kind, locked, quantity)
+    for part in mirrors:
+        part.quantity = maximum
+        part.owned_quantity = quantity
+        synchronize_presence_marker(part)
+        part.full_clean()
+        part.save(
+            update_fields=["quantity", "owned_quantity", "is_present", "updated_at"]
+        )
+    return locked
 
 
 def authoritative_lego_export_parts(user, *, colors=()):
@@ -341,6 +733,7 @@ def update_part(part: Part, values: dict, actor, request_id=None) -> Part:
     synchronize_presence_marker(locked)
     locked.full_clean()
     locked.save()
+    locked = set_part_owned_quantity(locked, locked.owned_quantity, actor)
     if locked.status != old_status:
         PartHistory.objects.create(part=locked, status=locked.status, note="Status geändert")
     AuditEvent.objects.create(

@@ -69,12 +69,16 @@ def _reconcile_missing_part_requirement(lego_set, inventory_item):
     )
     if not part:
         return
-    new_owned = min(part.owned_quantity, inventory_item.required_quantity)
-    if part.quantity == inventory_item.required_quantity and part.owned_quantity == new_owned:
+    # A Rebrickable refresh changes reference requirements, never user-owned
+    # state.  Keep an already-consistent mirror consistent even when a remote
+    # requirement shrinks below the owned count, while deliberately leaving
+    # historical Part/allocation ownership disagreements for the read-only
+    # consistency audit and manual review.
+    new_quantity = max(inventory_item.required_quantity, part.owned_quantity)
+    if part.quantity == new_quantity:
         return
-    part.quantity = inventory_item.required_quantity
-    part.owned_quantity = new_owned
-    part.save(update_fields=["quantity", "owned_quantity", "updated_at"])
+    part.quantity = new_quantity
+    part.save(update_fields=["quantity", "updated_at"])
 
 
 @transaction.atomic
