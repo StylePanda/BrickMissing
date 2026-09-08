@@ -73,7 +73,7 @@
             <dl>
               {% if part.part_number and part.part_number != result.element_id %}<div><dt>Teilenummer</dt><dd>{{ part.part_number }}</dd></div>{% endif %}
               {% if part.design_id and part.design_id != result.element_id and part.design_id != part.part_number %}<div><dt>Design-ID</dt><dd>{{ part.design_id }}</dd></div>{% endif %}
-              <div><dt>Aktuell fehlend</dt><dd>{{ part.missing_quantity }}</dd></div>
+              <div><dt>Aktuell fehlend</dt><dd>{{ part.authoritative_missing_quantity }}</dd></div>
               <div><dt>Status</dt><dd>{{ part.get_status_display }}</dd></div>
               <div><dt>Set</dt><dd>{% if part.lego_set %}<a href="{% url 'catalog:set_detail' part.lego_set.pk %}">{{ part.lego_set.set_number }} – {{ part.lego_set.name }}</a>{% else %}Ohne Set-Zuordnung{% endif %}</dd></div>
             </dl>

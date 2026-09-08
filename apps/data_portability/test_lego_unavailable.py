@@ -107,6 +107,24 @@ class LegoUnavailablePageTests(TestCase):
         self.assertTrue(response.context["results"][0]["matched"])
         self.assertFalse(response.context["results"][1]["matched"])
 
+    def test_current_missing_uses_authoritative_set_inventory_quantity(self):
+        SetInventoryItem.objects.create(
+            lego_set=self.lego_set,
+            part_number=self.part.part_number,
+            element_id=self.part.element_id,
+            name=self.part.name,
+            color_name=self.part.color,
+            required_quantity=10,
+            owned_quantity=9,
+        )
+
+        response = self.post(self.fixture_upload("lego_unavailable.json"))
+
+        match = response.context["results"][0]["matches"][0]
+        self.assertEqual(self.part.missing_quantity, 8)
+        self.assertEqual(match.authoritative_missing_quantity, 1)
+        self.assertContains(response, "<dd>1</dd>", html=True)
+
     def test_csv_and_json_fixtures_produce_same_logical_analysis(self):
         csv_response = self.post(self.fixture_upload("lego_unavailable.csv"))
         json_response = self.post(self.fixture_upload("lego_unavailable.json"))

@@ -9,6 +9,7 @@ from django.core.exceptions import ValidationError
 from django.db.models import Q
 
 from apps.catalog.models import Part
+from apps.catalog.services import with_authoritative_missing_quantity
 
 MAX_UPLOAD_SIZE = 2 * 1024 * 1024
 MAX_ROWS = 10_000
@@ -115,14 +116,16 @@ def parse_lego_unavailable_upload(upload):
 
 def analyze_lego_unavailable(rows, user):
     element_ids = {row["element_id"] for row in rows}
-    parts = (
+    parts = with_authoritative_missing_quantity(
         Part.objects.filter(
             Q(lego_set__isnull=True) | Q(lego_set__owner=user),
             owner=user,
             deleted_at__isnull=True,
             element_id__in=element_ids,
         )
-        .select_related("lego_set")
+    ).select_related("lego_set")
+    parts = (
+        parts
         .order_by("element_id", "created_at", "pk")
     )
     parts_by_element = {}

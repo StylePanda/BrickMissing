@@ -4,7 +4,6 @@ import io
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import F, Sum
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
@@ -14,6 +13,10 @@ from apps.accounts.forms import PersonalDataExportForm
 from apps.audit.models import AuditEvent
 from apps.catalog.colors import grouped_colors
 from apps.catalog.models import LegoSet, Part
+from apps.catalog.services import (
+    authoritative_lego_export_parts,
+    authoritative_lego_export_rows,
+)
 from apps.core.rate_limit import limited
 
 from .lego_unavailable import analyze_lego_unavailable, parse_lego_unavailable_upload
@@ -28,12 +31,7 @@ def _csv_safe(value):
 
 
 def _eligible_missing_parts(user):
-    return Part.objects.filter(
-        owner=user,
-        status=Part.Status.MISSING,
-        deleted_at__isnull=True,
-        quantity__gt=F("owned_quantity"),
-    ).exclude(element_id="")
+    return authoritative_lego_export_parts(user)
 
 
 def _export_color_values(user):
@@ -133,13 +131,9 @@ def export_missing_csv(request):
     output = io.StringIO(newline="")
     writer = csv.writer(output, lineterminator="\n")
     writer.writerow(["elementId", "quantity"])
-    eligible_parts = _eligible_missing_parts(request.user)
-    if requested_colors:
-        eligible_parts = eligible_parts.filter(color__in=requested_colors)
-    records = list(
-        eligible_parts.values("element_id")
-        .annotate(export_quantity=Sum(F("quantity") - F("owned_quantity")))
-        .order_by("element_id")
+    records = authoritative_lego_export_rows(
+        request.user,
+        colors=requested_colors,
     )
     if requested_colors and not records:
         return render(

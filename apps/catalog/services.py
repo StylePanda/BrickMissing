@@ -2,9 +2,11 @@ from django.db import transaction
 from django.db.models import (
     Case,
     CharField,
+    Exists,
     F,
     IntegerField,
     OuterRef,
+    Q,
     Subquery,
     Sum,
     Value,
@@ -133,6 +135,127 @@ def set_completeness(lego_set):
         "owned": required - missing,
         "missing": missing,
     }
+
+
+def with_authoritative_missing_quantity(queryset):
+    """Annotate Part rows with the missing quantity used by inventory UI.
+
+    A Part linked to a set is an optional workflow mirror.  Its quantity fields
+    can lag behind the actual set or minifigure inventory, so an exact
+    set/ElementID/color match delegates to those authoritative rows.  Parts
+    without such a match (including manually entered loose parts) retain their
+    own established quantity semantics.
+
+    Missing amounts are capped per inventory allocation before they are added.
+    Consequently, an over-owned allocation can never cancel a shortage in a
+    different set or minifigure.
+    """
+    from apps.organizer.models import MinifigurePart
+
+    normal_items = SetInventoryItem.objects.filter(
+        lego_set_id=OuterRef("lego_set_id"),
+        lego_set__owner_id=OuterRef("owner_id"),
+        lego_set__deleted_at__isnull=True,
+        element_id=OuterRef("element_id"),
+        color_name=OuterRef("color"),
+        is_spare=False,
+    )
+    minifigure_parts = MinifigurePart.objects.filter(
+        minifigure__lego_set_id=OuterRef("lego_set_id"),
+        minifigure__owner_id=OuterRef("owner_id"),
+        minifigure__lego_set__deleted_at__isnull=True,
+        element_id=OuterRef("element_id"),
+        color_name=OuterRef("color"),
+        is_spare=False,
+    )
+    queryset = queryset.annotate(
+        _has_normal_inventory=Exists(normal_items),
+        _has_minifigure_inventory=Exists(minifigure_parts),
+        _normal_inventory_missing=Coalesce(
+            Subquery(
+                _missing_total(normal_items, "lego_set_id", "required_quantity"),
+                output_field=IntegerField(),
+            ),
+            Value(0),
+        ),
+        _minifigure_inventory_missing=Coalesce(
+            Subquery(
+                _missing_total(
+                    minifigure_parts, "minifigure__lego_set_id", "quantity"
+                ),
+                output_field=IntegerField(),
+            ),
+            Value(0),
+        ),
+    )
+    return queryset.annotate(
+        authoritative_missing_quantity=Case(
+            When(
+                Q(_has_normal_inventory=True) | Q(_has_minifigure_inventory=True),
+                then=(
+                    F("_normal_inventory_missing")
+                    + F("_minifigure_inventory_missing")
+                ),
+            ),
+            When(quantity__gt=F("owned_quantity"), then=F("quantity") - F("owned_quantity")),
+            default=Value(0),
+            output_field=IntegerField(),
+        )
+    )
+
+
+def authoritative_lego_export_parts(user, *, colors=()):
+    """Return the user-scoped Part gateway for read-only LEGO export rows."""
+    queryset = Part.objects.filter(
+        owner=user,
+        status=Part.Status.MISSING,
+        deleted_at__isnull=True,
+    ).exclude(element_id="")
+    queryset = queryset.filter(
+        Q(lego_set__isnull=True)
+        | Q(lego_set__owner=user, lego_set__deleted_at__isnull=True)
+    )
+    if colors:
+        queryset = queryset.filter(color__in=colors)
+    return with_authoritative_missing_quantity(queryset).filter(
+        authoritative_missing_quantity__gt=0
+    )
+
+
+def authoritative_lego_export_rows(user, *, colors=()):
+    """Build deterministic LEGO rows without counting a mirror more than once."""
+    parts = authoritative_lego_export_parts(user, colors=colors).values(
+        "pk",
+        "lego_set_id",
+        "element_id",
+        "color",
+        "authoritative_missing_quantity",
+        "_has_normal_inventory",
+        "_has_minifigure_inventory",
+    )
+    totals = {}
+    seen_allocations = set()
+    for part in parts:
+        has_inventory = (
+            part["_has_normal_inventory"] or part["_has_minifigure_inventory"]
+        )
+        allocation_key = (
+            "inventory",
+            part["lego_set_id"],
+            part["element_id"],
+            part["color"].casefold(),
+        ) if has_inventory else ("part", part["pk"])
+        if allocation_key in seen_allocations:
+            continue
+        seen_allocations.add(allocation_key)
+        element_id = part["element_id"]
+        totals[element_id] = (
+            totals.get(element_id, 0) + part["authoritative_missing_quantity"]
+        )
+    return [
+        {"element_id": element_id, "export_quantity": quantity}
+        for element_id, quantity in sorted(totals.items())
+    ]
 
 
 def stored_completeness_value(result):
