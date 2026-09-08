@@ -3,7 +3,14 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import sys
 from pathlib import Path, PurePosixPath
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from config.version import APP_VERSION  # noqa: E402 - support direct script execution
 
 FORBIDDEN_PARTS = {".env", ".git", ".master.key", ".pytest_cache", ".ruff_cache", ".vendor", ".venv", "__pycache__", "node_modules"}
 FORBIDDEN_TOP_LEVEL = {"backups", "cache", "data", "var"}
@@ -37,7 +44,7 @@ def verify_release(root: Path) -> dict[str, object]:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ReleaseVerificationError("Release manifest is missing or invalid") from exc
-    if manifest.get("version") != "8.0.0" or not isinstance(manifest.get("built_at"), str):
+    if manifest.get("version") != APP_VERSION or not isinstance(manifest.get("built_at"), str):
         raise ReleaseVerificationError("Release manifest metadata is invalid")
     entries = manifest.get("files")
     if not isinstance(entries, list) or not entries:

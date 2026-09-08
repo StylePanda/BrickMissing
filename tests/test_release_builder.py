@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest import TestCase
 from unittest.mock import patch
 
+from config.version import APP_VERSION
 from scripts.build_release import FORBIDDEN_SUFFIXES, FORBIDDEN_TOP_LEVEL, build_release
 from scripts.release_switch import switch_release
 from scripts.verify_release import ReleaseVerificationError, verify_release
@@ -63,7 +64,7 @@ class ReleaseBuilderTests(TestCase):
             ]
             self.assertEqual(forbidden, [])
             manifest = json.loads((release / "RELEASE_MANIFEST.json").read_text(encoding="utf-8"))
-            self.assertEqual(manifest["version"], "8.0.0")
+            self.assertEqual(manifest["version"], APP_VERSION)
             self.assertTrue(manifest["files"])
             self.assertEqual(verify_release(release)["files"], len(manifest["files"]))
             result = subprocess.run(  # noqa: S603 -- fixed current interpreter and literal command

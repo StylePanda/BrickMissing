@@ -1,3 +1,5 @@
-"""BrickMissing Pro application package."""
+"""BrickMissing application package."""
 
-__version__ = "6.1.1"
+from config.version import APP_VERSION
+
+__version__ = APP_VERSION

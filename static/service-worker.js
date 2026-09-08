@@ -1,11 +1,11 @@
 "use strict";
-const CACHE = "brickmissing-shell-v73";
+const CACHE = "brickmissing-shell-__BRICKMISSING_VERSION__";
 const SHELL = [
-  "/static/css/app.css?v=8.0-ui73",
-  "/static/css/offline.css?v=8.0-ui73",
-  "/static/js/app.js?v=8.0-ui73",
-  "/static/manifest.webmanifest?v=8.0-ui73",
-  "/static/offline.html?v=8.0-ui73",
+  "/static/css/app.css?v=__BRICKMISSING_VERSION__",
+  "/static/css/offline.css?v=__BRICKMISSING_VERSION__",
+  "/static/js/app.js?v=__BRICKMISSING_VERSION__",
+  "/static/manifest.webmanifest?v=__BRICKMISSING_VERSION__",
+  "/static/offline.html?v=__BRICKMISSING_VERSION__",
   "/static/icons/brickmissing.svg",
   "/static/icons/favicon.ico",
   "/static/icons/apple-touch-icon.png",
@@ -22,6 +22,6 @@ self.addEventListener("fetch", (event) => {
       return response;
     }).catch(() => caches.match(event.request)));
   } else if (event.request.mode === "navigate") {
-    event.respondWith(fetch(event.request).catch(() => caches.match("/static/offline.html?v=8.0-ui73")));
+    event.respondWith(fetch(event.request).catch(() => caches.match("/static/offline.html?v=__BRICKMISSING_VERSION__")));
   }
 });

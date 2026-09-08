@@ -5,13 +5,20 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from config.version import APP_VERSION  # noqa: E402 - support direct script execution
 
 
 def check(url: str, expected_content: bytes | None = None) -> None:
     if urllib.parse.urlsplit(url).scheme not in {"http", "https"}:
         raise RuntimeError("smoke test only permits HTTP(S) URLs")
     request = urllib.request.Request(  # noqa: S310 - scheme allowlisted above
-        url, headers={"User-Agent": "BrickMissing-Smoke/8.0"}
+        url, headers={"User-Agent": f"BrickMissing-Smoke/{APP_VERSION}"}
     )
     try:
         with urllib.request.urlopen(request, timeout=10) as response:  # noqa: S310

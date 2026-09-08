@@ -1,5 +1,5 @@
 [Unit]
-Description=BrickMissing 8.0 Django application
+Description=BrickMissing Django application
 After=network.target mariadb.service
 Requires=mariadb.service
 

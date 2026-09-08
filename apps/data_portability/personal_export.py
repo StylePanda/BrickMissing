@@ -273,7 +273,7 @@ def build_personal_data_export(user) -> PersonalExportResult:
     manifest = {
         "export_format_version": EXPORT_FORMAT_VERSION,
         "created_at": timezone.now(),
-        "brickmissing_version": getattr(settings, "BRICKMISSING_VERSION", "8.0"),
+        "brickmissing_version": settings.BRICKMISSING_VERSION,
         "user_id": user.pk,
         "files": [
             "manifest.json",

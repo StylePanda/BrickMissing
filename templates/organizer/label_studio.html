@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% load static %}{% block title %}Etiketten & QR-Codes{% endblock %}{% block content %}
-<link rel="stylesheet" href="{% static 'css/labels.css' %}?v=8.0-ui81">
+<link rel="stylesheet" href="{% static 'css/labels.css' %}?v={{ application_version }}">
 <div class="page-head no-print"><div><p class="eyebrow">Druckvorlagen</p><h1>Etiketten & QR-Codes</h1><p class="muted">Eigenständige, maßgenaue Vorlagen für deine Sammlung</p></div><div class="actions"><button type="button" data-label-select-all>Alle auswählen</button><button class="primary" type="button" data-print-page data-label-print>Etiketten drucken</button></div></div>
 <div class="label-studio" data-label-studio><form class="label-controls no-print" method="post" action="{% url 'organizer:label_studio' %}" data-label-form>{% csrf_token %}<input type="hidden" name="selection" value="1">
 <label>Etikettentyp<select name="type">{% for value,label in label_types.items %}<option value="{{ value }}"{% if label_type == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>{% include "organizer/labels/selection_state.html" %}
@@ -7,5 +7,5 @@
 {% if label_type == 'missing_parts' %}<label>Teilesuche<input name="part_query" value="{{ part_query }}" placeholder="Nummer, Name oder Element-ID"></label><label>Fehlteilstatus<select name="missing_status"><option value="all"{% if missing_status == 'all' %} selected{% endif %}>Alle offenen</option><option value="missing"{% if missing_status == 'missing' %} selected{% endif %}>Komplett fehlend</option><option value="partial"{% if missing_status == 'partial' %} selected{% endif %}>Teilweise vorhanden</option></select></label><label>Farbe<input name="missing_color" value="{{ missing_color }}"></label>{% endif %}
 {% if label_type == 'colors' %}<label>Text auf dem Etikett<input name="checked_text" value="{{ checked_text }}" maxlength="40" data-label-text></label><label>Anzahl Etiketten<input class="compact-number" type="number" min="1" max="100" name="checked_count" value="{{ checked_count }}"></label>{% endif %}
 <label>Erste Etikettenposition<select name="start">{% for position in start_positions %}<option value="{{ position.value }}"{% if start == position.value %} selected{% endif %}>Position {{ position.value }} · Reihe {{ position.row }}, Spalte {{ position.column }}</option>{% endfor %}</select></label></form>
-{% include "organizer/labels/preview.html" %}</div><script src="{% static 'js/labels.js' %}?v=8.0-ui80" defer></script>
+{% include "organizer/labels/preview.html" %}</div><script src="{% static 'js/labels.js' %}?v={{ application_version }}" defer></script>
 {% endblock %}

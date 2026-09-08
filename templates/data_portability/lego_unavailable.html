@@ -89,6 +89,6 @@
 </div>
 <p class="empty" hidden data-no-analysis-results>Keine Einträge entsprechen dem aktuellen Filter.</p>
 <dialog id="image-lightbox" class="image-lightbox" aria-labelledby="image-lightbox-title"><button class="lightbox-close" type="button" data-lightbox-close aria-label="Bildansicht schließen">×</button><img alt=""><p id="image-lightbox-title"></p></dialog>
-<script src="{% static 'js/lego-unavailable.js' %}?v=8.0" defer></script>
+<script src="{% static 'js/lego-unavailable.js' %}?v={{ application_version }}" defer></script>
 {% endif %}
 {% endblock %}

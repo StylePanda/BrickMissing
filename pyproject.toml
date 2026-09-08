@@ -1,6 +1,6 @@
 [project]
 name = "brickmissing"
-version = "8.0.0"
+dynamic = ["version"]
 requires-python = ">=3.12,<3.15"
 dependencies = [
     "Django==5.2.16",
@@ -10,6 +10,9 @@ dependencies = [
     "qrcode==8.2",
     "Pillow==12.1.0",
 ]
+
+[tool.setuptools.dynamic]
+version = {attr = "config.version.APP_VERSION"}
 
 [tool.ruff]
 line-length = 100

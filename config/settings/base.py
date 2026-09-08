@@ -3,7 +3,10 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from config.version import APP_VERSION
+
 BASE_DIR = Path(__file__).resolve().parents[2]
+BRICKMISSING_VERSION = APP_VERSION
 
 
 def env_bool(name: str, default: bool = False) -> bool:

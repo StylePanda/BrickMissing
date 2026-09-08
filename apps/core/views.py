@@ -6,7 +6,7 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
 from django.db import connection
 from django.db.models import Count
-from django.http import FileResponse, JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_POST
 
@@ -24,13 +24,18 @@ def health(request):
     with connection.cursor() as cursor:
         cursor.execute("SELECT 1")
         cursor.fetchone()
-    return JsonResponse({"status": "ok", "version": "8.0.0", "database": "ok"})
+    return JsonResponse(
+        {"status": "ok", "version": settings.BRICKMISSING_VERSION, "database": "ok"}
+    )
 
 
 @require_GET
 def service_worker(request):
-    response = FileResponse(
-        open(settings.BASE_DIR / "static" / "service-worker.js", "rb"),
+    source = (settings.BASE_DIR / "static" / "service-worker.js").read_text(
+        encoding="utf-8"
+    )
+    response = HttpResponse(
+        source.replace("__BRICKMISSING_VERSION__", settings.BRICKMISSING_VERSION),
         content_type="application/javascript",
     )
     response["Service-Worker-Allowed"] = "/"

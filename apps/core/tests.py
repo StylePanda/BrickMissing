@@ -14,6 +14,7 @@ from apps.accounts.models import User
 from apps.audit.models import AuditEvent
 from apps.catalog.models import LegoSet, Part
 from apps.integrations.models import PriceObservation
+from config.version import APP_VERSION
 
 from .client_ip import client_ip
 from .models import DataQualityIssue, SavedView
@@ -26,6 +27,16 @@ class HealthAndHeadersTests(TestCase):
         self.assertIn("default-src 'self'", response["Content-Security-Policy"])
         self.assertEqual(response["X-Frame-Options"], "DENY")
         self.assertTrue(response["X-Request-ID"])
+
+    def test_active_application_surfaces_use_central_version(self):
+        self.assertEqual(APP_VERSION, "8.1.0")
+        self.assertEqual(settings.BRICKMISSING_VERSION, APP_VERSION)
+        self.assertEqual(
+            self.client.get(reverse("health")).json()["version"], APP_VERSION
+        )
+        service_worker = self.client.get(reverse("service_worker"))
+        self.assertContains(service_worker, APP_VERSION)
+        self.assertNotContains(service_worker, "__BRICKMISSING_VERSION__")
 
     def test_csp_keeps_strict_script_policy(self):
         response = self.client.get(reverse("health"))

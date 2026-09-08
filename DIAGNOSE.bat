@@ -1,7 +1,7 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-title BrickMissing 8.0 - Django Diagnose
+title BrickMissing - Django Diagnose
 if not exist ".venv\Scripts\python.exe" (echo FEHLER: .venv fehlt.& exit /b 1)
 set "DJANGO_SETTINGS_MODULE=config.settings.development"
 call ".venv\Scripts\python.exe" manage.py check

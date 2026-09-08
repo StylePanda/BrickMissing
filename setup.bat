@@ -1,7 +1,7 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-title BrickMissing 8.0 - Einrichtung
+title BrickMissing - Einrichtung
 where py >nul 2>nul
 if errorlevel 1 (echo FEHLER: Python Launcher wurde nicht gefunden.& pause & exit /b 1)
 if not exist ".venv\Scripts\python.exe" py -3.12 -m venv .venv

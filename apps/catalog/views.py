@@ -33,6 +33,8 @@ from .part_status import (
 )
 from .services import (
     AmbiguousAuthoritativeAllocation,
+    filter_sets_by_missing_colors,
+    missing_color_values,
     set_authoritative_owned_quantity,
     set_part_owned_quantity,
     soft_delete,
@@ -161,6 +163,14 @@ def set_list(request):
         # No usable inventory is not proof of completeness, so unknown sets
         # intentionally belong to the incomplete overview bucket.
         queryset = queryset.exclude(completeness_key="complete")
+    selected_missing_colors = list(
+        dict.fromkeys(
+            value[:150]
+            for value in request.GET.getlist("missing_color")
+            if value
+        )
+    )[:100]
+    queryset = filter_sets_by_missing_colors(queryset, selected_missing_colors)
     ordering = request.GET.get("sort", "-created_at")
     ordering = ordering if ordering in {"-created_at", "set_number", "name", "-year", "-current_value"} else "-created_at"
     queryset = queryset.order_by(ordering)
@@ -178,12 +188,21 @@ def set_list(request):
         empty_title = "Keine vollständigen Sets gefunden."
     elif not query and not theme and completeness == "incomplete":
         empty_title = "Keine unvollständigen Sets gefunden."
-    elif query or theme:
+    elif query or theme or selected_missing_colors:
         empty_title = "Keine passenden Sets gefunden."
     return render(request, "catalog/set_list.html", {
         "page_obj": _page(request, queryset), "query": query, "theme": theme,
         "sort": ordering, "sync_sets": sync_sets, "completeness": completeness,
         "empty_title": empty_title,
+        "missing_color_groups": grouped_colors(
+            sorted(set(missing_color_values(request.user)) | set(selected_missing_colors))
+        ),
+        "selected_missing_colors": selected_missing_colors,
+        "missing_color_summary": (
+            f"{len(selected_missing_colors)} Farben"
+            if selected_missing_colors
+            else "Alle Farben"
+        ),
     })
 
 

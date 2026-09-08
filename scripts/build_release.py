@@ -4,10 +4,17 @@ import argparse
 import hashlib
 import json
 import shutil
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-VERSION = "8.0.0"
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from config.version import APP_VERSION  # noqa: E402 - support direct script execution
+
+VERSION = APP_VERSION
 ALLOWED_DIRECTORIES = (
     "apps", "config", "templates", "static", "deploy", "scripts", "requirements", "docs"
 )

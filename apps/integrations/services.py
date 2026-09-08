@@ -82,7 +82,7 @@ def fetch_json(url, headers=None, limit=5 * 1024 * 1024):
     is_rebrickable_api = (
         parsed.hostname == "rebrickable.com" and parsed.path.startswith("/api/v3/")
     )
-    request = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "BrickMissing/8.0", **(headers or {})})  # noqa: S310 -- exact HTTPS host checked above
+    request = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": f"BrickMissing/{settings.BRICKMISSING_VERSION}", **(headers or {})})  # noqa: S310 -- exact HTTPS host checked above
     max_retries = min(settings.REBRICKABLE_MAX_RETRIES, 5) if is_rebrickable_api else 0
     for attempt in range(max_retries + 1):
         if is_rebrickable_api:
@@ -370,7 +370,7 @@ def _external_json(url, headers=None, limit=5 * 1024 * 1024):
     if parsed.scheme != "https" or parsed.hostname not in {"brickset.com", "api.bricklink.com"}:
         raise ValueError("Nicht freigegebene Datenquelle")
     request = urllib.request.Request(  # noqa: S310 -- exact HTTPS hosts checked above
-        url, headers={"Accept": "application/json", "User-Agent": "BrickMissing/8.0", **(headers or {})}
+        url, headers={"Accept": "application/json", "User-Agent": f"BrickMissing/{settings.BRICKMISSING_VERSION}", **(headers or {})}
     )
     try:
         with urllib.request.build_opener(NoRedirect).open(request, timeout=20) as response:
@@ -407,7 +407,7 @@ def validated_image_url(raw_url):
 
 def fetch_image(raw_url, limit=5 * 1024 * 1024):
     url = validated_image_url(raw_url)
-    request = urllib.request.Request(url, headers={"Accept": "image/png,image/jpeg,image/webp", "User-Agent": "BrickMissing/8.0"})  # noqa: S310 -- scheme, host and resolved IP validated above
+    request = urllib.request.Request(url, headers={"Accept": "image/png,image/jpeg,image/webp", "User-Agent": f"BrickMissing/{settings.BRICKMISSING_VERSION}"})  # noqa: S310 -- scheme, host and resolved IP validated above
     with urllib.request.build_opener(NoRedirect).open(request, timeout=15) as response:
         content_type = response.headers.get_content_type()
         if content_type not in {"image/png", "image/jpeg", "image/webp"}:

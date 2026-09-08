@@ -52,25 +52,34 @@ def _missing_total(queryset, group_field, required_field):
     )
 
 
-def with_set_completeness(queryset):
-    """Annotate LegoSet rows using BrickMissing's authoritative completeness rule.
-
-    Only required, non-spare regular inventory and constituent minifigure parts
-    belonging to the same owner participate. Empty inventories remain unknown.
-    """
+def _authoritative_set_allocation_querysets():
+    """Return the two allocation sources shared by set completeness/filtering."""
     from apps.organizer.models import MinifigurePart
 
     normal_items = SetInventoryItem.objects.filter(
         lego_set_id=OuterRef("pk"),
+        lego_set__owner_id=OuterRef("owner_id"),
+        lego_set__deleted_at__isnull=True,
         is_spare=False,
         required_quantity__gt=0,
     )
     minifigure_parts = MinifigurePart.objects.filter(
         minifigure__lego_set_id=OuterRef("pk"),
         minifigure__owner_id=OuterRef("owner_id"),
+        minifigure__lego_set__deleted_at__isnull=True,
         is_spare=False,
         quantity__gt=0,
     )
+    return normal_items, minifigure_parts
+
+
+def with_set_completeness(queryset):
+    """Annotate LegoSet rows using BrickMissing's authoritative completeness rule.
+
+    Only required, non-spare regular inventory and constituent minifigure parts
+    belonging to the same owner participate. Empty inventories remain unknown.
+    """
+    normal_items, minifigure_parts = _authoritative_set_allocation_querysets()
     queryset = queryset.annotate(
         _normal_required=Coalesce(
             Subquery(
@@ -112,6 +121,50 @@ def with_set_completeness(queryset):
             output_field=CharField(),
         )
     )
+
+
+def filter_sets_by_missing_colors(queryset, colors):
+    """Keep sets with any authoritative shortage in any selected exact color."""
+    colors = tuple(dict.fromkeys(color for color in colors if color))
+    if not colors:
+        return queryset
+    normal_items, minifigure_parts = _authoritative_set_allocation_querysets()
+    return queryset.annotate(
+        _has_selected_normal_shortage=Exists(
+            normal_items.filter(
+                color_name__in=colors,
+                owned_quantity__lt=F("required_quantity"),
+            )
+        ),
+        _has_selected_minifigure_shortage=Exists(
+            minifigure_parts.filter(
+                color_name__in=colors,
+                owned_quantity__lt=F("quantity"),
+            )
+        ),
+    ).filter(
+        Q(_has_selected_normal_shortage=True)
+        | Q(_has_selected_minifigure_shortage=True)
+    )
+
+
+def missing_color_values(user):
+    """Return exact color values occurring in the user's current shortages."""
+    from apps.organizer.models import MinifigurePart
+
+    normal = SetInventoryItem.objects.filter(
+        lego_set__owner=user,
+        lego_set__deleted_at__isnull=True,
+        is_spare=False,
+        required_quantity__gt=F("owned_quantity"),
+    ).exclude(color_name="").values_list("color_name", flat=True)
+    minifigure = MinifigurePart.objects.filter(
+        minifigure__owner=user,
+        minifigure__lego_set__deleted_at__isnull=True,
+        is_spare=False,
+        quantity__gt=F("owned_quantity"),
+    ).exclude(color_name="").values_list("color_name", flat=True)
+    return sorted(set(normal).union(minifigure))
 
 
 def set_completeness(lego_set):

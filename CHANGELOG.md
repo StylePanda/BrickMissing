@@ -1,5 +1,11 @@
 # Changelog
 
+## 8.1.0 — 9 September 2026
+
+- Added the Set-list filter **Fehlende Farben** with multi-select OR semantics.
+- The filter uses the existing authoritative set/minifigure shortage allocations and central color grouping.
+- Established the required MAJOR.MINOR.PATCH versioning rule and one central application version source.
+
 ## 8.0.0 — 12 August 2026
 
 - Added one shared read-only Legacy source abstraction for SQLite and Django MariaDB/MySQL aliases.

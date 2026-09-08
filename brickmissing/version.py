@@ -1,4 +1,5 @@
-"""Zentrale Versionsangabe für Backend, UI, Sicherungen und Diagnose."""
+"""Compatibility import for the current BrickMissing version."""
 
-APP_VERSION = "7.0.0"
-APP_TITLE = "BrickMissing Pro 7.0"
+from config.version import APP_MAJOR_MINOR, APP_VERSION
+
+APP_TITLE = f"BrickMissing {APP_MAJOR_MINOR}"
