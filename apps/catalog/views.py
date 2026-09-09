@@ -26,6 +26,7 @@ from apps.organizer.models import MinifigurePart, Moc, SetMinifigure, WishlistIt
 from .colors import grouped_colors, resolve_color_values
 from .forms import LegoSetForm, PartForm, SetCopyForm, SetInventoryItemForm
 from .models import LegoSet, Part, SetCopy, SetInventoryItem
+from .part_sorting import part_size_form_sort_key
 from .part_status import (
     effective_workflow_status,
     group_quantity_status,
@@ -537,15 +538,36 @@ def part_list(request):
     if status in Part.Status.values:
         queryset = queryset.filter(status=status)
     ordering = request.GET.get("sort", "name")
-    ordering = ordering if ordering in {"name", "element_id", "color", "-quantity", "-updated_at"} else "name"
-    queryset = queryset.order_by(
-        "-authoritative_required_quantity" if ordering == "-quantity" else ordering
-    )
+    ordering = ordering if ordering in {
+        "name", "element_id", "color", "-quantity", "-updated_at",
+        "size_form", "-size_form",
+    } else "name"
+    if ordering in {"size_form", "-size_form"}:
+        records = list(queryset.order_by("pk"))
+        records.sort(
+            key=lambda part: (
+                part_size_form_sort_key(
+                    part.name,
+                    design_id=part.design_id,
+                    part_number=part.part_number,
+                    element_id=part.element_id,
+                    color=part.color,
+                    descending=ordering.startswith("-"),
+                ),
+                str(part.pk),
+            )
+        )
+        page_obj = _page(request, records)
+    else:
+        queryset = queryset.order_by(
+            "-authoritative_required_quantity" if ordering == "-quantity" else ordering
+        )
+        page_obj = _page(request, queryset)
     return render(
         request,
         "catalog/part_list.html",
         {
-            "page_obj": _page(request, queryset),
+            "page_obj": page_obj,
             "query": query,
             "status": status,
             "statuses": Part.Status.choices,
@@ -607,6 +629,7 @@ def missing_parts(request):
         "-quantity": "required", "owned_quantity": "owned",
         "-owned_quantity": "owned", "missing": "missing", "-missing": "missing",
         "lego_set__set_number": "first_set", "-lego_set__set_number": "first_set",
+        "size_form": None, "-size_form": None,
     }
     ordering = ordering if ordering in sort_fields else "name"
     colors = set()
@@ -788,10 +811,25 @@ def missing_parts(request):
         groups = [group for group in groups if group["stock"] == stock]
     if minimum.isdigit():
         groups = [group for group in groups if group["missing"] >= int(minimum)]
-    groups.sort(
-        key=lambda group: (group[sort_fields[ordering]], group["name"].casefold()),
-        reverse=ordering.startswith("-"),
-    )
+    if ordering in {"size_form", "-size_form"}:
+        groups.sort(
+            key=lambda group: (
+                part_size_form_sort_key(
+                    group["name"],
+                    design_id=group["design_id"],
+                    part_number=group["part_number"],
+                    element_id=group["element_id"],
+                    color=group["color"],
+                    descending=ordering.startswith("-"),
+                ),
+                group["first_set"].casefold(),
+            )
+        )
+    else:
+        groups.sort(
+            key=lambda group: (group[sort_fields[ordering]], group["name"].casefold()),
+            reverse=ordering.startswith("-"),
+        )
     page_obj = Paginator(groups, 30).get_page(request.GET.get("page"))
     return render(
         request,

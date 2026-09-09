@@ -1,4 +1,4 @@
-<details class="color-filter" data-color-filter>
+<details class="color-filter" data-color-filter{% if color_labelledby %} aria-labelledby="{{ color_labelledby }}"{% endif %}>
   <summary><span data-color-summary>{{ color_summary }}</span></summary>
   <div class="color-filter-popover">
     <div class="color-options">

@@ -257,6 +257,8 @@ input[type="file"]::file-selector-button { min-height: 34px; margin-right: var(-
 .filters > label { min-width: 0; }
 .filters input, .filters select { width: 100%; min-width: 0; }
 .filters > button { white-space: nowrap; }
+.filter-field { display: grid; min-width: 0; align-content: end; gap: var(--space-2); }
+.filter-field > .filter-label { margin: 0; }
 .filter-disclosure { border: 0; padding: 0; background: transparent; }
 .filter-disclosure > summary { display: none; }
 .filter-disclosure[open] > summary { margin-bottom: 0; }
@@ -357,7 +359,7 @@ dd { margin: 0; }
 
 @media (min-width: 375px) and (max-width: 760px) {
   .set-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .set-filters > label:first-child { grid-column: 1 / -1; }
+  .set-filters > .filter-field:first-child { grid-column: 1 / -1; }
 }
 
 @media (max-width: 374px) {

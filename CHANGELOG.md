@@ -1,5 +1,12 @@
 # Changelog
 
+## 8.2.0 — 9 September 2026
+
+- Added deterministic **Größe/Form** sorting for parts and missing parts in ascending and descending size order.
+- Improved the workflow for physical LEGO collections organized by color by keeping similar part families together before ordering their parsed dimensions.
+- Aligned the **Fehlende Farben** Set-list filter with the other filter controls through one shared field structure.
+- No database migration.
+
 ## 8.1.2 — 9 September 2026
 
 - Fixed the **Fehlende Farben** set filter by resolving UI selections to exact stored colors through the central color rules.
