@@ -1,5 +1,11 @@
 # Changelog
 
+## 8.1.1 — 9 September 2026
+
+- Hotfixed the release build so tooling can read the central version without initializing Django or database runtime dependencies.
+- The release builder and verifier now work with a dependency-free system Python.
+- No business data or database schema changes.
+
 ## 8.1.0 — 9 September 2026
 
 - Added the Set-list filter **Fehlende Farben** with multi-select OR semantics.

@@ -14,7 +14,7 @@ from apps.accounts.models import User
 from apps.audit.models import AuditEvent
 from apps.catalog.models import LegoSet, Part
 from apps.integrations.models import PriceObservation
-from config.version import APP_VERSION
+from brickmissing_version import APP_VERSION
 
 from .client_ip import client_ip
 from .models import DataQualityIssue, SavedView
@@ -29,7 +29,7 @@ class HealthAndHeadersTests(TestCase):
         self.assertTrue(response["X-Request-ID"])
 
     def test_active_application_surfaces_use_central_version(self):
-        self.assertEqual(APP_VERSION, "8.1.0")
+        self.assertEqual(APP_VERSION, "8.1.1")
         self.assertEqual(settings.BRICKMISSING_VERSION, APP_VERSION)
         self.assertEqual(
             self.client.get(reverse("health")).json()["version"], APP_VERSION

@@ -6,18 +6,23 @@ import json
 import sys
 from pathlib import Path, PurePosixPath
 
+sys.dont_write_bytecode = True
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from config.version import APP_VERSION  # noqa: E402 - support direct script execution
+from brickmissing_version import APP_VERSION  # noqa: E402 - support direct script execution
 
 FORBIDDEN_PARTS = {".env", ".git", ".master.key", ".pytest_cache", ".ruff_cache", ".vendor", ".venv", "__pycache__", "node_modules"}
 FORBIDDEN_TOP_LEVEL = {"backups", "cache", "data", "var"}
 FORBIDDEN_NAMES = {"mariadb.json", "smtp.json"}
 FORBIDDEN_SUFFIXES = {".db", ".log", ".pyc", ".pyo", ".sqlite", ".sqlite3"}
 ALLOWED_DIRECTORIES = {"apps", "config", "deploy", "docs", "requirements", "scripts", "static", "templates"}
-ALLOWED_ROOT_FILES = {"CHANGELOG.md", "README.md", "manage.py", "pyproject.toml", "requirements.txt"}
+ALLOWED_ROOT_FILES = {
+    "brickmissing_version.py", "CHANGELOG.md", "README.md", "manage.py",
+    "pyproject.toml", "requirements.txt",
+}
 SECRET_MARKERS = (
     b"BEGIN " + b"OPENSSH PRIVATE KEY",
     b"BEGIN " + b"PRIVATE KEY",

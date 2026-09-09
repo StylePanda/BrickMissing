@@ -1,6 +1,6 @@
 # BrickMissing-Versionierung
 
-Die aktuelle Produktversion steht ausschließlich in `config/version.py`. Vor jedem produktiven Update muss bewusst geprüft werden, ob diese Versionsnummer geändert werden muss. Ein produktives Update darf nicht versehentlich mit derselben Versionsnummer ausgeliefert werden.
+Die aktuelle Produktversion steht ausschließlich in `brickmissing_version.py`. Das neutrale Top-Level-Modul hat keine Runtime-Abhängigkeiten und kann deshalb auch von Release-Skripten mit einem nackten System-Python gelesen werden. Vor jedem produktiven Update muss bewusst geprüft werden, ob diese Versionsnummer geändert werden muss. Ein produktives Update darf nicht versehentlich mit derselben Versionsnummer ausgeliefert werden.
 
 BrickMissing verwendet `MAJOR.MINOR.PATCH`, zum Beispiel `8.1.3`:
 

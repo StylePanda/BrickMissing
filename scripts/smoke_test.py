@@ -7,11 +7,13 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+sys.dont_write_bytecode = True
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from config.version import APP_VERSION  # noqa: E402 - support direct script execution
+from brickmissing_version import APP_VERSION  # noqa: E402 - support direct script execution
 
 
 def check(url: str, expected_content: bytes | None = None) -> None:

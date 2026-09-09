@@ -1,5 +1,5 @@
 """BrickMissing application package."""
 
-from config.version import APP_VERSION
+from brickmissing_version import APP_VERSION
 
 __version__ = APP_VERSION

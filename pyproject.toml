@@ -12,7 +12,7 @@ dependencies = [
 ]
 
 [tool.setuptools.dynamic]
-version = {attr = "config.version.APP_VERSION"}
+version = {attr = "brickmissing_version.APP_VERSION"}
 
 [tool.ruff]
 line-length = 100

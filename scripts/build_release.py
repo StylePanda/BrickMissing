@@ -8,18 +8,21 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+sys.dont_write_bytecode = True
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from config.version import APP_VERSION  # noqa: E402 - support direct script execution
+from brickmissing_version import APP_VERSION  # noqa: E402 - support direct script execution
 
 VERSION = APP_VERSION
 ALLOWED_DIRECTORIES = (
     "apps", "config", "templates", "static", "deploy", "scripts", "requirements", "docs"
 )
 ALLOWED_ROOT_FILES = (
-    "manage.py", "pyproject.toml", "requirements.txt", "README.md", "CHANGELOG.md"
+    "brickmissing_version.py", "manage.py", "pyproject.toml", "requirements.txt",
+    "README.md", "CHANGELOG.md",
 )
 FORBIDDEN_NAMES = {
     ".env", ".master.key", "smtp.json", "mariadb.json", "backups", "data",

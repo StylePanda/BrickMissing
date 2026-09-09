@@ -7,13 +7,107 @@ from pathlib import Path
 from unittest import TestCase
 from unittest.mock import patch
 
-from config.version import APP_VERSION
+from brickmissing_version import APP_VERSION
 from scripts.build_release import FORBIDDEN_SUFFIXES, FORBIDDEN_TOP_LEVEL, build_release
 from scripts.release_switch import switch_release
 from scripts.verify_release import ReleaseVerificationError, verify_release
 
 
 class ReleaseBuilderTests(TestCase):
+    def test_release_tools_read_version_without_site_packages_or_config_initialization(self):
+        project = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(prefix="bm811-system-python-") as temporary:
+            exact_output_root = Path(temporary) / "exact-output"
+            exact_build = subprocess.run(  # noqa: S603 -- exact production-style invocation
+                [
+                    sys.executable,
+                    str(project / "scripts" / "build_release.py"),
+                    "--output-root",
+                    str(exact_output_root),
+                ],
+                cwd=project,
+                capture_output=True,
+                text=True,
+                timeout=60,
+                check=False,
+            )
+            self.assertEqual(
+                exact_build.returncode, 0, exact_build.stdout + exact_build.stderr
+            )
+            self.assertTrue((exact_output_root / f"brickmissing-{APP_VERSION}").is_dir())
+
+            output_root = Path(temporary) / "isolated-output"
+            build = subprocess.run(  # noqa: S603 -- fixed current interpreter and project script
+                [
+                    sys.executable,
+                    "-S",
+                    str(project / "scripts" / "build_release.py"),
+                    "--output-root",
+                    str(output_root),
+                ],
+                cwd=project,
+                capture_output=True,
+                text=True,
+                timeout=60,
+                check=False,
+            )
+            self.assertEqual(build.returncode, 0, build.stdout + build.stderr)
+            release = output_root / f"brickmissing-{APP_VERSION}"
+            self.assertTrue(release.is_dir())
+
+            verify = subprocess.run(  # noqa: S603 -- fixed current interpreter and release script
+                [
+                    sys.executable,
+                    "-S",
+                    str(release / "scripts" / "verify_release.py"),
+                    str(release),
+                ],
+                cwd=release,
+                capture_output=True,
+                text=True,
+                timeout=60,
+                check=False,
+            )
+            self.assertEqual(verify.returncode, 0, verify.stdout + verify.stderr)
+            self.assertIn(f"Verified BrickMissing {APP_VERSION}", verify.stdout)
+
+            smoke_help = subprocess.run(  # noqa: S603 -- import check without runtime dependencies
+                [sys.executable, "-S", str(release / "scripts" / "smoke_test.py"), "--help"],
+                cwd=release,
+                capture_output=True,
+                text=True,
+                timeout=60,
+                check=False,
+            )
+            self.assertEqual(smoke_help.returncode, 0, smoke_help.stdout + smoke_help.stderr)
+
+            import_probe = subprocess.run(  # noqa: S603 -- isolated import-side-effect check
+                [
+                    sys.executable,
+                    "-S",
+                    "-c",
+                    (
+                        "import runpy,sys; "
+                        "[runpy.run_path(path) for path in sys.argv[1:]]; "
+                        "assert 'config' not in sys.modules"
+                    ),
+                    str(project / "scripts" / "build_release.py"),
+                    str(project / "scripts" / "verify_release.py"),
+                    str(project / "scripts" / "smoke_test.py"),
+                ],
+                cwd=project,
+                capture_output=True,
+                text=True,
+                timeout=60,
+                check=False,
+            )
+            self.assertEqual(
+                import_probe.returncode, 0, import_probe.stdout + import_probe.stderr
+            )
+
+            self.assertNotIn("config", build.stderr)
+            self.assertNotIn("pymysql", build.stderr.lower())
+
     def test_mariadb_rehearsal_uses_clean_test_database_and_production_runner(self):
         project = Path(__file__).resolve().parents[1]
         rehearsal = (project / "scripts" / "rehearse_mariadb.py").read_text(encoding="utf-8")
