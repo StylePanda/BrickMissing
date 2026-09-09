@@ -5,6 +5,7 @@ from django.db import transaction
 
 from apps.catalog.models import Part
 from apps.catalog.part_status import analyze_part_status, workflow_status_label
+from apps.catalog.services import with_authoritative_missing_quantity
 
 
 class Command(BaseCommand):
@@ -22,11 +23,18 @@ class Command(BaseCommand):
         counts = Counter()
         changed = 0
         with transaction.atomic():
-            queryset = Part.objects.filter(deleted_at__isnull=True).select_related("lego_set")
+            queryset = with_authoritative_missing_quantity(
+                Part.objects.filter(deleted_at__isnull=True).select_related("lego_set")
+            )
             if apply_changes:
                 queryset = queryset.select_for_update()
             for part in queryset.iterator(chunk_size=200):
-                findings = analyze_part_status(part)
+                findings = analyze_part_status(
+                    part,
+                    part.authoritative_required_quantity,
+                    part.authoritative_owned_quantity,
+                    part.authoritative_missing_quantity,
+                )
                 if not findings:
                     continue
                 safe_updates = {}
@@ -43,8 +51,8 @@ class Command(BaseCommand):
                             f"Name={part.name}",
                             f"Farbe={part.color or '-'}",
                             f"Set={part.lego_set.set_number if part.lego_set else '-'}",
-                            f"benötigt={part.quantity}",
-                            f"owned={part.owned_quantity}",
+                            f"benötigt={part.authoritative_required_quantity}",
+                            f"owned={part.authoritative_owned_quantity}",
                             f"unassigned={part.unassigned_found_quantity}",
                             f"Status={part.status} ({workflow_status_label(part.status)})",
                             f"Erwartet={finding.expected_status}",
@@ -63,6 +71,7 @@ class Command(BaseCommand):
             ("C", "Fehlt + vollständig vorhanden"),
             ("D", "Unbekannter Workflowstatus"),
             ("E", "is_present widerspricht Mengen"),
+            ("F", "Erhalten/Eingebaut + offene Fehlmenge"),
         ):
             self.stdout.write(f"{category}) {label}: {counts[category]}")
         mode = "APPLY" if apply_changes else "DRY-RUN"

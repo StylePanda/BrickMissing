@@ -181,6 +181,73 @@ class SetMissingColorFilterTests(TestCase):
         self.assertEqual(color_category("Trans-Clear"), "TRANS")
         self.assertEqual(color_category("Pearl Gold"), "METALLIC / PEARL / FLAT")
 
+    def test_production_import_spelling_variants_resolve_to_exact_stored_values(self):
+        black = self.lego_set("production-black")
+        self.inventory(black, "  bLaCk  ")
+        transparent = self.lego_set("production-trans")
+        self.inventory(transparent, "Trans Clear")
+
+        _response, black_ids = self.result_ids(missing_color="Black")
+        _response, trans_ids = self.result_ids(missing_color="trans-clear")
+
+        self.assertEqual(black_ids, {black.pk})
+        self.assertEqual(trans_ids, {transparent.pk})
+
+    def test_central_category_value_expands_to_its_exact_stored_colors(self):
+        pearl = self.lego_set("category-pearl")
+        self.inventory(pearl, "Pearl Gold")
+        flat = self.lego_set("category-flat")
+        self.inventory(flat, "Flat Silver")
+        red = self.lego_set("category-red")
+        self.inventory(red, "Red")
+
+        _response, ids = self.result_ids(
+            missing_color="METALLIC / PEARL / FLAT"
+        )
+
+        self.assertEqual(ids, {pearl.pk, flat.pk})
+
+    def test_blank_colors_are_not_offered_and_unknown_selection_matches_nothing(self):
+        blank = self.lego_set("blank")
+        self.inventory(blank, "   ")
+        black = self.lego_set("known")
+        self.inventory(black, "Black")
+
+        response, ids = self.result_ids(missing_color="Unknown production color")
+
+        self.assertEqual(ids, set())
+        options = [
+            option["value"]
+            for group in response.context["missing_color_groups"]
+            for option in group["colors"]
+        ]
+        self.assertNotIn("   ", options)
+
+    def test_search_theme_and_completeness_remain_and_filters(self):
+        matching = self.lego_set("combined-match", theme="Technic")
+        matching.name = "Black Crane"
+        matching.save(update_fields=["name"])
+        self.inventory(matching, "Black")
+        wrong_theme = self.lego_set("combined-theme", theme="City")
+        wrong_theme.name = "Black Crane"
+        wrong_theme.save(update_fields=["name"])
+        self.inventory(wrong_theme, "Black")
+        wrong_query = self.lego_set("combined-query", theme="Technic")
+        self.inventory(wrong_query, "Black")
+        complete = self.lego_set("combined-complete", theme="Technic")
+        complete.name = "Black Crane Complete"
+        complete.save(update_fields=["name"])
+        self.inventory(complete, "Black", owned=2)
+
+        _response, ids = self.result_ids(
+            missing_color="Black",
+            q="Crane",
+            theme="Technic",
+            completeness="incomplete",
+        )
+
+        self.assertEqual(ids, {matching.pk})
+
     def test_pagination_preserves_multiple_color_and_sort_parameters(self):
         for index in range(51):
             lego_set = self.lego_set(f"page-{index:02d}")

@@ -19,8 +19,9 @@ from django.utils import timezone
 
 from apps.audit.models import AuditEvent
 
+from .colors import normalized_color_name
 from .models import LegoSet, Part, PartHistory, SetInventoryItem
-from .part_status import synchronize_presence_marker
+from .part_status import synchronize_presence_marker, synchronize_workflow_status
 
 
 def _quantity_total(queryset, group_field, quantity_field):
@@ -164,7 +165,14 @@ def missing_color_values(user):
         is_spare=False,
         quantity__gt=F("owned_quantity"),
     ).exclude(color_name="").values_list("color_name", flat=True)
-    return sorted(set(normal).union(minifigure))
+    return sorted(
+        {
+            color
+            for color in set(normal).union(minifigure)
+            if normalized_color_name(color)
+        },
+        key=str.casefold,
+    )
 
 
 def set_completeness(lego_set):
@@ -651,8 +659,11 @@ def set_part_owned_quantity(part, quantity, actor):
         locked.quantity = maximum
     locked.owned_quantity = quantity
     synchronize_presence_marker(locked)
+    synchronize_workflow_status(locked, maximum, quantity)
     locked.full_clean()
-    locked.save(update_fields=["quantity", "owned_quantity", "is_present", "updated_at"])
+    locked.save(
+        update_fields=["quantity", "owned_quantity", "is_present", "status", "updated_at"]
+    )
     return locked
 
 
@@ -722,16 +733,31 @@ def set_authoritative_owned_quantity(kind, allocation, quantity, actor):
                 else _allocation_values(match_kind, item)[1]
                 for match_kind, item in matches
             )
-            mirrors.append((part, required, owned))
+            missing = sum(
+                max(
+                    _allocation_values(match_kind, item)[0]
+                    - (
+                        quantity
+                        if match_kind == kind and item.pk == locked.pk
+                        else _allocation_values(match_kind, item)[1]
+                    ),
+                    0,
+                )
+                for match_kind, item in matches
+            )
+            mirrors.append((part, required, owned, missing))
 
     _save_allocation_owned(kind, locked, quantity)
-    for part, required, owned in mirrors:
+    for part, required, owned, missing in mirrors:
         part.quantity = max(required, owned)
         part.owned_quantity = owned
         synchronize_presence_marker(part)
+        synchronize_workflow_status(part, required, owned, missing)
         part.full_clean()
         part.save(
-            update_fields=["quantity", "owned_quantity", "is_present", "updated_at"]
+            update_fields=[
+                "quantity", "owned_quantity", "is_present", "status", "updated_at"
+            ]
         )
     return locked
 

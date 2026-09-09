@@ -1,5 +1,12 @@
 # Changelog
 
+## 8.1.2 — 9 September 2026
+
+- Fixed the **Fehlende Farben** set filter by resolving UI selections to exact stored colors through the central color rules.
+- Made the visible missing-part group status follow authoritative required, owned and missing quantities, so **Erhalten** is never shown while a shortage remains.
+- Prevented workflow status and quantity updates from creating new contradictory possession states.
+- No database migration.
+
 ## 8.1.1 — 9 September 2026
 
 - Hotfixed the release build so tooling can read the central version without initializing Django or database runtime dependencies.

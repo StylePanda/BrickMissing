@@ -8,16 +8,19 @@
       row.remove();
       return;
     }
-    const statuses = new Set(allocations.map((item) => item.dataset.partStatus));
-    const badge = row.querySelector("[data-group-workflow-status]");
+    const badge = row.querySelector("[data-group-status]");
     if (!badge) return;
-    if (statuses.size === 1) {
-      const allocation = allocations[0];
-      badge.textContent = allocation.querySelector("[data-allocation-status-label]")?.textContent || "–";
-      badge.className = `badge ${allocation.dataset.partStatus}`;
+    const owned = allocations.reduce((total, allocation) => total + Number(allocation.querySelector("[data-allocation-owned]")?.textContent || 0), 0);
+    const missing = allocations.reduce((total, allocation) => total + Number(allocation.querySelector("[data-allocation-missing]")?.textContent || 0), 0);
+    if (missing <= 0) {
+      badge.textContent = "Erhalten";
+      badge.className = "badge complete";
+    } else if (owned <= 0) {
+      badge.textContent = "Fehlt";
+      badge.className = "badge missing";
     } else {
-      badge.textContent = "Gemischt";
-      badge.className = "badge mixed";
+      badge.textContent = "Teilweise";
+      badge.className = "badge partial";
     }
   }
 

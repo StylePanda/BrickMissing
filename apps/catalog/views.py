@@ -23,12 +23,14 @@ from apps.inventory.models import InventoryItem
 from apps.orders.models import Order
 from apps.organizer.models import MinifigurePart, Moc, SetMinifigure, WishlistItem
 
-from .colors import grouped_colors
+from .colors import grouped_colors, resolve_color_values
 from .forms import LegoSetForm, PartForm, SetCopyForm, SetInventoryItemForm
 from .models import LegoSet, Part, SetCopy, SetInventoryItem
 from .part_status import (
-    group_workflow_status,
+    effective_workflow_status,
+    group_quantity_status,
     stock_state,
+    workflow_status_is_consistent,
     workflow_status_label,
 )
 from .services import (
@@ -163,13 +165,17 @@ def set_list(request):
         # No usable inventory is not proof of completeness, so unknown sets
         # intentionally belong to the incomplete overview bucket.
         queryset = queryset.exclude(completeness_key="complete")
-    selected_missing_colors = list(
+    requested_missing_colors = list(
         dict.fromkeys(
             value[:150]
             for value in request.GET.getlist("missing_color")
             if value
         )
     )[:100]
+    available_missing_colors = missing_color_values(request.user)
+    selected_missing_colors = resolve_color_values(
+        requested_missing_colors, available_missing_colors
+    )
     queryset = filter_sets_by_missing_colors(queryset, selected_missing_colors)
     ordering = request.GET.get("sort", "-created_at")
     ordering = ordering if ordering in {"-created_at", "set_number", "name", "-year", "-current_value"} else "-created_at"
@@ -195,7 +201,7 @@ def set_list(request):
         "sort": ordering, "sync_sets": sync_sets, "completeness": completeness,
         "empty_title": empty_title,
         "missing_color_groups": grouped_colors(
-            sorted(set(missing_color_values(request.user)) | set(selected_missing_colors))
+            sorted(set(available_missing_colors) | set(selected_missing_colors))
         ),
         "selected_missing_colors": selected_missing_colors,
         "missing_color_summary": (
@@ -620,6 +626,14 @@ def missing_parts(request):
         )
     colors = sorted(colors, key=str.casefold)
     records = list(queryset.order_by("pk"))
+    for part in records:
+        part.display_status = effective_workflow_status(
+            part.status,
+            part.authoritative_required_quantity,
+            part.authoritative_owned_quantity,
+            part.authoritative_missing_quantity,
+        )
+        part.display_status_label = workflow_status_label(part.display_status)
     grouped = {}
     for part in records:
         identity = part.element_id.strip().casefold()
@@ -630,12 +644,11 @@ def missing_parts(request):
             "element_id": part.element_id, "design_id": part.design_id,
             "part_number": part.part_number, "name": part.name, "color": part.color,
             "image_url": part.image_url, "required": 0, "owned": 0, "missing": 0,
-            "allocations": [], "statuses": set(), "cost": 0,
+            "allocations": [], "cost": 0,
         })
         group["required"] += part.authoritative_required_quantity
         group["owned"] += part.authoritative_owned_quantity
         group["missing"] += part.authoritative_missing_quantity
-        group["statuses"].add(part.status)
         group["cost"] += part.unit_price * part.authoritative_required_quantity
         if not group["image_url"] and part.image_url:
             group["image_url"] = part.image_url
@@ -645,6 +658,7 @@ def missing_parts(request):
         minifigure_parts = MinifigurePart.objects.filter(
             minifigure__owner=request.user,
             minifigure__lego_set__deleted_at__isnull=True,
+            is_spare=False,
         ).select_related("minifigure", "minifigure__lego_set")
         if query:
             minifigure_parts = minifigure_parts.filter(
@@ -700,10 +714,13 @@ def missing_parts(request):
                     "owned": part.owned_quantity,
                     "missing": missing,
                     "allocations": [part],
-                    "statuses": set(),
                     "cost": 0,
-                    "status": Part.Status.MISSING,
-                    "status_label": Part.Status.MISSING.label,
+                    "status": group_quantity_status(
+                        part.quantity, part.owned_quantity, missing
+                    )[0],
+                    "status_label": group_quantity_status(
+                        part.quantity, part.owned_quantity, missing
+                    )[1],
                     "stock": stock_key,
                     "stock_label": stock_state(part.quantity, part.owned_quantity)[1],
                     "first_set": part.minifigure.lego_set.set_number,
@@ -743,7 +760,6 @@ def missing_parts(request):
             group["missing"] = sum(
                 part.authoritative_missing_quantity for part in allocations
             )
-            group["statuses"] = {part.status for part in allocations}
             group["cost"] = sum(
                 part.unit_price * part.authoritative_required_quantity
                 for part in allocations
@@ -752,7 +768,9 @@ def missing_parts(request):
     groups = normalized_groups
     for group in groups:
         if not group.get("is_minifigure"):
-            group["status"], group["status_label"] = group_workflow_status(group["statuses"])
+            group["status"], group["status_label"] = group_quantity_status(
+                group["required"], group["owned"], group["missing"]
+            )
             group["stock"], group["stock_label"] = stock_state(
                 group["required"], group["owned"]
             )
@@ -817,9 +835,24 @@ def missing_parts_bulk(request):
     action = request.POST.get("action")
     if action not in Part.Status.values:
         return HttpResponse("Ungültige Aktion", status=400)
-    records = Part.objects.select_for_update().filter(
-        owner=request.user, pk__in=identifiers, deleted_at__isnull=True
+    records = with_authoritative_missing_quantity(
+        Part.objects.select_for_update().filter(
+            owner=request.user, pk__in=identifiers, deleted_at__isnull=True
+        )
     )
+    records = list(records)
+    if any(
+        not workflow_status_is_consistent(
+            action,
+            part.authoritative_required_quantity,
+            part.authoritative_owned_quantity,
+            part.authoritative_missing_quantity,
+        )
+        for part in records
+    ):
+        return HttpResponse(
+            "Ein Besitzstatus ist erst ohne offene Fehlmenge zulässig.", status=400
+        )
     changed = 0
     for part in records:
         part.status = action
@@ -869,10 +902,24 @@ def missing_part_quantity(request, pk):
 @require_POST
 @transaction.atomic
 def missing_part_status(request, pk):
-    part = get_object_or_404(Part.objects.select_for_update(), pk=pk, owner=request.user, deleted_at__isnull=True)
+    part = get_object_or_404(
+        with_authoritative_missing_quantity(Part.objects.select_for_update()),
+        pk=pk,
+        owner=request.user,
+        deleted_at__isnull=True,
+    )
     status = request.POST.get("status")
     if status not in Part.Status.values:
         return HttpResponse("Der Status ist ungültig.", status=400)
+    if not workflow_status_is_consistent(
+        status,
+        part.authoritative_required_quantity,
+        part.authoritative_owned_quantity,
+        part.authoritative_missing_quantity,
+    ):
+        return HttpResponse(
+            "Ein Besitzstatus ist erst ohne offene Fehlmenge zulässig.", status=400
+        )
     part.status = status
     part.full_clean()
     part.save(update_fields=["status", "updated_at"])

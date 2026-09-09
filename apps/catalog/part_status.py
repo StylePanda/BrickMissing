@@ -3,8 +3,11 @@ from dataclasses import dataclass
 from apps.catalog.models import Part
 
 WORKFLOW_STATUS_LABELS = dict(Part.Status.choices)
-MIXED_STATUS = "mixed"
-MIXED_STATUS_LABEL = "Gemischt"
+POSSESSION_WORKFLOW_STATUSES = {
+    Part.Status.FOUND,
+    Part.Status.RECEIVED,
+    Part.Status.INSTALLED,
+}
 
 
 def workflow_status_label(status):
@@ -19,6 +22,56 @@ def stock_state(quantity, owned_quantity):
     return "partial", "Teilweise vorhanden"
 
 
+def group_quantity_status(required_quantity, owned_quantity, missing_quantity=None):
+    """Return the visible group status derived from authoritative quantities."""
+    missing = (
+        max(required_quantity - owned_quantity, 0)
+        if missing_quantity is None
+        else missing_quantity
+    )
+    if missing <= 0:
+        return "complete", "Erhalten"
+    if required_quantity > 0 and required_quantity - missing <= 0:
+        return "missing", "Fehlt"
+    return "partial", "Teilweise"
+
+
+def effective_workflow_status(
+    status, required_quantity, owned_quantity, missing_quantity=None
+):
+    """Mask a stale possession status while an authoritative shortage exists."""
+    missing = (
+        max(required_quantity - owned_quantity, 0)
+        if missing_quantity is None
+        else missing_quantity
+    )
+    if missing > 0 and status in POSSESSION_WORKFLOW_STATUSES:
+        return Part.Status.MISSING
+    return status
+
+
+def synchronize_workflow_status(
+    part, required_quantity=None, owned_quantity=None, missing_quantity=None
+):
+    required = part.quantity if required_quantity is None else required_quantity
+    owned = part.owned_quantity if owned_quantity is None else owned_quantity
+    part.status = effective_workflow_status(
+        part.status, required, owned, missing_quantity
+    )
+    return part
+
+
+def workflow_status_is_consistent(
+    status, required_quantity, owned_quantity, missing_quantity=None
+):
+    return (
+        effective_workflow_status(
+            status, required_quantity, owned_quantity, missing_quantity
+        )
+        == status
+    )
+
+
 def expected_is_present(part):
     return part.owned_quantity + part.unassigned_found_quantity > 0
 
@@ -26,16 +79,6 @@ def expected_is_present(part):
 def synchronize_presence_marker(part):
     part.is_present = expected_is_present(part)
     return part
-
-
-def group_workflow_status(statuses):
-    values = set(statuses)
-    if len(values) == 1:
-        status = values.pop()
-        return status, workflow_status_label(status)
-    if values:
-        return MIXED_STATUS, MIXED_STATUS_LABEL
-    return "none", "Kein Workflowstatus"
 
 
 @dataclass(frozen=True)
@@ -49,19 +92,33 @@ class PartStatusFinding:
     value: object = None
 
 
-def analyze_part_status(part):
+def analyze_part_status(
+    part, required_quantity=None, owned_quantity=None, missing_quantity=None
+):
+    required = part.quantity if required_quantity is None else required_quantity
+    owned = part.owned_quantity if owned_quantity is None else owned_quantity
+    missing = max(required - owned, 0) if missing_quantity is None else missing_quantity
+    effective_owned = max(required - missing, 0)
     findings = []
-    if part.status == Part.Status.FOUND and part.owned_quantity == 0:
+    if part.status == Part.Status.FOUND and effective_owned == 0:
         findings.append(PartStatusFinding(
             "A", "Gefunden bei Bestand 0", "MANUAL REVIEW",
             "Workflowstatus oder Menge fachlich prüfen; keine automatische Änderung.",
         ))
-    elif part.status == Part.Status.FOUND and part.owned_quantity < part.quantity:
+    elif part.status == Part.Status.FOUND and missing > 0:
         findings.append(PartStatusFinding(
             "B", "Gefunden bei Teilbestand", "MANUAL REVIEW",
             "Workflowstatus und Teilbestand fachlich prüfen; keine automatische Änderung.",
         ))
-    if part.status == Part.Status.MISSING and part.owned_quantity >= part.quantity:
+    if (
+        part.status in {Part.Status.RECEIVED, Part.Status.INSTALLED}
+        and missing > 0
+    ):
+        findings.append(PartStatusFinding(
+            "F", "Besitzstatus bei offener Fehlmenge", "MANUAL REVIEW",
+            "Persistierten Workflowstatus fachlich prüfen; die Anzeige wird aus Mengen abgeleitet.",
+        ))
+    if part.status == Part.Status.MISSING and missing <= 0:
         findings.append(PartStatusFinding(
             "C", "Fehlt bei vollständigem Bestand", "MANUAL REVIEW",
             "Workflowstatus fachlich prüfen; keine automatische Änderung.",

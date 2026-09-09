@@ -1,7 +1,7 @@
 from django import forms
 
 from .models import LegoSet, Part, SetCopy, SetInventoryItem
-from .part_status import expected_is_present
+from .part_status import expected_is_present, workflow_status_is_consistent
 
 
 class LegoSetForm(forms.ModelForm):
@@ -72,6 +72,14 @@ class PartForm(forms.ModelForm):
             candidate.owned_quantity = cleaned["owned_quantity"]
             candidate.unassigned_found_quantity = cleaned["unassigned_found_quantity"]
             cleaned["is_present"] = expected_is_present(candidate)
+        if all(cleaned.get(field) is not None for field in ("status", "quantity", "owned_quantity")):
+            if not workflow_status_is_consistent(
+                cleaned["status"], cleaned["quantity"], cleaned["owned_quantity"]
+            ):
+                self.add_error(
+                    "status",
+                    "Ein Besitzstatus ist erst ohne offene Fehlmenge zulässig.",
+                )
         return cleaned
 
 class SetCopyForm(forms.ModelForm):

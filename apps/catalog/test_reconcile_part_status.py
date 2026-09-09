@@ -6,7 +6,7 @@ from django.core.management import call_command
 from django.db.models.query import QuerySet
 from django.test import TestCase
 
-from apps.catalog.models import Part
+from apps.catalog.models import LegoSet, Part, SetInventoryItem
 
 
 class ReconcilePartStatusCommandTests(TestCase):
@@ -38,6 +38,54 @@ class ReconcilePartStatusCommandTests(TestCase):
         self.assertIn("B) Gefunden + Teilbestand: 1", output.getvalue())
         self.assertIn("C) Fehlt + vollständig vorhanden: 1", output.getvalue())
         self.assertIn("AMBIGUOUS / MANUAL REVIEW", output.getvalue())
+
+    def test_dry_run_reports_historical_received_status_with_shortage(self):
+        stale = self.create_part(
+            "received-shortage",
+            status=Part.Status.RECEIVED,
+            quantity=1,
+            owned_quantity=0,
+        )
+
+        output = StringIO()
+        call_command("reconcile_part_status", stdout=output)
+        stale.refresh_from_db()
+
+        self.assertEqual((stale.status, stale.owned_quantity), (Part.Status.RECEIVED, 0))
+        self.assertIn("F) Erhalten/Eingebaut + offene Fehlmenge: 1", output.getvalue())
+        self.assertIn("DRY-RUN", output.getvalue())
+
+    def test_dry_run_uses_authoritative_allocation_for_stale_mirror(self):
+        lego_set = LegoSet.objects.create(
+            owner=self.user, set_number="audit-authority", name="Authority"
+        )
+        SetInventoryItem.objects.create(
+            lego_set=lego_set,
+            part_number="2436",
+            element_id="4282737",
+            name="Bracket",
+            color_name="White",
+            required_quantity=1,
+            owned_quantity=0,
+        )
+        stale = self.create_part(
+            "authority",
+            lego_set=lego_set,
+            element_id="4282737",
+            part_number="2436",
+            color="White",
+            status=Part.Status.RECEIVED,
+            quantity=1,
+            owned_quantity=1,
+        )
+
+        output = StringIO()
+        call_command("reconcile_part_status", stdout=output)
+        stale.refresh_from_db()
+
+        self.assertEqual((stale.status, stale.owned_quantity), (Part.Status.RECEIVED, 1))
+        self.assertIn("F) Erhalten/Eingebaut + offene Fehlmenge: 1", output.getvalue())
+        self.assertIn("benötigt=1 | owned=0", output.getvalue())
 
     def test_apply_only_updates_safe_redundant_marker(self):
         ambiguous = self.create_part("ambiguous", status=Part.Status.FOUND)
