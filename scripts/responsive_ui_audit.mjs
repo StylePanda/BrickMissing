@@ -272,6 +272,64 @@ async function auditTabletSetFilters(client, width) {
   assert(result.bodyWidth <= width + 1, `Set overview body overflows at ${width}px`);
 }
 
+async function auditSetFilterAlignment(client, width, comparisonLabel) {
+  const result = await evaluate(client, `(() => {
+    const panel = document.querySelector(".set-filters");
+    const colorDetails = panel?.querySelector(".color-filter");
+    const snapshot = () => {
+      const fields = [...panel.querySelectorAll(":scope > .filter-field")].map((field) => {
+        const label = field.querySelector(":scope > .filter-label");
+        const control = field.querySelector(":scope > input, :scope > select, :scope > .color-filter > summary");
+        const labelRect = label?.getBoundingClientRect();
+        const controlRect = control?.getBoundingClientRect();
+        const fieldRect = field.getBoundingClientRect();
+        return {
+          label: label?.textContent.trim(),
+          labelTop: labelRect?.top || 0,
+          controlTop: controlRect?.top || 0,
+          controlHeight: controlRect?.height || 0,
+          fieldTop: fieldRect.top,
+          fieldHeight: fieldRect.height,
+        };
+      });
+      const detailsRect = colorDetails.getBoundingClientRect();
+      const summaryRect = colorDetails.querySelector(":scope > summary").getBoundingClientRect();
+      const popover = colorDetails.querySelector(":scope > .color-filter-popover");
+      return {
+        fields,
+        detailsTop: detailsRect.top,
+        detailsHeight: detailsRect.height,
+        summaryTop: summaryRect.top,
+        summaryHeight: summaryRect.height,
+        popoverPosition: getComputedStyle(popover).position,
+        popoverHeight: popover.getBoundingClientRect().height,
+      };
+    };
+    colorDetails.open = false;
+    const closed = snapshot();
+    colorDetails.open = true;
+    const opened = snapshot();
+    colorDetails.open = false;
+    const reclosed = snapshot();
+    return {closed, opened, reclosed};
+  })()`);
+  const color = result.closed.fields.find((field) => field.label === "Fehlende Farben");
+  const comparison = result.closed.fields.find((field) => field.label === comparisonLabel);
+  assert(color, `Missing-color field is absent at ${width}px`);
+  assert(result.closed.popoverPosition === "absolute", `Color popover participates in layout at ${width}px`);
+  assert(Math.abs(result.closed.detailsHeight - result.closed.summaryHeight) <= 1, `Closed color details and summary heights differ at ${width}px: ${JSON.stringify(result.closed)}`);
+  assert(Math.abs(result.opened.detailsHeight - result.opened.summaryHeight) <= 1, `Open color popover changes details height at ${width}px: ${JSON.stringify(result.opened)}`);
+  assert(Math.abs(result.closed.detailsHeight - result.opened.detailsHeight) <= 1, `Closed/open color control heights differ at ${width}px: ${JSON.stringify(result)}`);
+  assert(Math.abs(result.closed.summaryTop - result.opened.summaryTop) <= 1, `Opening moves the color control at ${width}px: ${JSON.stringify(result)}`);
+  assert(Math.abs(result.closed.summaryTop - result.reclosed.summaryTop) <= 1, `Reclosing moves the color control at ${width}px: ${JSON.stringify(result)}`);
+  if (comparisonLabel) {
+    assert(comparison, `${comparisonLabel} field is absent at ${width}px`);
+    assert(Math.abs(color.labelTop - comparison.labelTop) <= 1, `Closed color/${comparisonLabel} labels are misaligned at ${width}px: ${JSON.stringify(result.closed.fields)}`);
+    assert(Math.abs(color.controlTop - comparison.controlTop) <= 1, `Closed color/${comparisonLabel} controls are misaligned at ${width}px: ${JSON.stringify(result.closed.fields)}`);
+    assert(Math.abs(color.controlHeight - comparison.controlHeight) <= 1, `Closed color/${comparisonLabel} control heights differ at ${width}px: ${JSON.stringify(result.closed.fields)}`);
+  }
+}
+
 async function auditDashboard(client) {
   const result = await evaluate(client, `(() => ({
     title: Boolean(document.querySelector("h1")),
@@ -357,10 +415,19 @@ try {
   await setViewport(client, 768, 1024);
   await navigate(client, routes.authenticated.sets);
   await auditTabletSetFilters(client, 768);
+  await auditSetFilterAlignment(client, 768, "Vollständigkeit");
+
+  await setViewport(client, 1440, 900);
+  await navigate(client, routes.authenticated.sets);
+  await auditSetFilterAlignment(client, 1440, "Sortierung");
 
   await setViewport(client, 390, 844);
   await navigate(client, routes.authenticated.sets);
   await auditSetFilters(client);
+  await auditSetFilterAlignment(client, 390, "Sortierung");
+  await setViewport(client, 320, 844);
+  await navigate(client, routes.authenticated.sets);
+  await auditSetFilterAlignment(client, 320, "");
   await auditNavigation(client);
   await navigate(client, routes.authenticated.dashboard);
   await auditDashboard(client);

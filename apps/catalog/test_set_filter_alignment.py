@@ -37,5 +37,7 @@ class SetFilterAlignmentTests(TestCase):
         )
         self.assertIn(".filter-field { display: grid;", css)
         self.assertIn(".set-filters > .filter-field:first-child", css)
+        self.assertIn("details[open] > summary {", css)
+        self.assertNotIn("\ndetails[open] summary {", css)
         self.assertNotIn("missing-color-label {", css)
         self.assertNotIn(".set-filters .color-filter { margin", css)
