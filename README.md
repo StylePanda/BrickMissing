@@ -1,15 +1,16 @@
-# BrickMissing 8.2.0
+# BrickMissing 8.3.0
 
-BrickMissing 8.2.0 ist der Django-Neuaufbau der LEGO-Sammlungs- und
+BrickMissing 8.3.0 ist der Django-Neuaufbau der LEGO-Sammlungs- und
 Fehlteileverwaltung. Production verwendet Nginx → Gunicorn → Django → MariaDB.
 Der alte Python-HTTP-Server ist nur noch Legacy-Referenz und kein V8-Server.
 
-> Release-Status: **8.2.0 – Production Sign-off ausstehend**. Der V8-Runtimepfad
+> Release-Status: **8.3.0 – Production Sign-off ausstehend**. Der V8-Runtimepfad
 > ist Django-only. Der vollständige MariaDB-11.8.6-Rehearsal einschließlich
 > Reconciliation, 106 Tests, echten Locking-Tests und Cleanup ist PASS.
 
 ## Bereits implementiert
 
+- responsives Midnight-Violet-Dashboard mit Sammlungskennzahlen, autoritativer Fehlteileübersicht, Schnellzugriff und Themenwelten
 - Custom User, UUID, eindeutige normalisierte E-Mail, Argon2 und Legacy-Hash-Upgrade
 - Registrierung, Verifikation, Login/Logout, Passwortreset und Profil
 - Sets, Setdetails, Teile, Fehlteile, Suche, Filter, Pagination und Papierkorb

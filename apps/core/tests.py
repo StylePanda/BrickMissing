@@ -29,7 +29,7 @@ class HealthAndHeadersTests(TestCase):
         self.assertTrue(response["X-Request-ID"])
 
     def test_active_application_surfaces_use_central_version(self):
-        self.assertEqual(APP_VERSION, "8.2.0")
+        self.assertEqual(APP_VERSION, "8.3.0")
         self.assertEqual(settings.BRICKMISSING_VERSION, APP_VERSION)
         self.assertEqual(
             self.client.get(reverse("health")).json()["version"], APP_VERSION
@@ -259,27 +259,27 @@ class InterfaceQualityTests(TestCase):
         self.assertNotIn('<details class="nav-group is-active" data-nav-group><summary>Sammlung</summary>', navigation)
         self.assertIn('aria-current="page">Papierkorb</a>', navigation)
 
-    def test_dashboard_search_finds_owned_sets_parts_and_minifigures(self):
+    def test_global_search_finds_owned_sets_and_parts(self):
         lego_set = LegoSet.objects.create(owner=self.user, set_number="SEARCH-SET", name="Burg")
         Part.objects.create(owner=self.user, lego_set=lego_set, element_id="E-100", design_id="DESIGN-42", name="Stein")
         for query, expected in (("SEARCH-SET", "Burg"), ("DESIGN-42", "Stein")):
             with self.subTest(query=query):
-                self.assertContains(self.client.get(reverse("dashboard"), {"q": query}), expected)
-        redirect_response = self.client.get(reverse("global_search"), {"q": "SEARCH-SET"})
-        self.assertRedirects(redirect_response, "/?q=SEARCH-SET")
+                self.assertContains(
+                    self.client.get(reverse("global_search"), {"q": query}), expected
+                )
 
-    def test_ctrl_k_targets_dashboard_collection_search(self):
+    def test_ctrl_k_targets_global_search(self):
         response = self.client.get(reverse("catalog:set_list"))
         self.assertContains(
             response,
-            f'data-dashboard-search-url="{reverse("dashboard")}#collection-search"',
+            f'data-dashboard-search-url="{reverse("global_search")}#global-search"',
         )
         source = (Path(settings.BASE_DIR) / "static" / "js" / "app.js").read_text(
             encoding="utf-8"
         )
-        self.assertIn('getElementById("collection-search")', source)
-        self.assertIn('window.location.hash === "#collection-search"', source)
-        self.assertNotIn('getElementById("global-search")', source)
+        self.assertIn('getElementById("global-search")', source)
+        self.assertIn('window.location.hash === "#global-search"', source)
+        self.assertNotIn('getElementById("collection-search")', source)
         self.assertNotIn('window.location.assign("/suche/")', source)
 
     def test_removed_unused_product_routes_are_not_available(self):

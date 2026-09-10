@@ -4,8 +4,9 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
 from django.db import connection
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_POST
@@ -14,6 +15,7 @@ from apps.catalog.models import LegoSet, Part
 from apps.integrations.models import PriceObservation
 from apps.inventory.models import InventoryItem
 from apps.orders.models import Order
+from apps.organizer.models import Moc
 
 from .email import send_templated_email
 from .models import DataQualityIssue, SavedView
@@ -71,11 +73,53 @@ def test_email(request):
 @login_required
 def global_search(request):
     query = request.GET.get("q", "").strip()[:200]
-    target = "/"
+    sets = LegoSet.objects.filter(owner=request.user, deleted_at__isnull=True)
+    parts = Part.objects.filter(owner=request.user, deleted_at__isnull=True)
+    inventory = InventoryItem.objects.filter(owner=request.user)
+    mocs = Moc.objects.filter(owner=request.user, deleted_at__isnull=True)
     if query:
-        from urllib.parse import quote
-        target = f"/?q={quote(query)}"
-    return redirect(target)
+        sets = sets.filter(
+            Q(set_number__icontains=query) | Q(name__icontains=query)
+        )
+        parts = parts.filter(
+            Q(element_id__icontains=query)
+            | Q(design_id__icontains=query)
+            | Q(part_number__icontains=query)
+            | Q(name__icontains=query)
+        ).select_related("lego_set")
+        inventory = inventory.filter(
+            Q(element_id__icontains=query)
+            | Q(design_id__icontains=query)
+            | Q(part_number__icontains=query)
+            | Q(name__icontains=query)
+        )
+        mocs = mocs.filter(
+            Q(project_code__icontains=query) | Q(name__icontains=query)
+        )
+    else:
+        sets = sets.none()
+        parts = parts.none()
+        inventory = inventory.none()
+        mocs = mocs.none()
+    return render(
+        request,
+        "core/search.html",
+        {
+            "query": query,
+            "sets": Paginator(sets.order_by("set_number", "pk"), 25).get_page(
+                request.GET.get("sets_page")
+            ),
+            "parts": Paginator(parts.order_by("name", "pk"), 25).get_page(
+                request.GET.get("parts_page")
+            ),
+            "inventory": Paginator(
+                inventory.order_by("name", "pk"), 25
+            ).get_page(request.GET.get("inventory_page")),
+            "mocs": Paginator(mocs.order_by("name", "pk"), 25).get_page(
+                request.GET.get("mocs_page")
+            ),
+        },
+    )
 
 
 @login_required

@@ -1,5 +1,14 @@
 # Changelog
 
+## 8.3.0 — 10 September 2026
+
+- Redesigned the overview as a responsive Midnight-Violet collection dashboard.
+- Added compact owner-scoped collection metrics with authoritative present and missing quantities and percentages.
+- Added an accessible present-versus-missing donut and the top five current shortages.
+- Added recently created sets, central shortcuts and a top-theme overview.
+- Prepared a CSS-only banner slot for future BrickMissing artwork without a missing asset request.
+- Kept the existing quantity, reconciliation, export, filtering and size/form behavior unchanged; no database migration.
+
 ## 8.2.0 — 9 September 2026
 
 - Added deterministic **Größe/Form** sorting for parts and missing parts in ascending and descending size order.

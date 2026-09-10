@@ -1,0 +1,391 @@
+BRICKMISSING 8.2.0 SIZE/FORM SORT + FILTER ALIGNMENT REPORT
+======================================================================
+
+IMPLEMENTATION STATUS: READY
+PRODUCTION VALIDATION: PENDING
+
+Version vorher: 8.1.2
+Version nachher: 8.2.0
+
+SCOPE UND SICHERHEIT
+----------------------------------------------------------------------
+- Ausschliesslich in der lokalen PC-Arbeitskopie gearbeitet.
+- Kein Produktionszugriff und keine Produktionsdaten veraendert.
+- Kein Commit, Push, Tag, GitHub Release oder Deployment ausgefuehrt.
+- Keine Secrets gelesen, veraendert oder ausgegeben.
+- Keine neue Dependency und keine Datenbankmigration.
+- Die autoritative Mengen-, Allocation- und Gruppenstatuslogik aus 8.1.2
+  wurde nicht veraendert.
+
+ALIGNMENT: ROOT CAUSE
+----------------------------------------------------------------------
+Die erste Untersuchung erkannte zwar die abweichende Wrapper-/Label-Struktur,
+aber nicht den entscheidenden zustandsabhaengigen CSS-Selektor. Der gemeinsame
+filter-field-Wrapper allein reichte deshalb nicht aus.
+
+Die tatsaechliche Root Cause war die globale Regel:
+  details[open] summary { margin-bottom: var(--space-4); }
+
+Der Selektor verwendete eine Nachfahren- statt einer direkten Kindbeziehung.
+Die Set-Filter liegen selbst in einem dauerhaft geoeffneten aeusseren
+details.filter-disclosure. Deshalb traf diese Regel auch das summary des darin
+verschachtelten GESCHLOSSENEN details.color-filter und gab ihm 16 px unteren
+Margin. Im echten Edge-Browser hatte das geschlossene Farb-details dadurch
+60,8 px Hoehe, obwohl sein sichtbares summary nur 44,8 px hoch war. Das gesamte
+filter-field wurde im end-ausgerichteten Grid nach oben versetzt.
+
+Beim Oeffnen des inneren Farb-details griff dagegen die spezifischere Regel
+.color-filter[open] > summary { margin-bottom: 0; }. Dadurch verschwand der
+falsch geerbte Abstand und der geoeffnete Zustand wirkte zufaellig korrekt.
+Der absolut positionierte Popover selbst war bereits richtig aufgebaut und
+war nicht die Ursache der zusaetzlichen Grundhoehe.
+
+ALIGNMENT: TECHNISCHE LOESUNG
+----------------------------------------------------------------------
+- Alle fuenf Set-Filter verwenden nun denselben direkten Wrapper
+  div.filter-field.
+- Alle Beschriftungen verwenden filter-label; normale Felder haben explizite
+  for/id-Zuordnungen.
+- Das Farb-details-Control ist per aria-labelledby mit seiner Beschriftung
+  verbunden.
+- filter-field stellt zentral grid, min-width, align-content:end und denselben
+  gap bereit.
+- Der bisherige margin-bottom von filter-label wird innerhalb dieses
+  gemeinsamen Wrappers neutralisiert; es gibt keinen individuellen Offset,
+  margin-top, transform oder position-Hack fuer "Fehlende Farben".
+- Inputs, Selects und das Farb-summary verwenden weiterhin die gemeinsame
+  --control-height.
+- Die globale Disclosure-Regel lautet jetzt:
+    details[open] > summary { margin-bottom: var(--space-4); }
+  Der Abstand gilt damit ausschliesslich fuer das direkte summary des jeweils
+  selbst geoeffneten details und nicht fuer verschachtelte geschlossene
+  Controls.
+- Die vorhandene spezifische Farbregel behaelt fuer den geoeffneten Zustand
+  margin-bottom: 0. Der absolut positionierte Popover bleibt ausserhalb der
+  normalen Feldgeometrie.
+
+ALIGNMENT: CLOSED-/OPEN-VERHALTEN NACH DEM FIX
+----------------------------------------------------------------------
+- Geschlossen: details- und summary-Hoehe sind gleich; Label und Control liegen
+  auf derselben Y-Position wie das Vergleichsfeld derselben Grid-Zeile.
+- Geoeffnet: Der Popover bleibt position:absolute und veraendert weder Hoehe
+  noch Y-Position von details, summary oder filter-field.
+- Erneut geschlossen: Bounding Boxes kehren nicht nur optisch, sondern exakt
+  auf dieselben gemessenen Positionen zurueck.
+- Es wurde kein Pixel-Offset fuer "Fehlende Farben" hinzugefuegt.
+
+GEAENDERTE TEMPLATE-/CSS-STRUKTUR UND RESPONSIVE-AUSWIRKUNG
+----------------------------------------------------------------------
+- templates/catalog/set_list.html: einheitliche filter-field-Struktur.
+- templates/components/color_multiselect.html: optionales aria-labelledby.
+- static/css/app.css: gemeinsame filter-field-Regel.
+- static/css/app.css: globaler details[open]-Abstand auf das direkte summary
+  begrenzt.
+- Die bestehende Zweispaltenregel bei 375-760 px adressiert jetzt den ersten
+  filter-field statt des frueheren direkten label-Elements.
+- Die vorhandenen Desktop-, Tablet- und Einspalten-Breakpoints bleiben
+  unveraendert. Der Farb-Popover behaelt seine bestehenden responsive Regeln.
+- Die vorhandene Edge/CDP-Infrastruktur misst geschlossen, geoeffnet und erneut
+  geschlossen bei 1440, 768, 390 und 320 px. Auf mehrspaltigen Zeilen werden
+  Label-Y, Control-Y und Control-Hoehe gegen das jeweilige Nachbarfeld geprueft.
+
+GRÖSSE/FORM: UNTERSUCHTE DATENQUELLEN
+----------------------------------------------------------------------
+- Part: name, design_id, part_number, element_id, color; keine Kategorie oder
+  Dimensionen.
+- SetInventoryItem: standardisierter Rebrickable-Name und IDs; keine Kategorie
+  oder Dimensionen.
+- MinifigurePart: standardisierter Rebrickable-Name und IDs; keine Kategorie
+  oder Dimensionen.
+- Rebrickable-Synchronisation: speichert fuer diese Datensaetze Namen, IDs,
+  Farbe, Menge und Bild, aber keine lokale Teilekategorie/Geometrie.
+- InventoryItem besitzt zwar category/subcategory, ist aber ein separater
+  Benutzer-Inventardatensatz ohne verlaessliche eindeutige Beziehung zu den
+  Set-/Minifiguren-Allokationen. Ein Join wuerde Identitaeten oder Besitzer
+  potenziell vermischen und wird deshalb nicht als Sortierwahrheit verwendet.
+- Die lokale Entwicklungsdatenbank enthielt keine zusaetzlichen Teile-Namen;
+  Rebrickable-typische reale Namensformen aus bestehenden Tests und bekannten
+  Importformaten wurden gezielt als Teststichprobe verwendet.
+
+TATSAECHLICH VERWENDETE SORTIERDATEN
+----------------------------------------------------------------------
+- Der lokal gespeicherte standardisierte Teilenamen.
+- Zuverlaessig erkennbare Formwoerter im Namen.
+- Konservativ erkennbare Dimensionen im Namen.
+- design_id, part_number, element_id und color als stabile Tie-Breaker.
+- In der Fehlteile-Gruppierung zusaetzlich first_set; in der Teileliste die PK.
+- Keine externe API, kein API-Aufruf pro Seite und keine neue Synchronisation.
+
+ZENTRALE IMPLEMENTIERUNG
+----------------------------------------------------------------------
+apps/catalog/part_sorting.py enthaelt die einzige neue Sortierlogik. Sowohl die
+Teileliste als auch die Fehlteile-Seite verwenden part_size_form_sort_key.
+Es wurde keine zweite unabhaengige Sortierlogik eingefuehrt.
+
+GENAUE DEFINITION DES SORTIERSCHLUESSELS
+----------------------------------------------------------------------
+1. Formfamilien-Rang.
+2. Normalisierter Familienname (insbesondere fuer unbekannte Familien).
+3. Flag, ob eine verlaessliche Groesse erkannt wurde; erkannte Groessen stehen
+   innerhalb der Familie vor unbekannten.
+4. Groessenmetrik: Produkt der erkannten x-Dimensionen beziehungsweise
+   erkannte Technic-Laenge.
+5. Normalisiertes Dimensionstupel fuer gleiche Metriken.
+6. Normalisierter Name.
+7. Normalisierte design_id, part_number, element_id und Farbe.
+8. Ansichtsbezogener stabiler letzter Tie-Breaker: PK bzw. erstes Set.
+
+FORM-/KATEGORIE-GRUPPIERUNG
+----------------------------------------------------------------------
+Die bewusst kleine, deterministische Familienliste gruppiert:
+- Brick
+- Plate
+- Tile
+- Slope
+- Wedge
+- Arch
+- Panel
+- Technic Brick
+- Technic Liftarm/Beam
+- Technic Axle
+- Technic Pin
+- Technic Connector
+- Gear
+- Wheel/Tire
+- Minifigure
+
+Uebliche englische Pluralformen werden normalisiert. Nicht erkannte Formen
+werden nicht in eine erfundene Kategorie gezwungen, sondern erhalten eine
+stabile other:-Familie aus vorhandener Kategorie (wenn die Funktion spaeter
+mit einer echten strukturierten Kategorie verwendet wird) oder dem ersten
+Namenswort.
+
+DIMENSIONSPARSER
+----------------------------------------------------------------------
+- Erkennt ganzzahlige Muster wie 1 x 1, 1 x 2, 2 x 4 und optional drei
+  Dimensionen; auch das Multiplikationszeichen wird akzeptiert.
+- Sortiert Dimensionsachsen fuer orientierungsunabhaengige Vergleichbarkeit.
+- Bei mehreren verlaesslichen x-Mustern im Namen wird der groesste erkannte
+  Footprint verwendet, z. B. Bracket 1 x 2 - 1 x 4 => 1 x 4.
+- Erkennt Technic-Laengen wie 3L, 5 L, 7L sowie klare Formen wie Axle 6.
+- Andere Zahlen wie Winkel oder IDs werden bewusst nicht als Groesse geraten.
+- Kein grosses fragiles Spezialregelwerk.
+
+AUFSTEIGEND
+----------------------------------------------------------------------
+Die Formfamilien bleiben in stabiler Reihenfolge zusammen. Innerhalb jeder
+Familie folgen erkannte Groessen klein nach gross. Bei gleicher Metrik werden
+die Dimensionen verglichen, sodass z. B. 1 x 4 stabil vor 2 x 2 steht.
+Unbekannte Groessen folgen danach mit stabilen Fallbacks.
+
+ABSTEIGEND
+----------------------------------------------------------------------
+Es wurde UX-Variante A gewaehlt: Nur Groessenmetrik und Dimensionen werden
+innerhalb derselben Formfamilie umgekehrt. Die Familienreihenfolge und die
+alphabetischen/ID-Tie-Breaker bleiben stabil. Dadurch werden physisch aehnliche
+Teile nicht auseinandergerissen, waehrend grosse Teile innerhalb ihrer Gruppe
+vor kleinen erscheinen.
+
+FALLBACK FUER UNBEKANNTE TEILE
+----------------------------------------------------------------------
+Unbekannte Teile bleiben sichtbar und fehlerfrei. Sie werden ueber eine stabile
+other:-Familie, normalisierten Namen, Design-/Part-/Element-ID und Farbe
+sortiert. Zufalls- oder DB-Defaultreihenfolge wird durch einen letzten
+ansichtsbezogenen Tie-Breaker ausgeschlossen.
+
+PERFORMANCE-/QUERY-ANSATZ
+----------------------------------------------------------------------
+- Die Fehlteile-Seite materialisierte und gruppierte ihre gefilterten Daten
+  bereits vor der Pagination in Python. Dort kommt lediglich ein zentraler
+  O(n log n)-Sortierschritt hinzu; keine neue Query und kein N+1.
+- Die Teileliste verwendet nur fuer size_form/-size_form eine einmalig
+  ausgewertete, bereits select_related/annotierte Query und sortiert diese vor
+  der Pagination in Python. Alle bestehenden DB-Sortierungen bleiben
+  unveraendert.
+- Keine API-Aufrufe, keine Datenmutation, keine Reconciliation.
+- Bekannte Einschraenkung: Bei einer extrem grossen gefilterten Teileliste muss
+  der gewaehlte Groesse/Form-Modus alle Treffer fuer die korrekte globale
+  Reihenfolge im Speicher halten. Fuer die bestehende Seitenarchitektur ist
+  dies die kleinste robuste Loesung ohne Schema-/Importumbau.
+
+ZUSAMMENSPIEL MIT FILTER UND QUERY-PARAMETERN
+----------------------------------------------------------------------
+- Farb-, Such-, Status-, Set-, Teileart-, Seltenheits- und Bestandsfilter werden
+  vor Gruppierung und Sortierung angewendet.
+- Dark Bluish Gray + aufsteigend und Dark Bluish Gray + absteigend sind getestet.
+- Query-Parameter: sort=size_form und sort=-size_form.
+- Pagination verwendet weiterhin das zentrale Django-querystring-Template und
+  behaelt Suche, Farbe, Status und Sortierung.
+- Ungueltige Sortierwerte fallen auf name zurueck und erzeugen keinen 500er.
+
+GEAENDERTE DATEIEN
+----------------------------------------------------------------------
+- brickmissing_version.py
+- CHANGELOG.md
+- README.md
+- apps/core/tests.py
+- apps/catalog/part_sorting.py (neu)
+- apps/catalog/views.py
+- templates/catalog/set_list.html
+- templates/components/color_multiselect.html
+- templates/catalog/part_list.html
+- templates/catalog/missing_parts.html
+- static/css/app.css
+- scripts/responsive_ui_audit.mjs
+- apps/catalog/test_size_form_sort.py (neu)
+- apps/catalog/test_set_filter_alignment.py (neu)
+- RELEASE_NOTES_8.2.0.md (neu, lokal/untracked)
+- Dieser Abschlussreport (lokal/untracked)
+
+NEUE/ANGEPASSTE TESTS
+----------------------------------------------------------------------
+- Brick-Reihenfolge 1x1, 1x2, 1x3, 1x4, 2x2, 2x3, 2x4.
+- Absteigende Groessenrichtung bei unveraenderter Familienreihenfolge.
+- Formfamilien bleiben zusammen: Brick, Plate, Tile, Slope.
+- Rebrickable-typische Namen fuer Brick, Modified Plate, Tile, Slope,
+  Liftarm und Axle.
+- Technic-Laengen 3L/5L/7L und Axle 6.
+- Mehrere Dimensionsangaben in einem Bracket-Namen.
+- Unbekannte Dimension/Familie, stabiler Fallback und ID-Tie-Breaker.
+- Integration in Teileliste und Fehlteile-Seite, beide Richtungen.
+- Dark Bluish Gray + beide Sortierrichtungen.
+- Pagination mit erhaltenem q/color/status/sort.
+- Ungueltiger Sortierparameter.
+- Nachweis, dass Quantity, owned_quantity, status und updated_at durch reine
+  Sortier-GETs unveraendert bleiben.
+- Einheitlicher Set-Filter-Wrapper, zugreifbare Farbbeschriftung,
+  responsive Selektor und Abwesenheit eines individuellen Offset-Hacks.
+- Echter Edge/CDP-Bounding-Box-Test fuer closed/open/reclosed bei 1440, 768,
+  390 und 320 px.
+- Nachweis, dass der geschlossene details-Container exakt die summary-Hoehe
+  besitzt und der absolute Popover beim Oeffnen die Geometrie nicht vergroessert.
+
+VALIDIERUNGSERGEBNISSE
+----------------------------------------------------------------------
+- Gezielte Size/Form-, Alignment-, Farbfilter- und Gruppenstatus-Suite:
+  37/37 PASS.
+- Relevante Catalog-/Inventory-/Organizer-/Owned-Quantity-/Exporttests:
+  266/266 PASS.
+- Vollstaendige Django-Test-Suite: 502/502 PASS.
+- Separater echter Edge/CDP-Layouttest: 1/1 PASS.
+- python manage.py check: PASS, 0 Issues.
+- ruff check .: PASS.
+- python manage.py makemigrations --check --dry-run: PASS,
+  keine Aenderungen erkannt.
+- git diff --check: PASS; nur informative LF/CRLF-Hinweise, keine Fehler.
+- node --check scripts/responsive_ui_audit.mjs: PASS.
+
+RELEASE-BUILD UND VERIFIKATION
+----------------------------------------------------------------------
+- Echter lokaler Release-Build in einem validierten System-TEMP-Verzeichnis:
+  PASS.
+- Windows besitzt hier keinen nutzbaren python3-Befehl; verwendet wurde der
+  funktional aequivalente Projektinterpreter:
+    .\.venv\Scripts\python.exe scripts\build_release.py --output-root <TEMP_DIR>
+- Normale Release-Verifikation: PASS.
+- Dependency-freie Verifikation mit Python -S: PASS.
+- Ergebnis: Verified BrickMissing 8.2.0: 345 files.
+- Manifest-Version: 8.2.0.
+- Zentrale Version im Artefakt unter Python -S: 8.2.0.
+- Das temporaere Release-Verzeichnis wurde entfernt.
+- Der dependency-freie Release-Hotfix aus 8.1.1 bleibt erhalten.
+
+RELEASE_NOTES_8.2.0.md STATUS
+----------------------------------------------------------------------
+RELEASE_NOTES_8.2.0.md wurde erstellt und bleibt lokal/untracked. Obwohl eine
+aeltere 8.1.1-Datei inzwischen getrackt ist, besteht noch keine durchgaengige
+Konvention (RELEASE_NOTES_8.1.2.md war bereits lokal/untracked). Gemaess dem
+Auftrag wird 8.2.0 deshalb nicht eigenmaechtig als neue Konvention committed.
+
+BEKANNTE EINSCHRAENKUNGEN
+----------------------------------------------------------------------
+- Die automatische Browservalidierung ist lokal erfolgreich. Eine erneute
+  manuelle Browserpruefung des final korrigierten Stands sowie die spaetere
+  Produktionsvalidierung stehen weiterhin aus.
+- Ohne persistierte Geometriedaten ist die Sortierung bewusst eine robuste
+  Best-Effort-Auswertung standardisierter Namen. Nicht eindeutig erkennbare
+  Formen/Groessen verwenden den dokumentierten stabilen Fallback.
+- Das separate InventoryItem-Kategoriefeld wird mangels verlaesslicher Relation
+  nicht auf Set-/Minifiguren-Allokationen uebertragen.
+- Der Size/Form-Modus der Teileliste sortiert alle gefilterten Treffer vor der
+  Pagination im Speicher; es entstehen dabei keine Zusatzqueries pro Teil.
+
+BESTAETIGUNGEN
+----------------------------------------------------------------------
+- Keine Datenbankmigration.
+- Keine neue Dependency.
+- Keine Mengen-, Status- oder Allocation-Mutation durch Sortierung/Anzeige.
+- Keine Secrets gelesen, veraendert oder ausgegeben.
+- Kein Produktionszugriff.
+- Kein Commit, Push, Tag, GitHub Release oder Deployment.
+- RELEASE_NOTES_8.2.0.md ist lokal/untracked.
+- BRICKMISSING_8_2_0_SIZE_FORM_SORT_ALIGNMENT_REPORT.txt ist lokal/untracked
+  und darf nicht committed werden.
+
+PRODUKTIONS-RUNBOOK (SPAETER DURCH DEN NUTZER)
+----------------------------------------------------------------------
+1. PC-Aenderungen und git diff sorgfaeltig pruefen.
+2. Gewuenschte Code-/Testdateien committen und nach GitHub main pushen;
+   Abschlussreport und gemaess aktueller Entscheidung Release Notes nicht
+   committen.
+3. Produktions-Repository aktualisieren.
+4. Sicherstellen, dass das Repository exakt auf dem neuen 8.2.0-Commit steht.
+5. Auf Produktion den Release-Build mit System-Python ausfuehren:
+     python3 scripts/build_release.py --output-root /tmp/brickmissing-release
+6. Das erzeugte Artefakt mit scripts/verify_release.py verifizieren und
+   Manifest-Version 8.2.0 kontrollieren.
+7. Mit dem bestehenden /var/www/brickmissing/deploy.sh deployen.
+8. Healthcheck pruefen und Anwendung oeffnen.
+9. Nachfolgende manuelle Produktionscheckliste vollstaendig ausfuehren.
+10. Erst danach PRODUCTION VALIDATION: PASSED setzen.
+
+GIT-TAG UND GITHUB RELEASE (NUR DOKUMENTIERT, NICHT AUSGEFUEHRT)
+----------------------------------------------------------------------
+git tag -a v8.2.0 -m "BrickMissing 8.2.0"
+git push origin v8.2.0
+
+gh release create v8.2.0 --repo StylePanda/BrickMissing --title "BrickMissing 8.2.0" --notes-file ".\RELEASE_NOTES_8.2.0.md" --latest
+
+gh release view v8.2.0 --repo StylePanda/BrickMissing
+
+MANUELLE PRODUKTIONSCHECKLISTE
+----------------------------------------------------------------------
+ALIGNMENT
+1. Set-Liste oeffnen.
+2. Desktop-Breite verwenden.
+3. Pruefen, dass Suche, Themenwelt, Vollstaendigkeit, Fehlende Farben und
+   Sortierung vertikal sauber ausgerichtet sind.
+4. Labelhoehe pruefen.
+5. Feldhoehe pruefen.
+6. Responsive Ansicht pruefen.
+
+GROESSE/FORM
+7. Fehlteile-/Teile-Seite oeffnen.
+8. Dark Bluish Gray auswaehlen.
+9. Groesse/Form - aufsteigend auswaehlen.
+10. Pruefen, dass physisch aehnliche Teile sinnvoll gruppiert erscheinen.
+11. Pruefen, dass innerhalb vergleichbarer Formen kleinere Teile vor
+    groesseren erscheinen.
+12. Auf Groesse/Form - absteigend wechseln.
+13. Pruefen, dass groessere Teile innerhalb ihrer Formfamilie zuerst erscheinen.
+14. Bricks kontrollieren.
+15. Plates kontrollieren.
+16. Tiles kontrollieren.
+17. Technic-Teile kontrollieren.
+18. Teil ohne erkennbare Groesse kontrollieren.
+19. Pagination pruefen.
+20. Suche + Farbe + Groesse/Form kombinieren.
+21. Seite neu laden und Query-Parameter pruefen.
+22. Sicherstellen, dass die Sortierung keinerlei Mengen veraendert.
+23. Gruppenstatus aus 8.1.2 stichprobenartig kontrollieren.
+
+VERSION
+24. Angezeigte Version = 8.2.0.
+25. Healthcheck = 8.2.0.
+26. Release-Manifest = 8.2.0.
+
+Erst nach erfolgreichem Abschluss darf der Produktionsstatus von PENDING auf
+PASSED geaendert werden.
+
+IMPLEMENTATION STATUS: READY
+PRODUCTION VALIDATION: PENDING

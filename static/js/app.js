@@ -55,7 +55,7 @@ document.addEventListener("keydown", (event) => {
   }
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
     event.preventDefault();
-    const field = document.getElementById("collection-search");
+    const field = document.getElementById("global-search");
     if (field) {
       field.focus();
       field.select();
@@ -64,8 +64,8 @@ document.addEventListener("keydown", (event) => {
     }
   }
 });
-if (window.location.hash === "#collection-search") {
-  const field = document.getElementById("collection-search");
+if (window.location.hash === "#global-search") {
+  const field = document.getElementById("global-search");
   field?.focus();
   field?.select();
 }

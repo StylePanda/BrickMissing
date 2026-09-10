@@ -18,6 +18,7 @@ const profile = join(tmpdir(), `brickmissing-edge-${process.pid}-${Date.now()}`)
 const browser = spawn(browserPath, [
   "--headless=new",
   "--disable-gpu",
+  "--no-sandbox",
   "--no-first-run",
   "--disable-extensions",
   "--remote-allow-origins=*",
@@ -45,7 +46,7 @@ async function waitForDebugger() {
       await delay(100);
     }
   }
-  throw lastError;
+  throw new Error(`Viewport ${width}x${height} failed after retry: ${lastError.message}`);
 }
 
 class CdpClient {
@@ -330,19 +331,41 @@ async function auditSetFilterAlignment(client, width, comparisonLabel) {
   }
 }
 
-async function auditDashboard(client) {
-  const result = await evaluate(client, `(() => ({
+async function auditDashboard(client, width) {
+  const result = await evaluate(client, `(() => {
+    const banner = document.querySelector(".dashboard-banner");
+    const bannerImage = banner?.querySelector(".dashboard-banner-image");
+    const bannerRect = banner?.getBoundingClientRect();
+    const bannerImageRect = bannerImage?.getBoundingClientRect();
+    return ({
     title: Boolean(document.querySelector("h1")),
-    search: document.querySelector("#collection-search")?.getBoundingClientRect().height || 0,
-    actionCount: document.querySelectorAll(".page-head .actions .button").length,
-    stats: [...document.querySelectorAll(".stats article")].map((node) => node.getBoundingClientRect().right),
-    valuesFit: [...document.querySelectorAll(".stats strong")].every((node) => node.scrollWidth <= node.clientWidth + 1)
-  }))()`);
+    duplicateSearch: Boolean(document.querySelector("#collection-search")),
+    bannerVisible: bannerRect?.height > 0,
+    bannerImageLoaded: Boolean(bannerImage?.complete && bannerImage.naturalWidth > 0 && bannerImage.naturalHeight > 0),
+    bannerImageFit: getComputedStyle(bannerImage).objectFit === "cover",
+    bannerImageFillsContainer: !bannerRect?.height || (Math.abs(bannerRect.width - bannerImageRect.width) <= 1 && Math.abs(bannerRect.height - bannerImageRect.height) <= 1),
+    actionCount: document.querySelectorAll(".dashboard-actions .dashboard-action").length,
+    shortcutCount: document.querySelectorAll(".dashboard-shortcuts nav a").length,
+    stats: [...document.querySelectorAll(".dashboard-stats article")].map((node) => ({left: node.getBoundingClientRect().left, right: node.getBoundingClientRect().right})),
+    valuesFit: [...document.querySelectorAll(".dashboard-stats strong")].every((node) => node.scrollWidth <= node.clientWidth + 1),
+    donutReadable: document.querySelector(".dashboard-donut")?.getBoundingClientRect().width >= 150,
+    topPartsFit: [...document.querySelectorAll(".dashboard-top-missing li")].every((node) => node.scrollWidth <= node.clientWidth + 1),
+    cardsFit: [...document.querySelectorAll(".dashboard [class$='-card'], .dashboard .panel")].every((node) => node.getBoundingClientRect().right <= document.documentElement.clientWidth + 1),
+    });
+  })()`);
   assert(result.title, "Dashboard title is not visible");
-  assert(result.search >= 40 && result.search <= 64, "Dashboard search has an unreasonable height");
-  assert(result.actionCount >= 2, "Dashboard primary actions are missing");
-  assert(result.stats.every((right) => right <= 391), "Dashboard statistic card escapes the viewport");
+  assert(!result.duplicateSearch, "Dashboard still contains a duplicate collection search");
+  assert(result.bannerVisible === (width > 480), `Dashboard banner visibility is incorrect at ${width}px`);
+  assert(result.bannerImageLoaded, `Dashboard banner image did not load at ${width}px`);
+  assert(result.bannerImageFit, `Dashboard banner image is not using object-fit cover at ${width}px`);
+  assert(result.bannerImageFillsContainer, `Dashboard banner image does not fill its container at ${width}px`);
+  assert(result.actionCount === 4, "Dashboard quick actions are incomplete");
+  assert(result.shortcutCount === 6, "Dashboard shortcuts are incomplete");
+  assert(result.stats.every(({left, right}) => left >= -1 && right <= width + 1), `Dashboard statistic card escapes at ${width}px`);
   assert(result.valuesFit, "Dashboard statistic value overflows its card");
+  assert(result.donutReadable, `Dashboard donut is too small at ${width}px`);
+  assert(result.topPartsFit, `Dashboard top-parts list overflows at ${width}px`);
+  assert(result.cardsFit, `Dashboard card escapes at ${width}px`);
 }
 
 async function auditNavigation(client) {
@@ -402,6 +425,7 @@ try {
     for (const [name, path] of Object.entries(routes.authenticated)) {
       await navigate(client, path);
       await auditOverflow(client, name, width);
+      if (name === "dashboard") await auditDashboard(client, width);
     }
   }
   for (const width of desktopWidths) {
@@ -409,6 +433,7 @@ try {
     for (const name of ["dashboard", "sets", "setForm", "setDetail"]) {
       await navigate(client, routes.authenticated[name]);
       await auditOverflow(client, name, width);
+      if (name === "dashboard") await auditDashboard(client, width);
     }
   }
 
@@ -430,7 +455,7 @@ try {
   await auditSetFilterAlignment(client, 320, "");
   await auditNavigation(client);
   await navigate(client, routes.authenticated.dashboard);
-  await auditDashboard(client);
+  await auditDashboard(client, 390);
   await navigate(client, routes.authenticated.setForm);
   await auditFormControls(client);
 

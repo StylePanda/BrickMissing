@@ -19,9 +19,7 @@ from apps.core.models import SavedView
 from apps.core.rate_limit import limited
 from apps.core.services import record_recent
 from apps.integrations.services import normalize_rebrickable_set_number
-from apps.inventory.models import InventoryItem
-from apps.orders.models import Order
-from apps.organizer.models import MinifigurePart, Moc, SetMinifigure, WishlistItem
+from apps.organizer.models import MinifigurePart, WishlistItem
 
 from .colors import grouped_colors, resolve_color_values
 from .forms import LegoSetForm, PartForm, SetCopyForm, SetInventoryItemForm
@@ -36,6 +34,7 @@ from .part_status import (
 )
 from .services import (
     AmbiguousAuthoritativeAllocation,
+    dashboard_collection_data,
     filter_sets_by_missing_colors,
     missing_color_values,
     set_authoritative_owned_quantity,
@@ -66,81 +65,12 @@ def _set_inventory_return_url(request, lego_set):
 
 @login_required
 def dashboard(request):
-    sets = LegoSet.objects.filter(owner=request.user, deleted_at__isnull=True)
-    parts = Part.objects.filter(owner=request.user, deleted_at__isnull=True)
-    normal_set_parts = SetInventoryItem.objects.filter(
-        lego_set__owner=request.user,
-        lego_set__deleted_at__isnull=True,
-        is_spare=False,
-        required_quantity__gt=0,
-    ).aggregate(
-        required_total=Sum("required_quantity"),
-        owned_total=Sum(
-            Case(
-                When(owned_quantity__lt=F("required_quantity"), then=F("owned_quantity")),
-                default=F("required_quantity"),
-                output_field=IntegerField(),
-            )
-        )
-    )
-    minifigure_parts = MinifigurePart.objects.filter(
-        minifigure__owner=request.user,
-        minifigure__lego_set__owner=request.user,
-        minifigure__lego_set__deleted_at__isnull=True,
-        is_spare=False,
-        quantity__gt=0,
-    ).aggregate(
-        required_total=Sum("quantity"),
-        owned_total=Sum(
-            Case(
-                When(owned_quantity__lt=F("quantity"), then=F("owned_quantity")),
-                default=F("quantity"),
-                output_field=IntegerField(),
-            )
-        )
-    )
-    lego_parts_total = (normal_set_parts["required_total"] or 0) + (minifigure_parts["required_total"] or 0)
-    lego_parts_owned = (normal_set_parts["owned_total"] or 0) + (minifigure_parts["owned_total"] or 0)
-    lego_parts_missing = max(lego_parts_total - lego_parts_owned, 0)
-    query = request.GET.get("q", "").strip()[:200]
-    search_sets = search_parts = search_minifigures = None
-    if query:
-        search_sets = sets.filter(Q(set_number__icontains=query) | Q(name__icontains=query)).order_by("set_number", "pk")[:10]
-        search_parts = parts.filter(
-            Q(element_id__icontains=query) | Q(design_id__icontains=query)
-            | Q(part_number__icontains=query) | Q(name__icontains=query)
-        ).select_related("lego_set").order_by("name", "pk")[:10]
-        search_minifigures = SetMinifigure.objects.filter(
-            owner=request.user, lego_set__deleted_at__isnull=True,
-        ).filter(Q(figure_number__icontains=query) | Q(name__icontains=query)).select_related("lego_set").order_by("figure_number", "pk")[:10]
+    data = dashboard_collection_data(request.user)
+    data["welcome_name"] = request.user.first_name.strip() or request.user.get_username()
     return render(
         request,
         "catalog/dashboard.html",
-        {
-            "set_count": sets.count(),
-            "part_count": parts.count(),
-            "lego_parts_total": lego_parts_total,
-            "lego_parts_owned": lego_parts_owned,
-            "lego_parts_missing": lego_parts_missing,
-            "missing_count": parts.filter(status=Part.Status.MISSING).aggregate(
-                total=Sum("quantity")
-            )["total"]
-            or 0,
-            "recent_sets": sets[:6],
-            "inventory_quantity": InventoryItem.objects.filter(owner=request.user).aggregate(
-                total=Sum("quantity")
-            )["total"]
-            or 0,
-            "open_orders": Order.objects.filter(owner=request.user, deleted_at__isnull=True)
-            .exclude(status__in=["received", "cancelled"])
-            .count(),
-            "moc_count": Moc.objects.filter(owner=request.user).count(),
-            "minifigure_count": SetMinifigure.objects.filter(owner=request.user).count(),
-            "query": query,
-            "search_sets": search_sets,
-            "search_parts": search_parts,
-            "search_minifigures": search_minifigures,
-        },
+        data,
     )
 
 

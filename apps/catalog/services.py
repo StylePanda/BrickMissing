@@ -4,9 +4,11 @@ from django.db.models import (
     BooleanField,
     Case,
     CharField,
+    Count,
     Exists,
     F,
     IntegerField,
+    Max,
     OuterRef,
     Q,
     Subquery,
@@ -22,6 +24,153 @@ from apps.audit.models import AuditEvent
 from .colors import normalized_color_name
 from .models import LegoSet, Part, PartHistory, SetInventoryItem
 from .part_status import synchronize_presence_marker, synchronize_workflow_status
+
+
+def dashboard_collection_data(user):
+    """Return owner-scoped dashboard facts from authoritative allocations.
+
+    SetInventoryItem and MinifigurePart are the quantity source of truth.  The
+    deliberately small number of bulk queries also supplies the top shortages,
+    so rendering cards never triggers per-object database work.
+    """
+    from apps.organizer.models import MinifigurePart, SetMinifigure
+
+    sets = LegoSet.objects.filter(owner=user, deleted_at__isnull=True)
+    theme_rows = list(
+        sets.exclude(theme="")
+        .values("theme")
+        .annotate(set_count=Count("pk"))
+        .order_by("-set_count", "theme")[:7]
+    )
+    normal_items = SetInventoryItem.objects.filter(
+        lego_set__owner=user,
+        lego_set__deleted_at__isnull=True,
+        is_spare=False,
+        required_quantity__gt=0,
+    )
+    minifigure_items = MinifigurePart.objects.filter(
+        minifigure__owner=user,
+        minifigure__lego_set__owner=user,
+        minifigure__lego_set__deleted_at__isnull=True,
+        is_spare=False,
+        quantity__gt=0,
+    )
+
+    def allocation_summary(queryset, required_field):
+        return queryset.aggregate(
+            required=Coalesce(Sum(required_field), Value(0)),
+            owned=Coalesce(
+                Sum(
+                    Case(
+                        When(
+                            owned_quantity__lt=F(required_field),
+                            then=F("owned_quantity"),
+                        ),
+                        default=F(required_field),
+                        output_field=IntegerField(),
+                    )
+                ),
+                Value(0),
+            ),
+            missing=Coalesce(
+                Sum(
+                    Case(
+                        When(
+                            owned_quantity__lt=F(required_field),
+                            then=F(required_field) - F("owned_quantity"),
+                        ),
+                        default=Value(0),
+                        output_field=IntegerField(),
+                    )
+                ),
+                Value(0),
+            ),
+            missing_positions=Count(
+                "pk", filter=Q(owned_quantity__lt=F(required_field))
+            ),
+        )
+
+    def shortage_groups(queryset, required_field):
+        return list(
+            queryset.filter(owned_quantity__lt=F(required_field))
+            .annotate(
+                dashboard_identifier=Case(
+                    When(element_id="", then=F("part_number")),
+                    default=F("element_id"),
+                    output_field=CharField(),
+                )
+            )
+            .values("dashboard_identifier", "color_name")
+            .annotate(
+                name=Max("name"),
+                image_url=Max("image_url"),
+                missing=Sum(F(required_field) - F("owned_quantity")),
+            )
+        )
+
+    normal_summary = allocation_summary(normal_items, "required_quantity")
+    minifigure_summary = allocation_summary(minifigure_items, "quantity")
+    normal_rows = shortage_groups(normal_items, "required_quantity")
+    minifigure_rows = shortage_groups(minifigure_items, "quantity")
+
+    totals = {"required": 0, "owned": 0, "missing": 0, "missing_positions": 0}
+    shortages = {}
+
+    def add_rows(rows):
+        for row in rows:
+            missing = row["missing"]
+            identifier = row["dashboard_identifier"].strip()
+            key = (identifier.casefold(), row["color_name"].strip().casefold())
+            group = shortages.setdefault(
+                key,
+                {
+                    "identifier": identifier,
+                    "name": row["name"],
+                    "color": row["color_name"],
+                    "image_url": row["image_url"],
+                    "missing": 0,
+                },
+            )
+            group["missing"] += missing
+            if not group["image_url"] and row["image_url"]:
+                group["image_url"] = row["image_url"]
+
+    for summary in (normal_summary, minifigure_summary):
+        for key in totals:
+            totals[key] += summary[key]
+    add_rows(normal_rows)
+    add_rows(minifigure_rows)
+
+    required = totals["required"]
+    owned_percent = round(totals["owned"] * 100 / required, 1) if required else 0.0
+    missing_percent = round(totals["missing"] * 100 / required, 1) if required else 0.0
+    top_missing_parts = sorted(
+        shortages.values(),
+        key=lambda item: (-item["missing"], item["name"].casefold(), item["identifier"]),
+    )[:5]
+    recent_sets = list(sets.order_by("-created_at", "-pk")[:6])
+    set_count = sets.count()
+    return {
+        "set_count": set_count,
+        "part_count": Part.objects.filter(
+            owner=user, deleted_at__isnull=True
+        ).count(),
+        "lego_parts_total": required,
+        "lego_parts_owned": totals["owned"],
+        "lego_parts_missing": totals["missing"],
+        "missing_position_count": totals["missing_positions"],
+        "minifigure_count": SetMinifigure.objects.filter(
+            owner=user, lego_set__deleted_at__isnull=True
+        ).count(),
+        "owned_percent": owned_percent,
+        "missing_percent": missing_percent,
+        "owned_percent_svg": f"{owned_percent:.1f}",
+        "owned_percent_display": f"{owned_percent:.1f}".replace(".", ","),
+        "missing_percent_display": f"{missing_percent:.1f}".replace(".", ","),
+        "recent_sets": recent_sets,
+        "top_missing_parts": top_missing_parts,
+        "top_themes": theme_rows,
+    }
 
 
 def _quantity_total(queryset, group_field, quantity_field):
