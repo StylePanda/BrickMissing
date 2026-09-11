@@ -4,7 +4,9 @@ from unittest.mock import patch
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
@@ -90,7 +92,8 @@ class MissingPartKindTests(TestCase):
         all_parts = self.client.get(url, {"kind": "all"})
         self.assertContains(all_parts, "Normaler Stein")
         self.assertContains(all_parts, "Sebulba-Kopf")
-        self.assertContains(all_parts, "9449 – Podracer · Minifigur Sebulba")
+        self.assertContains(all_parts, "9449 – Podracer")
+        self.assertContains(all_parts, "Minifigur Sebulba")
         only_mini = self.client.get(url, {"kind": "minifigure"})
         self.assertContains(only_mini, "Sebulba-Kopf")
         self.assertNotContains(only_mini, "Normaler Stein")
@@ -100,6 +103,140 @@ class MissingPartKindTests(TestCase):
         excluded = self.client.get(url, {"kind": "exclude_minifigure"})
         self.assertContains(excluded, "Normaler Stein")
         self.assertNotContains(excluded, "Sebulba-Kopf")
+
+
+class MissingPartsCardRedesignTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            "card-owner", "card-owner@example.test", "A-long-safe-password-123"
+        )
+        self.first_set = LegoSet.objects.create(
+            owner=self.user,
+            set_number="75375-1",
+            name="Millennium Falcon",
+            image_url="https://cdn.rebrickable.com/media/sets/75375-1.jpg",
+        )
+        self.second_set = LegoSet.objects.create(
+            owner=self.user, set_number="75376-1", name="Tantive IV"
+        )
+        self.first_part = Part.objects.create(
+            owner=self.user,
+            lego_set=self.first_set,
+            part_number=" curved-1 ",
+            design_id="98100",
+            element_id="6031896",
+            name="Aircraft Fuselage Curved Forward",
+            color="Dark Bluish Gray",
+            quantity=2,
+            owned_quantity=1,
+            status=Part.Status.ORDERED,
+            unit_price=Decimal("0.29"),
+            image_url="https://cdn.rebrickable.com/media/parts/elements/6031896.jpg",
+        )
+        self.second_part = Part.objects.create(
+            owner=self.user,
+            lego_set=self.second_set,
+            part_number="curved-1",
+            design_id="98100",
+            element_id="6031896",
+            name="Aircraft Fuselage Curved Forward",
+            color="Dark Bluish Gray",
+            quantity=1,
+            owned_quantity=0,
+            unit_price=Decimal("0.29"),
+        )
+        self.client.force_login(self.user)
+
+    def test_card_view_renders_identity_allocations_totals_state_cost_and_actions(self):
+        response = self.client.get(reverse("catalog:missing_parts"))
+
+        self.assertContains(response, "data-missing-card", count=1)
+        self.assertNotContains(response, "<table")
+        for css_class in (
+            "missing-card-part",
+            "missing-card-allocations",
+            "missing-card-total",
+            "missing-card-state",
+        ):
+            self.assertContains(response, css_class)
+        self.assertContains(response, "Aircraft Fuselage Curved Forward")
+        self.assertContains(response, "6031896")
+        self.assertContains(response, "Dark Bluish Gray")
+        self.assertContains(response, "Set-Teil")
+        self.assertContains(response, "Set-Zuordnungen <span>(2)</span>")
+        self.assertContains(response, "Millennium Falcon")
+        self.assertContains(response, "Tantive IV")
+        self.assertContains(response, "data-part-allocation", count=2)
+        self.assertContains(response, 'value="1" max="3"')
+        self.assertContains(response, 'aria-valuetext="1 vorhanden, 2 fehlend"')
+        self.assertContains(response, ">Teilweise</span>")
+        self.assertContains(response, "Teilweise vorhanden")
+        self.assertContains(response, "0,87 €")
+        self.assertContains(response, "Bearbeiten", count=2)
+        self.assertContains(response, "Pick a Brick", count=2)
+
+    def test_separate_quantity_and_status_endpoints_remain_explicit_and_accessible(self):
+        response = self.client.get(reverse("catalog:missing_parts"))
+
+        self.assertContains(
+            response, reverse("catalog:missing_part_quantity", args=[self.first_part.pk])
+        )
+        self.assertContains(
+            response, reverse("catalog:missing_part_status", args=[self.first_part.pk])
+        )
+        self.assertContains(response, f'for="owned-{self.first_part.pk}"')
+        self.assertContains(response, f'for="status-{self.first_part.pk}"')
+        self.assertContains(response, "Menge speichern")
+        self.assertContains(response, "Status speichern")
+
+    def test_fallback_and_minifigure_card_use_the_same_responsive_structure(self):
+        figure = SetMinifigure.objects.create(
+            owner=self.user,
+            lego_set=self.first_set,
+            figure_number="sw-card",
+            name="Pilot",
+        )
+        mini_part = MinifigurePart.objects.create(
+            minifigure=figure,
+            part_number="973",
+            element_id="97301",
+            name="Pilot Torso",
+            color_name="White",
+            quantity=2,
+            owned_quantity=0,
+        )
+        response = self.client.get(reverse("catalog:missing_parts"), {"kind": "minifigure"})
+
+        self.assertContains(response, "data-missing-card")
+        self.assertContains(response, 'role="img" aria-label="Kein Bild für Pilot Torso"')
+        self.assertContains(response, "Minifigurenteil")
+        self.assertContains(response, "Minifigur Pilot")
+        self.assertContains(response, f'id="owned-mini-{mini_part.pk}"')
+        self.assertContains(response, "Menge speichern")
+        self.assertNotContains(response, f'id="status-{mini_part.pk}"')
+
+    def test_render_query_count_does_not_grow_with_more_set_allocations(self):
+        with CaptureQueriesContext(connection) as initial_queries:
+            self.client.get(reverse("catalog:missing_parts"))
+        initial_count = len(initial_queries)
+
+        for index in range(4):
+            lego_set = LegoSet.objects.create(
+                owner=self.user, set_number=f"extra-{index}", name=f"Extra Set {index}"
+            )
+            Part.objects.create(
+                owner=self.user,
+                lego_set=lego_set,
+                part_number="curved-1",
+                element_id="6031896",
+                name="Aircraft Fuselage Curved Forward",
+                color="Dark Bluish Gray",
+                quantity=1,
+            )
+        with CaptureQueriesContext(connection) as expanded_queries:
+            self.client.get(reverse("catalog:missing_parts"))
+
+        self.assertEqual(len(expanded_queries), initial_count)
 
 
 class OwnershipTests(TestCase):
@@ -400,7 +537,7 @@ class CatalogFlowTests(TestCase):
         self.assertEqual((groups[0]["required"], groups[0]["owned"], groups[0]["missing"]), (10, 0, 10))
         self.assertEqual(groups[0]["status"], Part.Status.MISSING)
         self.assertEqual(len(groups[0]["allocations"]), 4)
-        self.assertContains(response, 'class="missing-group-row"', count=1)
+        self.assertContains(response, "data-missing-card", count=1)
         self.assertContains(
             response,
             'data-lightbox-image="/integrationen/bild/?url=https%3A%2F%2Fexample.test%2Fpart.png"',
@@ -1178,7 +1315,7 @@ class CatalogFlowTests(TestCase):
         self.assertNotContains(response, "Andere")
         for label in ("Suche", "Status", "Farbe", "Set", "Teileart", "Seltenheit", "Sortierung"):
             self.assertContains(response, label)
-        self.assertContains(response, 'class="table-wrap missing-worktable"')
+        self.assertContains(response, 'class="missing-card-list"')
 
 
 class BatchSetImportTests(TestCase):

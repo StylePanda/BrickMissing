@@ -8,7 +8,7 @@ from django.contrib.staticfiles.testing import StaticLiveServerTestCase
 from django.urls import reverse
 
 from apps.accounts.models import User
-from apps.catalog.models import LegoSet, SetInventoryItem
+from apps.catalog.models import LegoSet, Part, SetInventoryItem
 
 
 class ResponsiveBrowserTests(StaticLiveServerTestCase):
@@ -37,8 +37,9 @@ class ResponsiveBrowserTests(StaticLiveServerTestCase):
             required_quantity=1000,
             owned_quantity=977,
         )
+        related_sets = []
         for index in range(2):
-            LegoSet.objects.create(
+            related_sets.append(LegoSet.objects.create(
                 owner=self.user,
                 set_number=f"responsive-{index}",
                 name=f"Responsive dashboard card {index}",
@@ -48,6 +49,17 @@ class ResponsiveBrowserTests(StaticLiveServerTestCase):
                     if index == 0
                     else "/static/icons/brickmissing.svg"
                 ),
+            ))
+        for index, lego_set in enumerate((self.lego_set, *related_sets)):
+            Part.objects.create(
+                owner=self.user,
+                lego_set=lego_set,
+                part_number="3001",
+                element_id="browser-missing-card",
+                name="Responsive missing-part card with a deliberately long descriptive name",
+                color="Dark Bluish Gray",
+                quantity=3,
+                owned_quantity=1 if index == 0 else 0,
             )
 
     def test_application_layout_at_supported_viewports(self):

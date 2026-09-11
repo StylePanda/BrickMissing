@@ -189,6 +189,68 @@ async function auditOverflow(client, routeName, width) {
   }
 }
 
+async function auditMissingParts(client, width) {
+  const result = await evaluate(client, `(() => {
+    const cards = [...document.querySelectorAll("[data-missing-card]")];
+    const rect = (node) => {
+      const value = node?.getBoundingClientRect();
+      return value && {left: value.left, right: value.right, top: value.top, bottom: value.bottom, width: value.width, height: value.height};
+    };
+    const within = (child, parent) => !child || !parent || (
+      child.left >= parent.left - 1 && child.right <= parent.right + 1
+      && child.top >= parent.top - 1 && child.bottom <= parent.bottom + 1
+    );
+    return {
+      cardCount: cards.length,
+      hasLegacyTable: Boolean(document.querySelector(".missing-worktable, .missing-card-list table")),
+      cards: cards.map((card) => ({
+        rect: rect(card),
+        columns: getComputedStyle(card).gridTemplateColumns.split(" ").filter(Boolean).length,
+        allocationCount: card.querySelectorAll(".allocation-row").length,
+        allocationRects: [...card.querySelectorAll(".allocation-row")].map((allocation) => {
+          const allocationRect = rect(allocation);
+          const controls = [...allocation.querySelectorAll("input:not([type=hidden]), select, button, a")].map((control) => ({
+            tag: control.tagName,
+            text: control.textContent.trim(),
+            rect: rect(control),
+          }));
+          return {allocationRect, controls, controlsFit: controls.every((control) => within(control.rect, allocationRect))};
+        }),
+        imageFits: [...card.querySelectorAll(".missing-card-image img, .allocation-thumb img")]
+          .filter((image) => !image.hidden && image.getBoundingClientRect().width)
+          .every((image) => getComputedStyle(image).objectFit === "contain" && within(rect(image), rect(image.parentElement))),
+        progressRect: rect(card.querySelector("progress")),
+        totalRect: rect(card.querySelector(".missing-card-total")),
+        progressFits: within(rect(card.querySelector("progress")), rect(card.querySelector(".missing-card-total"))),
+        stateVisible: Boolean(card.querySelector(".missing-card-state")?.getBoundingClientRect().height),
+      })),
+      filterPanel: rect(document.querySelector(".missing-filter-panel")),
+      resultsHead: document.querySelector(".missing-results-head h2")?.textContent || "",
+    };
+  })()`);
+  assert(result.cardCount > 0, "Missing-parts cards are absent");
+  assert(!result.hasLegacyTable, "Missing-parts view still renders the legacy table");
+  assert(result.resultsHead.includes("Fehlteile"), "Missing-parts result heading lacks its label");
+  assert(result.filterPanel.left >= -1 && result.filterPanel.right <= width + 1, `Missing-parts filters escape at ${width}px`);
+  for (let index = 0; index < result.cards.length; index += 1) {
+    const card = result.cards[index];
+    assert(card.rect.left >= -1 && card.rect.right <= width + 1, `Missing-parts card escapes at ${width}px`);
+    assert(card.allocationCount >= 3, "Multiple set allocations are not grouped in one card");
+    assert(card.allocationRects.every(({controlsFit}) => controlsFit), `Allocation controls are clipped at ${width}px: ${JSON.stringify(card.allocationRects)}`);
+    assert(card.imageFits, `Missing-parts image is cropped or distorted at ${width}px`);
+    assert(card.progressFits, `Missing-parts progress leaves its section at ${width}px: ${JSON.stringify({progress: card.progressRect, total: card.totalRect})}`);
+    assert(card.stateVisible, `Missing-parts status/cost area is hidden at ${width}px`);
+    const expectedColumns = width <= 900 ? 1 : width <= 1200 ? 2 : 4;
+    assert(card.columns === expectedColumns, `Missing-parts card has ${card.columns} columns instead of ${expectedColumns} at ${width}px`);
+    for (let otherIndex = index + 1; otherIndex < result.cards.length; otherIndex += 1) {
+      const other = result.cards[otherIndex].rect;
+      const overlaps = card.rect.left < other.right && card.rect.right > other.left
+        && card.rect.top < other.bottom && card.rect.bottom > other.top;
+      assert(!overlaps, `Missing-parts cards overlap at ${width}px`);
+    }
+  }
+}
+
 async function auditSetFilters(client) {
   const result = await evaluate(client, `(() => {
     const disclosure = document.querySelector("[data-responsive-disclosure]");
@@ -660,14 +722,16 @@ try {
       await navigate(client, path);
       await auditOverflow(client, name, width);
       if (name === "dashboard") await auditDashboard(client, width);
+      if (name === "missingParts") await auditMissingParts(client, width);
     }
   }
   for (const width of desktopWidths) {
     await setViewport(client, width, width >= 1440 ? 900 : 1024);
-    for (const name of ["dashboard", "sets", "setForm", "setDetail"]) {
+    for (const name of ["dashboard", "sets", "setForm", "setDetail", "missingParts"]) {
       await navigate(client, routes.authenticated[name]);
       await auditOverflow(client, name, width);
       if (name === "dashboard") await auditDashboard(client, width);
+      if (name === "missingParts") await auditMissingParts(client, width);
     }
   }
 
@@ -703,9 +767,9 @@ try {
     ];
     for (const [width, height] of screenshots) {
       await setViewport(client, width, height);
-      for (const name of ["dashboard", "sets", "setForm"]) {
+      for (const name of ["dashboard", "sets", "setForm", "missingParts"]) {
         await navigate(client, routes.authenticated[name]);
-        const capture = await client.send("Page.captureScreenshot", {format: "png", fromSurface: true, captureBeyondViewport: name === "dashboard"});
+        const capture = await client.send("Page.captureScreenshot", {format: "png", fromSurface: true, captureBeyondViewport: ["dashboard", "missingParts"].includes(name)});
         await writeFile(join(artifactDirectory, `${name}-${width}x${height}.png`), Buffer.from(capture.data, "base64"));
       }
     }

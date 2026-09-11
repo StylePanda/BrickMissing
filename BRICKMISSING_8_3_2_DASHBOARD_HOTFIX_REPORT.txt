@@ -1,0 +1,230 @@
+BrickMissing 8.3.2 Dashboard-Hotfix – lokaler Abschlussreport
+Stand: 11. September 2026
+
+IMPLEMENTATION STATUS: READY
+PRODUCTION VALIDATION: PENDING
+
+Version vorher: 8.3.1
+Version nachher: 8.3.2
+
+SCOPE UND SICHERHEIT
+
+- Ausschließlich die zwei angeforderten Dashboard-Darstellungsfehler wurden
+  behoben.
+- Keine Änderung der autoritativen Mengenlogik, Reconciliation, Gruppenstatus,
+  Größe/Form-Sortierung oder Fehlende-Farben-Filter.
+- Keine Änderung an Banner, Top 5, Themenwelten oder Schnellaktionen.
+- Keine Datenbankmigration und keine neue Dependency.
+- Kein Produktionszugriff und keine Änderung von Produktionsdaten.
+- Keine Secrets gelesen, verändert oder ausgegeben.
+- Kein Commit, Push, Tag, GitHub Release oder Deployment.
+
+BILDER – ROOT CAUSE UND FIX
+
+Browser-/DOM-Befund vor dem Fix:
+
+- Der Fehler wurde mit kontrollierten breiten und quadratischen Bildquellen in
+  der bestehenden echten Edge/CDP-Infrastruktur reproduziert.
+- computed object-fit war tatsächlich contain.
+- computed object-position war 50% 50%.
+- Es gab keine spezifischere Überschreibung und kein !important.
+- Die img-Elemente hatten keine width-/height-HTML-Attribute.
+- Das img war display:block, position:static, margin:0 und padding:8px.
+- Der direkte Wrapper war display:grid, 130px hoch und overflow:hidden.
+- Die CSS-Kombination width:100%; height:100% auf dem intrinsischen Grid-Item
+  begrenzte die reale img-Box nicht zuverlässig auf die Wrapperhöhe.
+- Quadratisches Testbild:
+  currentSrc/src: /static/icons/brickmissing.svg (lokal aufgelöst)
+  naturalWidth/naturalHeight: 150 x 150
+  img-Bounding-Rect: 302,9 x 302,9 px
+  Wrapper-Bounding-Rect: 304,9 x 130 px
+- Breites Testbild:
+  currentSrc/src: /static/img/dashboard-banner.webp (lokal aufgelöst)
+  naturalWidth/naturalHeight: 1894 x 830
+  img-Bounding-Rect: 302,9 x 141,7 px
+  Wrapper-Bounding-Rect: 304,9 x 130 px
+- In beiden Fällen ragte die reale img-Box vertikal über die sichtbare Fläche.
+  overflow:hidden schnitt diesen Überstand ab.
+- object-fit:contain reichte deshalb nicht: contain wirkte innerhalb der bereits
+  zu großen img-Box, nicht als harte Begrenzung dieser Box auf den Wrapper.
+
+Bild-Proxy-/Quellenbefund:
+
+- Die gespeicherte externe Bild-URL wird im Markup durch die bestehende lokale
+  Proxy-URL ersetzt; der Browser-currentSrc ist diese Proxy-URL.
+- fetch_image validiert URL, Host, IP, MIME und Maximalgröße.
+- Der Proxy führt kein Resize, Thumbnailing, Cropping und keine
+  Formatkonvertierung aus.
+- Er gibt die geladenen Bytes und den Content-Type unverändert weiter.
+- Ein neuer Regressionstest prüft die exakte Byte- und MIME-Gleichheit.
+- Der Proxy war daher nicht die Ursache; seine Infrastruktur blieb unverändert.
+- Es wurden keine Produktions- oder externen Bildquellen abgefragt.
+
+Finale Bildlösung:
+
+- Die Bildfläche ist moderat von 130 auf 180 px erhöht.
+- Der Wrapper ist ein definitiver zentrierender Flex-Container statt eines
+  intrinsisch auflösenden Grid-Containers.
+- Der Innenabstand liegt auf dem Wrapper und gehört damit sicher zur verfügbaren
+  Bildgeometrie.
+- Das img verwendet width:auto; height:auto; max-width:100%; max-height:100%;
+  object-fit:contain; object-position:center.
+- Damit entspricht die reale img-Box dem vollständig sichtbaren, proportional
+  skalierten Bild und liegt innerhalb aller vier inneren Wrapperkanten.
+- Weißer Hintergrund, konsistente Kartenhöhe, Fallback und drei Karten bleiben.
+
+Browser-Regressionsprüfung der Bilder:
+
+- Prüft src-Attribut, src, currentSrc, naturalWidth/naturalHeight und fehlende
+  HTML-Breiten-/Höhenattribute.
+- Prüft Bounding-Rects von img, direktem Wrapper und Kartenlayout.
+- Prüft computed display, position, overflow, width, height, min/max width,
+  min/max height, aspect-ratio, padding, margin, object-fit und object-position.
+- Berechnet aus intrinsischem Seitenverhältnis und innerer Containergröße die
+  erwartete contain-Breite und -Höhe.
+- Tatsächliche und erwartete Größe müssen innerhalb 1 px übereinstimmen.
+- Jede img-Kante muss innerhalb der sichtbaren inneren Wrapperkante liegen.
+- Das tatsächliche Seitenverhältnis muss dem intrinsischen entsprechen.
+- Kein horizontales Overflow und keine Kartenüberlappung.
+- Geprüft bei 320, 375, 390, 430, 768, 1024, 1280, 1440 und 1920 px.
+
+DONUT – ROOT CAUSE UND FIX
+
+Browser-/SVG-Befund vor dem Fix:
+
+- Neutraler Hintergrundtrack, Owned-Kreis und Missing-Kreis waren vorhanden.
+- pathLength war 100.
+- Für 97,7/2,3 galt:
+  Owned stroke-dasharray = 97.7 100
+  Missing stroke-dasharray = 2.3 100
+  Missing stroke-dashoffset = -97.7
+  stroke-linecap = butt
+- SVG-Zeichenrichtung, -90°-Rotation, Offsetvorzeichen und Prozentwerte waren
+  mathematisch korrekt.
+- Owned-Ende und Missing-Anfang lagen beide bei 97,7; Missing-Ende bei 100,0.
+- Der sichtbare dunkle Spalt war kein zusätzlicher Datenanteil und kein
+  Rundungsfehler. Edge antialiasierte die separat gerenderten butt-Dashkanten
+  gegen den darunterliegenden dunklen neutralen Track. Dadurch wurde an beiden
+  Übergängen eine dunkle Hairline sichtbar.
+
+Neue robuste SVG-Technik:
+
+- Der neutrale Track bleibt als Nullzustand/Hintergrund erhalten.
+- Der Owned-Kreis wird ohne Dasharray als vollständiger violetter Untergrund
+  gezeichnet.
+- Das exakt berechnete Missing-Segment wird darüber gezeichnet.
+- Missing-Dasharray = missing_percent owned_percent.
+- Missing-Dashoffset = -owned_percent.
+- Für 97,7/2,3 also: dasharray="2.3 97.7", dashoffset="-97.7".
+- Die sichtbare Partition bleibt exakt: 2,3 % Pink überdecken exakt 2,3 % des
+  violetten Untergrunds; sichtbar bleiben exakt 97,7 % Violett.
+- Es gibt keine künstliche Prozentvergrößerung und keine zusätzliche
+  geometrische Überdeckung.
+- Transparente Antialiasing-Kanten des pinken Segments zeigen nun Violett statt
+  des dunklen Tracks. Deshalb kann an Segmentgrenzen kein neutraler Spalt mehr
+  durchscheinen.
+- Bei 0/0 blendet die is-empty-Regel beide farbigen Kreise aus; nur der neutrale
+  Track bleibt sichtbar.
+
+Donut-Testfälle:
+
+- 97,7/2,3: Missing-Start 97,7, Missing-Ende 100,0, sichtbares Pink, keine
+  dunkle Naht.
+- 50/50: Missing-Start 50,0, Missing-Ende 100,0, zwei anschließende Hälften.
+- 100/0: vollständiges Violett, kein Pink, kein dunkler Spalt.
+- 0/100: vollständiges Pink über dem violetten Untergrund, kein dunkler Spalt.
+- 99,9/0,1: echtes 0,1-%-Segment ohne Mindestgröße und ohne neutralen Zusatz.
+- 0/0: nur neutraler Track; keine Farbsegmente, kein NaN und keine ungültige
+  Geometrie.
+
+Browser-Regressionsprüfung des Donuts:
+
+- Prüft SVG-Attribute und Computed Styles für pathLength, dasharray, dashoffset,
+  linecap und Farben.
+- Prüft für alle Fälle owned + missing = 100 (außer 0/0).
+- Berechnet Owned-Endposition, Missing-Startposition und Missing-Endposition.
+- Owned-Ende muss Missing-Anfang entsprechen; Missing-Ende muss 100 erreichen.
+- Rastert das echte SVG zusätzlich im Edge-Browser auf ein Canvas.
+- Prüft Pixel unmittelbar beidseits beider 97,7/2,3-Segmentgrenzen.
+- Nahtpixel müssen farblich näher an Violett/Pink als am neutralen Track liegen.
+  Ein erneut durchscheinender dunkler Track lässt den Test fehlschlagen.
+- Missing-Farbe bleibt identisch mit der bestehenden Legendenfarbe.
+- Textwerte, Legende, role=img und aria-label bleiben erhalten.
+
+GEÄNDERTE DATEIEN
+
+- brickmissing_version.py
+- README.md
+- CHANGELOG.md
+- static/css/app.css
+- templates/catalog/dashboard.html
+- scripts/responsive_ui_audit.mjs
+- tests/test_responsive_browser.py
+- apps/catalog/test_dashboard.py
+- apps/integrations/tests.py
+- apps/core/tests.py
+- RELEASE_NOTES_8.3.2.md (lokal/untracked)
+- BRICKMISSING_8_3_2_DASHBOARD_HOTFIX_REPORT.txt (lokal/untracked)
+
+VALIDIERUNG
+
+- Gezielte 8.3.2-/Dashboard-/Proxy-/Versions-Tests: PASS, 33/33.
+- Bestehende Dashboard-Tests: PASS, 12/12.
+- Browser-Bildgeometrie: PASS.
+- Browser-Donut-Geometrie und gerasterte Nahtpixel: PASS.
+- Edge/CDP-/Responsive-Test: PASS.
+- Responsive 320/375/390/430/768/1024/1280/1440/1920: PASS.
+- Relevante Catalog-/Inventory-/Organizer-Tests: PASS.
+- Fehlteile-/Owned-Quantity-Regressionstests: PASS.
+- Size/Form-Regressionstests: PASS.
+- Farbfilter-/Alignment-Regressionstests: PASS.
+- Vollständige Django-Test-Suite: PASS, 515/515.
+- python manage.py check: PASS, keine Issues.
+- ruff check .: PASS.
+- python manage.py makemigrations --check --dry-run: PASS, no changes detected.
+- git diff --check: PASS.
+- node --check scripts/responsive_ui_audit.mjs: PASS.
+- Echter isolierter Release-Build: PASS.
+- Reguläre Release-Verifikation: PASS, 347 Dateien.
+- Dependency-freie Release-Verifikation mit Python -S: PASS, 347 Dateien.
+- Release-Manifest-Version: 8.3.2, PASS.
+- UI-/Healthcheck-Version über zentrale Versionsquelle: 8.3.2, PASS.
+- Release Notes 8.3.2: erstellt und lokal/untracked.
+- Temporäre Release- und Browserartefakte: entfernt.
+- Keine Migration und keine Dependency.
+- Kein Produktionszugriff, keine Secrets.
+- Kein Commit, Push, Tag, GitHub Release oder Deployment.
+
+MANUELLE PRODUKTIONSPRÜFUNG – PENDING
+
+1. Dashboard öffnen. – PENDING
+2. Drei zuletzt hinzugefügte Sets sichtbar. – PENDING
+3. Hokusai-Bild vollständig sichtbar. – PENDING
+4. Gingerbread AT-AT-Bild vollständig sichtbar. – PENDING
+5. Altar-of-the-Dead-Bild vollständig sichtbar. – PENDING
+6. Keine Setbilder abgeschnitten. – PENDING
+7. Keine Verzerrung. – PENDING
+8. Desktop sauber. – PENDING
+9. Tablet sauber. – PENDING
+10. Mobile sauber. – PENDING
+11. Schnellzugriff weiterhin Teile. – PENDING
+12. Donut kontrollieren. – PENDING
+13. Violett = 97,7 % im aktuellen Beispiel. – PENDING
+14. Pink = 2,3 %. – PENDING
+15. Pinkes Segment klar sichtbar. – PENDING
+16. KEIN schwarzer/dunkler Spalt zwischen Pink und Violett. – PENDING
+17. Kein zusätzlicher neutraler Ringabschnitt. – PENDING
+18. Gesamtumfang entspricht 100 %. – PENDING
+19. Textwerte weiterhin korrekt. – PENDING
+20. Top 5 weiterhin korrekt. – PENDING
+21. Banner unverändert. – PENDING
+22. Themenwelten unverändert. – PENDING
+23. Schnellaktionen unverändert. – PENDING
+24. Version UI = 8.3.2. – PENDING
+25. Healthcheck = 8.3.2. – PENDING
+26. Release-Manifest = 8.3.2. – PENDING
+
+WEITERER WORKFLOW – NICHT AUSGEFÜHRT
+
+Kein Commit, Push, Tag, GitHub Release oder Deployment. Nach der lokalen
+Fertigstellung wurde nicht selbstständig weitergemacht.

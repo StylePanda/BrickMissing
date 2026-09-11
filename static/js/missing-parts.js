@@ -43,7 +43,10 @@
         if (!response.ok || !payload.ok) throw new Error(payload.message || "Status konnte nicht gespeichert werden.");
         allocation.dataset.partStatus = payload.part.status;
         const label = allocation.querySelector("[data-allocation-status-label]");
-        if (label) label.textContent = payload.part.status_label;
+        if (label) {
+          label.textContent = payload.part.status_label;
+          label.dataset.status = payload.part.status;
+        }
         if (activeStatus && activeStatus !== payload.part.status) allocation.remove();
         updateGroup(row);
       } catch (error) {

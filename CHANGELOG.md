@@ -1,5 +1,20 @@
 # Changelog
 
+## 8.4.0 — 12 September 2026
+
+### Added / Changed
+
+- Added a new card-based missing-parts layout in the existing Midnight-Violet design.
+- Restructured set and minifigure assignments into readable sub-cards while retaining their existing update endpoints.
+- Added accessible visual inventory progress based only on authoritative grouped quantities.
+- Modernized the filter, saved-view and result-summary areas.
+- Improved responsive behavior from 320 px through wide desktop layouts.
+
+### Fixed
+
+- Reduced redundant and overloaded information in the missing-parts overview.
+- No database migration or dependency change.
+
 ## 8.3.2 — 11 September 2026
 
 - Fixed dashboard product images so their rendered boxes stay completely inside the image area instead of being clipped by the card wrapper.
