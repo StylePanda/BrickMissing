@@ -1,0 +1,283 @@
+IMPLEMENTATION STATUS: READY
+PRODUCTION VALIDATION: PENDING
+
+Version vorher: 8.2.0
+Version nachher: 8.3.0
+Datum der lokalen Validierung: 10. September 2026
+
+SCOPE UND SICHERHEIT
+- Ausschließlich lokal im vorhandenen Repository D:\Video\BrickMissing-8-Django gearbeitet.
+- Kein Produktionszugriff, keine Produktionsdatenänderung und kein Zugriff auf Secrets.
+- Kein Commit, Push, Tag, GitHub Release oder Deployment ausgeführt.
+- Keine Dependency und keine Datenbankmigration ergänzt.
+- Fertige 8.2.0-Fachlogik für Reconciliation, Gruppenstatus, Fehlteile, Exporte,
+  Rebrickable-Synchronisation, Größe/Form-Sortierung, Farbfilter und Alignment
+  wurde nicht neu entwickelt oder verändert.
+
+DASHBOARD
+
+Untersuchte bestehende Architektur
+- Dashboard-Route: apps/catalog/views.py:dashboard und templates/catalog/dashboard.html.
+- Zentrale Mengen-/Fehlteilelogik: apps/catalog/services.py, insbesondere
+  with_set_completeness und with_authoritative_missing_quantity.
+- Autoritative Allokationen: catalog.SetInventoryItem sowie
+  organizer.MinifigurePart; Part ist bei Setbezug nur ein möglicher Workflow-Spiegel.
+- Vorhandene Design-Tokens, Panels, Buttons, Breakpoints und Bild-Proxy-Fallbacks
+  aus static/css/app.css und base.html wurden weiterverwendet.
+- Vorhandene globale Suchroute und core/search.html wurden genutzt, damit die
+  große Dashboard-Suche ohne Funktionsverlust entfällt. Strg+K führt nun zur
+  bestehenden dedizierten globalen Suchseite.
+
+Neue Dashboard-Struktur und Layout/Grid
+- Hero mit dynamischem Vornamen (Fallback: Benutzername) und Banner-Slot.
+- Vier Schnellaktionen, sieben kompakte Kennzahlen, zuletzt hinzugefügte Sets,
+  Schnellzugriff, Fehlteileübersicht mit Ringdarstellung/Top 5 und Themenwelten.
+- Desktop: Hero zweispaltig, Aktionen vier Spalten, Kennzahlenleiste,
+  3:1-Hauptgrid für neue Sets und Schnellzugriff.
+- Tablet: zwei Aktionsspalten, umgebrochene Kennzahlen, Hauptbereiche gestapelt.
+- Smartphone: einspaltige Aktionen/Inhalte, Kennzahlen 2-spaltig; Banner wird
+  unter 481 px ausgeblendet.
+
+Schnellaktionen
+- Set hinzufügen -> catalog:set_create (primär hervorgehoben).
+- Teil hinzufügen -> catalog:part_create.
+- Minifigur hinzufügen -> organizer:minifigure_list (bestehender Sammlungsbereich).
+- CSV-Export -> data_portability:export_csv.
+- Alle Links verwenden vorhandene login-geschützte Routen; keine Dummy-Route.
+
+Kennzahlen und autoritative Mengenquellen
+- Sets: aktive LegoSet-Zeilen des aktuellen Owners.
+- Teilepositionen: aktive Part-Positionen des aktuellen Owners (bestehende
+  Dashboard-Semantik).
+- LEGO-Teile gesamt, vorhanden, fehlend und Fehlteil-Positionen: ausschließlich
+  aktive, erforderliche, nicht als Spare markierte SetInventoryItem- und
+  MinifigurePart-Allokationen. Owned wird pro Allokation auf required begrenzt,
+  sodass Überbestand keine andere Fehlmenge kompensiert.
+- Minifiguren: SetMinifigure des Owners in aktiven eigenen Sets.
+- Fremde Owner und gelöschte Sets werden ausgeschlossen.
+- Part.owned_quantity wird für die vier autoritativen Mengenkennzahlen und die
+  Top 5 nicht als parallele Wahrheit verwendet.
+
+Prozentberechnung
+- vorhanden / total und fehlend / total, jeweils dynamisch auf eine
+  Nachkommastelle berechnet und deutsch mit Dezimalkomma dargestellt.
+- total = vorhanden + fehlend.
+- Bei total = 0 werden beide Werte als 0,0 % ausgegeben; keine Division durch 0.
+
+Monatsvergleich
+- Bewusst nicht implementiert. created_at existiert zwar auf den relevanten
+  Modellen, kann nach Legacy-/Batch-Importen aber den technischen Importzeitpunkt
+  statt des fachlichen Sammlungszugangs darstellen. Daher keine semantisch
+  irreführenden Monatswerte und keine Fantasiewerte.
+
+Zuletzt hinzugefügt
+- Maximal sechs aktive owner-spezifische Sets, sortiert nach -created_at und -pk.
+- Setnummer, Name, Bild bzw. BrickMissing-Fallback, relative Zeit und Detail-Link.
+- Der Zeitpunkt bezeichnet den verlässlichen technischen Anlagezeitpunkt in
+  BrickMissing; es werden keine externen Zusatzabfragen ausgeführt.
+
+Schnellzugriff
+- Genau: Meine Sets, Fehlteile, Minifiguren, Farben, Import / Export, Papierkorb.
+- Ausschließlich vorhandene Routen und die bestehende Icon-Sprache ohne Paket.
+
+Fehlteile im Überblick und Top 5
+- CSP-konformer, zugänglicher SVG-Ring für vorhanden/fehlend; absolute Werte,
+  Prozentwerte und Textlegende stellen Information nicht nur über Farbe dar.
+- Top 5 werden nach aktuell offener Menge absteigend sortiert.
+- Set- und Minifigurenallokationen werden nach Teileidentität plus Farbe
+  aggregiert. Spares, entfernte Mengen, gelöschte Sets und fremde Owner zählen
+  nicht. Bilder, ID/Partnummer, Name, Farbe und Fehlmenge werden ausgegeben.
+
+Zuletzt bearbeitet
+- Bewusst nicht implementiert. Rebrickable-Synchronisation speichert Metadaten
+  auf LegoSet und aktualisiert dabei LegoSet.updated_at. Eine Liste würde deshalb
+  Benutzerbearbeitung und Hintergrund-/Referenzdatensynchronisierung vermischen
+  und als Aktivität fachlich irreführend sein.
+
+Themenwelten
+- Top 7 nicht-leere Themen des aktuellen Owners per Count-Aggregation, sortiert
+  nach Setanzahl und Name; weitere Sets/Theme-Filter über vorhandene Set-Liste.
+- Keine hardcodierten Themen oder Werte und keine externe Icon-Library.
+
+Empty States und Accessibility
+- Leere Zustände für Sets, Fehlteile und Themenwelten sowie sicherer Null-Ring.
+- Semantische Sections, Überschriften, nav/aside, echte Links, Alt-Texte,
+  sichtbare Focus-States und textuelle Donut-Legende.
+- Der Ring besitzt eine vollständige aria-label-Zusammenfassung; dekorative
+  SVG-/Icon-Inhalte sind assistiven Technologien verborgen.
+
+Query-/Performance-Ansatz
+- dashboard_collection_data führt konstant maximal neun Bulk-Queries aus:
+  Theme-Aggregat, zwei Mengenaggregate, zwei nach Identität/Farbe gruppierte
+  Fehlmengenabfragen, sechs letzte Sets sowie drei Counts.
+- Keine Query pro Karte, Top-5-Zeile oder Themenwelt; keine N+1-Abfragen.
+- Sum/Count/Case/F/Max/Coalesce und SQL-Gruppierung reduzieren die übertragenen
+  Fehlteildaten auf aggregierte Identitäten statt alle Allokationszeilen.
+- Ein Query-Count-Test begrenzt den Service auf maximal neun Queries.
+
+BANNER
+- Das finale lokale Banner ist eingebaut und wird über Django static geladen.
+- Dateipfad: static/img/dashboard-banner.webp.
+- Tatsächliche Abmessungen: 1894 x 830 Pixel, Seitenverhältnis ca. 2,28:1.
+- Container: .dashboard-banner in templates/catalog/dashboard.html.
+- Markup: .dashboard-banner-image ersetzt ausschließlich den bisherigen
+  CSS-Placeholder. Die vorhandene Containerhöhe bleibt unverändert; das Bild
+  füllt den Container absolut positioniert mit object-fit: cover und übernimmt
+  dessen abgerundete, durch overflow: hidden maskierte Ecken. Dadurch entsteht
+  kein Layout-Shift.
+- Desktop (1440/1024 px): sichtbar und harmonisch rechts im Hero-Bereich.
+- Tablet (768 px): sichtbar, vollständig containerfüllend und sauber beschnitten.
+- Mobile (390/320 px): wie bisher unter 481 px ausgeblendet; Hero bleibt stabil.
+
+VALIDIERUNG
+
+Geänderte/neu erstellte Implementierungsdateien
+- brickmissing_version.py
+- apps/catalog/services.py
+- apps/catalog/views.py
+- templates/catalog/dashboard.html
+- static/css/app.css
+- static/img/dashboard-banner.webp (finales lokales Banner)
+- apps/catalog/test_dashboard.py (neu)
+- apps/core/views.py
+- apps/core/tests.py
+- templates/base.html
+- static/js/app.js
+- scripts/responsive_ui_audit.mjs
+- README.md
+- CHANGELOG.md
+- RELEASE_NOTES_8.3.0.md (lokal/untracked)
+- BRICKMISSING_8_3_0_DASHBOARD_REPORT.txt (lokal/untracked)
+
+Neue/angepasste Tests
+- Acht neue Dashboard-Testfälle decken Login/Rendering, dynamischen Namen,
+  gültige Links, Owner-Isolation, alle Kennzahlen, autoritative Mengen,
+  Prozentwerte, Nullfall, Sortierung/Limit, Top 5, Spare- und Minifigurenlogik,
+  Themes, read-only GET und Query-Obergrenze ab.
+- Core-Tests prüfen Version 8.3.0, globale Suche/Strg+K und CSP-Vertrag.
+- Responsive-Audit prüft Dashboard-Overflow, Banner-Breakpoint, erfolgreiches
+  Laden des finalen Bildes, natürliche Bildmaße, object-fit: cover,
+  Containerfüllung, vier Aktionen, sechs Shortcuts, Kennzahlen, Ring, Top-5
+  und Karten.
+
+Testergebnisse
+- Gezielte Dashboard-/bestehende Dashboard-Mengentests: 10/10 PASS.
+- Catalog/Inventory/Organizer/Data-Portability: 317/317 PASS.
+- Vollständige Django-Test-Suite: 510/510 PASS in 189,059 s.
+- manage.py check: PASS, 0 Probleme.
+- ruff check .: PASS.
+- manage.py makemigrations --check --dry-run: PASS, keine Änderungen.
+- git diff --check: PASS (nur erwartete Git-Hinweise zur künftigen CRLF-Konvertierung).
+- node --check static/js/app.js: PASS.
+- node --check scripts/responsive_ui_audit.mjs: PASS.
+- Edge/CDP-Responsive-Test nach Banner-Einbau: PASS; 320, 375, 390, 430, 768, 1024,
+  1280, 1440 und 1920 px geprüft. Der lokale Headless-Test benötigt in der
+  verwalteten Umgebung --no-sandbox; dies ändert keine App-/Production-Policy.
+- Visuelle Screenshot-Prüfung: Dashboard 390x844, 768x1024 und 1440x900 PASS.
+- Echter Release-Build nach Banner-Einbau: PASS.
+- Release-Verifikation nach Banner-Einbau: PASS, BrickMissing 8.3.0, 347 Dateien.
+- RELEASE_MANIFEST.json: Version 8.3.0.
+- Dependency-freie Version/Release-Verifikation: PASS mit separatem Runtime-Python.
+- RELEASE_NOTES_8.3.0.md: erstellt, lokal/untracked.
+
+Bekannte Einschränkungen
+- Monatsvergleich und Zuletzt bearbeitet sind aus den oben dokumentierten
+  Datenintegritätsgründen bewusst nicht Teil von 8.3.0.
+- Die manuelle Prüfung auf dem späteren Produktionssystem steht aus und ändert
+  den lokalen Implementation-Status nicht.
+
+Release-/Arbeitsstatus
+- Kein Produktionszugriff und keine Secrets gelesen, verändert oder ausgegeben.
+- Kein Commit, Push, Tag, GitHub Release oder Deployment.
+- Report und Release Notes bleiben lokal/untracked.
+- Temporäre Release- und Responsive-Artefakte wurden nach der Verifikation entfernt.
+
+PRODUKTIONS-RUNBOOK (SPÄTER, NICHT AUSGEFÜHRT)
+1. Geprüften lokalen Stand über den vorgesehenen PC -> GitHub Workflow bringen.
+2. Auf dem Produktionsserver den echten Release-Build aus dem freigegebenen
+   Commit erzeugen und verify_release.py gegen das Artefakt ausführen.
+3. Manifest-Version und Healthcheck 8.3.0 prüfen.
+4. Nach bestehendem atomarem Deployment-Runbook deployen; keine manuellen
+   Datenbankänderungen, da 8.3.0 keine Migration enthält.
+5. Die folgende manuelle Browsercheckliste vollständig abarbeiten.
+6. Erst nach Sign-off Git-Tag und GitHub Release gemäß Workflow erstellen.
+
+MANUELLE PRODUKTIONSCHECKLISTE (PENDING)
+
+DASHBOARD
+1. Übersicht öffnen.
+2. Willkommenstext zeigt richtigen Benutzer.
+3. Keine zweite große Suchleiste vorhanden.
+4. Alle vier Schnellaktionen funktionieren.
+5. Set hinzufügen funktioniert.
+6. Teil hinzufügen funktioniert.
+7. Minifigur hinzufügen funktioniert.
+8. CSV-Export-Link funktioniert.
+
+KENNZAHLEN
+9. Sets korrekt.
+10. Teilepositionen korrekt.
+11. LEGO-Teile gesamt korrekt.
+12. Davon vorhanden korrekt.
+13. Fehlende Teile korrekt.
+14. Fehlteil-Positionen korrekt.
+15. Minifiguren korrekt.
+16. Prozentwerte plausibel.
+17. Vergleich mit bestehenden Set-/Fehlteile-Seiten.
+
+ZULETZT HINZUGEFÜGT
+18. Richtige neuesten Sets.
+19. Bilder korrekt.
+20. Setnummer korrekt.
+21. Name korrekt.
+22. Links korrekt.
+
+SCHNELLZUGRIFF
+23. Meine Sets.
+24. Fehlteile.
+25. Minifiguren.
+26. Farben.
+27. Import / Export.
+28. Papierkorb.
+
+FEHLTEILE IM ÜBERBLICK
+29. Donut entspricht vorhandenen/fehlenden Mengen.
+30. Absolute Werte korrekt.
+31. Prozentwerte korrekt.
+32. Top 5 fehlende Teile korrekt.
+33. Bilder/IDs/Namen korrekt.
+34. Fehlmengen mit Fehlteile-Seite vergleichen.
+
+ZULETZT BEARBEITET
+35. Nicht implementiert; Datenintegritätsentscheidung laut Report bestätigen.
+36. Keine Links zu einer irreführenden Aktivitätsliste vorhanden.
+
+THEMENWELTEN
+37. Themenwelten korrekt.
+38. Set-Anzahlen korrekt.
+39. Alle anzeigen funktioniert.
+
+RESPONSIVE
+40. Desktop.
+41. Tablet.
+42. 390 px.
+43. 320 px.
+44. Kein horizontales Scrollen.
+45. Keine abgeschnittenen Inhalte.
+
+BANNER
+46. Finales Banner auf Desktop und Tablet sauber sichtbar.
+47. Bild lädt über Django static; keine kaputte Bildreferenz.
+48. Unter 481 px ausgeblendet und Hero-Layout weiterhin stabil.
+
+REGRESSION
+49. Fehlende-Farben-Filter weiterhin korrekt.
+50. Alignment weiterhin korrekt.
+51. Größe/Form-Sortierung weiterhin korrekt.
+52. Gruppenstatus weiterhin korrekt.
+53. Mengenlogik unverändert.
+
+VERSION
+54. UI-Version = 8.3.0.
+55. Healthcheck = 8.3.0.
+56. Release-Manifest = 8.3.0.

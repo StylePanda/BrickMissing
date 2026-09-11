@@ -1,5 +1,13 @@
 # Changelog
 
+## 8.3.1 — 11 September 2026
+
+- Fixed the dashboard to show only the three most recently created owner-scoped sets.
+- Fixed dashboard set images so products remain fully visible without disruptive cropping.
+- Renamed the **Farben** shortcut to the correct **Teile** label while retaining the existing parts route.
+- Fixed the present-versus-missing donut so both segments represent their percentages mathematically, including small missing shares.
+- No database migration.
+
 ## 8.3.0 — 10 September 2026
 
 - Redesigned the overview as a responsive Midnight-Violet collection dashboard.

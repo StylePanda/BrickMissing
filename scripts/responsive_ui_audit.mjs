@@ -337,6 +337,12 @@ async function auditDashboard(client, width) {
     const bannerImage = banner?.querySelector(".dashboard-banner-image");
     const bannerRect = banner?.getBoundingClientRect();
     const bannerImageRect = bannerImage?.getBoundingClientRect();
+    const recentCards = [...document.querySelectorAll(".dashboard-set-card")];
+    const recentCardRects = recentCards.map((node) => {
+      const rect = node.getBoundingClientRect();
+      return {left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom};
+    });
+    const shortcutLabels = [...document.querySelectorAll(".dashboard-shortcuts nav a > span:nth-child(2)")].map((node) => node.textContent.trim());
     return ({
     title: Boolean(document.querySelector("h1")),
     duplicateSearch: Boolean(document.querySelector("#collection-search")),
@@ -346,6 +352,15 @@ async function auditDashboard(client, width) {
     bannerImageFillsContainer: !bannerRect?.height || (Math.abs(bannerRect.width - bannerImageRect.width) <= 1 && Math.abs(bannerRect.height - bannerImageRect.height) <= 1),
     actionCount: document.querySelectorAll(".dashboard-actions .dashboard-action").length,
     shortcutCount: document.querySelectorAll(".dashboard-shortcuts nav a").length,
+    shortcutLabels,
+    partsShortcutPath: [...document.querySelectorAll(".dashboard-shortcuts nav a")].find((node) => node.textContent.includes("Teile"))?.pathname,
+    recentCardCount: recentCards.length,
+    recentCardRects,
+    recentColumns: new Set(recentCardRects.map(({left}) => Math.round(left))).size,
+    recentImagesContained: [...document.querySelectorAll(".dashboard-set-media img")].every((node) => {
+      const style = getComputedStyle(node);
+      return style.objectFit === "contain" && style.objectPosition === "50% 50%";
+    }),
     stats: [...document.querySelectorAll(".dashboard-stats article")].map((node) => ({left: node.getBoundingClientRect().left, right: node.getBoundingClientRect().right})),
     valuesFit: [...document.querySelectorAll(".dashboard-stats strong")].every((node) => node.scrollWidth <= node.clientWidth + 1),
     donutReadable: document.querySelector(".dashboard-donut")?.getBoundingClientRect().width >= 150,
@@ -361,11 +376,89 @@ async function auditDashboard(client, width) {
   assert(result.bannerImageFillsContainer, `Dashboard banner image does not fill its container at ${width}px`);
   assert(result.actionCount === 4, "Dashboard quick actions are incomplete");
   assert(result.shortcutCount === 6, "Dashboard shortcuts are incomplete");
+  assert(result.shortcutLabels.includes("Teile") && !result.shortcutLabels.includes("Farben"), "Dashboard parts shortcut is mislabeled");
+  assert(result.partsShortcutPath === routes.authenticated.parts, "Dashboard parts shortcut route changed");
+  assert(result.recentCardCount === 3, `Dashboard shows ${result.recentCardCount} recent sets instead of three`);
+  assert(result.recentColumns === (width <= 480 ? 1 : 3), `Dashboard recent-set columns are incorrect at ${width}px`);
+  assert(result.recentImagesContained, `Dashboard set image is not centered with object-fit contain at ${width}px`);
+  for (let index = 0; index < result.recentCardRects.length; index += 1) {
+    for (let otherIndex = index + 1; otherIndex < result.recentCardRects.length; otherIndex += 1) {
+      const first = result.recentCardRects[index];
+      const second = result.recentCardRects[otherIndex];
+      const overlaps = first.left < second.right && first.right > second.left
+        && first.top < second.bottom && first.bottom > second.top;
+      assert(!overlaps, `Dashboard recent-set cards overlap at ${width}px`);
+    }
+  }
   assert(result.stats.every(({left, right}) => left >= -1 && right <= width + 1), `Dashboard statistic card escapes at ${width}px`);
   assert(result.valuesFit, "Dashboard statistic value overflows its card");
   assert(result.donutReadable, `Dashboard donut is too small at ${width}px`);
   assert(result.topPartsFit, `Dashboard top-parts list overflows at ${width}px`);
   assert(result.cardsFit, `Dashboard card escapes at ${width}px`);
+}
+
+async function auditDashboardDonut(client) {
+  const result = await evaluate(client, `(() => {
+    const root = document.querySelector(".dashboard-donut");
+    const owned = root?.querySelector(".dashboard-donut-owned");
+    const missing = root?.querySelector(".dashboard-donut-missing");
+    const track = root?.querySelector(".dashboard-donut-track");
+    const missingLegend = document.querySelector(".dashboard-donut-legend .missing");
+    const read = () => ({
+      ownedDash: Number.parseFloat(owned.getAttribute("stroke-dasharray")),
+      missingDash: Number.parseFloat(missing.getAttribute("stroke-dasharray")),
+      missingOffset: Number.parseFloat(missing.getAttribute("stroke-dashoffset")),
+      pathLength: Number.parseFloat(owned.getAttribute("pathLength")),
+      ownedComputedDash: Number.parseFloat(getComputedStyle(owned).strokeDasharray),
+      missingComputedDash: Number.parseFloat(getComputedStyle(missing).strokeDasharray),
+      missingComputedOffset: Number.parseFloat(getComputedStyle(missing).strokeDashoffset),
+    });
+    const initial = read();
+    const scenarios = [
+      [100, 0],
+      [0, 100],
+      [50, 50],
+      [99.9, .1],
+      [0, 0],
+    ].map(([ownedValue, missingValue]) => {
+      owned.setAttribute("stroke-dasharray", String(ownedValue) + " 100");
+      missing.setAttribute("stroke-dasharray", String(missingValue) + " 100");
+      missing.setAttribute("stroke-dashoffset", String(ownedValue ? -ownedValue : 0));
+      return {ownedValue, missingValue, ...read()};
+    });
+    owned.setAttribute("stroke-dasharray", "97.7 100");
+    missing.setAttribute("stroke-dasharray", "2.3 100");
+    missing.setAttribute("stroke-dashoffset", "-97.7");
+    return {
+      exists: Boolean(root && owned && missing && track),
+      initial,
+      scenarios,
+      ownedLinecap: getComputedStyle(owned).strokeLinecap,
+      missingLinecap: getComputedStyle(missing).strokeLinecap,
+      segmentsUseDifferentColors: getComputedStyle(owned).stroke !== getComputedStyle(missing).stroke,
+      missingMatchesLegend: getComputedStyle(missing).stroke === getComputedStyle(missingLegend).borderLeftColor,
+      ariaLabel: root?.getAttribute("aria-label") || "",
+    };
+  })()`);
+  const tolerance = .05;
+  const close = (actual, expected) => Number.isFinite(actual) && Math.abs(actual - expected) <= tolerance;
+  assert(result.exists, "Dashboard donut segments are incomplete");
+  assert(close(result.initial.pathLength, 100), "Dashboard donut pathLength is not normalized to 100");
+  assert(close(result.initial.ownedDash, 97.7) && close(result.initial.missingDash, 2.3), "Dashboard donut does not render the 97.7/2.3 test data");
+  assert(close(result.initial.missingOffset, -97.7), "Dashboard missing segment does not start after the owned segment");
+  assert(result.initial.missingDash > 0, "Dashboard missing segment has no positive length");
+  assert(close(result.initial.ownedComputedDash, 97.7) && close(result.initial.missingComputedDash, 2.3), "Computed donut dash lengths differ from SVG values");
+  assert(close(result.initial.missingComputedOffset, -97.7), "Computed missing offset differs from the SVG value");
+  for (const scenario of result.scenarios) {
+    assert(close(scenario.ownedDash, scenario.ownedValue), `Owned donut segment is incorrect for ${scenario.ownedValue}/${scenario.missingValue}`);
+    assert(close(scenario.missingDash, scenario.missingValue), `Missing donut segment is incorrect for ${scenario.ownedValue}/${scenario.missingValue}`);
+    assert(close(scenario.missingOffset, scenario.ownedValue ? -scenario.ownedValue : 0), `Missing donut offset is incorrect for ${scenario.ownedValue}/${scenario.missingValue}`);
+    assert(close(scenario.ownedComputedDash, scenario.ownedValue), `Computed owned segment is incorrect for ${scenario.ownedValue}/${scenario.missingValue}`);
+    assert(close(scenario.missingComputedDash, scenario.missingValue), `Computed missing segment is incorrect for ${scenario.ownedValue}/${scenario.missingValue}`);
+  }
+  assert(result.ownedLinecap === "butt" && result.missingLinecap === "butt", "Rounded line caps distort small donut segments");
+  assert(result.segmentsUseDifferentColors && result.missingMatchesLegend, "Donut segment colors do not match the legend");
+  assert(result.ariaLabel.includes("977 Teile vorhanden") && result.ariaLabel.includes("23 Teile fehlend"), "Donut text alternative is incomplete");
 }
 
 async function auditNavigation(client) {
@@ -456,6 +549,7 @@ try {
   await auditNavigation(client);
   await navigate(client, routes.authenticated.dashboard);
   await auditDashboard(client, 390);
+  await auditDashboardDonut(client);
   await navigate(client, routes.authenticated.setForm);
   await auditFormControls(client);
 

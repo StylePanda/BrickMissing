@@ -1,4 +1,5 @@
 from datetime import timedelta
+from pathlib import Path
 
 from django.contrib.auth import get_user_model
 from django.db import connection
@@ -7,6 +8,7 @@ from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
+from apps.core.templatetags.privacy import proxied_image_url
 from apps.organizer.models import MinifigurePart, SetMinifigure
 
 from .models import LegoSet, Part, SetInventoryItem
@@ -27,12 +29,13 @@ class DashboardTests(TestCase):
         )
         self.client.force_login(self.user)
 
-    def make_set(self, number, *, owner=None, theme="Space", name=None):
+    def make_set(self, number, *, owner=None, theme="Space", name=None, image_url=""):
         return LegoSet.objects.create(
             owner=owner or self.user,
             set_number=number,
             name=name or f"Set {number}",
             theme=theme,
+            image_url=image_url,
         )
 
     def test_dashboard_loads_with_dynamic_welcome_actions_and_no_second_search(self):
@@ -133,17 +136,121 @@ class DashboardTests(TestCase):
         self.assertContains(response, "Keine Fehlteile")
         self.assertContains(response, "Noch keine Themenwelten")
 
-    def test_recent_sets_are_newest_first_and_limited_to_six(self):
+    def test_recent_sets_are_newest_first_owner_scoped_and_limited_to_three(self):
         now = timezone.now()
-        sets = [self.make_set(f"recent-{index}") for index in range(8)]
+        image_url = "https://example.test/images/recent-0.webp"
+        sets = [
+            self.make_set(
+                f"recent-{index}",
+                image_url=image_url if index == 0 else "",
+            )
+            for index in range(5)
+        ]
         for index, lego_set in enumerate(sets):
             LegoSet.objects.filter(pk=lego_set.pk).update(
                 created_at=now - timedelta(days=index)
             )
+        foreign = self.make_set("foreign-newest", owner=self.other)
+        LegoSet.objects.filter(pk=foreign.pk).update(created_at=now + timedelta(days=1))
+
         response = self.client.get(reverse("dashboard"))
         recent = response.context["recent_sets"]
-        self.assertEqual(len(recent), 6)
-        self.assertEqual([item.pk for item in recent], [item.pk for item in sets[:6]])
+        self.assertEqual(len(recent), 3)
+        self.assertEqual([item.pk for item in recent], [item.pk for item in sets[:3]])
+        self.assertNotIn(foreign.pk, {item.pk for item in recent})
+        for lego_set in sets[:3]:
+            self.assertContains(
+                response,
+                f'href="{reverse("catalog:set_detail", args=[lego_set.pk])}"',
+            )
+        self.assertNotContains(
+            response,
+            f'href="{reverse("catalog:set_detail", args=[sets[3].pk])}"',
+        )
+        self.assertContains(response, f'src="{proxied_image_url(image_url)}"')
+        self.assertContains(response, "dashboard-image-placeholder", count=2)
+
+    def test_recent_set_images_use_centered_contain_layout(self):
+        self.make_set("image-1", image_url="https://example.test/set.webp")
+        response = self.client.get(reverse("dashboard"))
+        self.assertContains(response, 'class="dashboard-set-media"')
+        stylesheet = (
+            Path(__file__).resolve().parents[2] / "static" / "css" / "app.css"
+        ).read_text(encoding="utf-8")
+        self.assertIn(".dashboard-set-media img", stylesheet)
+        self.assertIn("object-fit: contain", stylesheet)
+        self.assertIn("object-position: center", stylesheet)
+
+    def test_parts_shortcut_keeps_existing_route_and_correct_label(self):
+        response = self.client.get(reverse("dashboard"))
+        part_route = reverse("catalog:part_list")
+        self.assertContains(response, f'href="{part_route}"><span aria-hidden="true">▦</span><span>Teile</span>')
+        self.assertNotContains(response, "<span>Farben</span>")
+
+    def test_donut_svg_is_mathematically_valid_for_edge_cases(self):
+        lego_set = self.make_set("donut-1")
+        cases = (
+            (1000, 977, "97.7", "2.3", "-97.7", "97,7", "2,3"),
+            (100, 100, "100.0", "0.0", "-100.0", "100,0", "0,0"),
+            (100, 0, "0.0", "100.0", "0.0", "0,0", "100,0"),
+            (100, 50, "50.0", "50.0", "-50.0", "50,0", "50,0"),
+            (1000, 999, "99.9", "0.1", "-99.9", "99,9", "0,1"),
+            (0, 0, "0.0", "0.0", "0.0", "0,0", "0,0"),
+        )
+        for required, owned, owned_svg, missing_svg, offset, owned_text, missing_text in cases:
+            with self.subTest(required=required, owned=owned):
+                SetInventoryItem.objects.all().delete()
+                if required:
+                    SetInventoryItem.objects.create(
+                        lego_set=lego_set,
+                        part_number="donut-part",
+                        name="Donut part",
+                        required_quantity=required,
+                        owned_quantity=owned,
+                    )
+                response = self.client.get(reverse("dashboard"))
+                self.assertEqual(response.context["owned_percent_svg"], owned_svg)
+                self.assertEqual(response.context["missing_percent_svg"], missing_svg)
+                self.assertEqual(response.context["missing_percent_offset_svg"], offset)
+                self.assertEqual(response.context["owned_percent_display"], owned_text)
+                self.assertEqual(response.context["missing_percent_display"], missing_text)
+                self.assertContains(
+                    response,
+                    f'class="dashboard-donut-owned" cx="21" cy="21" r="15.9155" pathLength="100" stroke-dasharray="{owned_svg} 100"',
+                )
+                self.assertContains(
+                    response,
+                    f'class="dashboard-donut-missing" cx="21" cy="21" r="15.9155" pathLength="100" stroke-dasharray="{missing_svg} 100" stroke-dashoffset="{offset}"',
+                )
+                markup = response.content.decode()
+                self.assertNotIn("NaN", markup)
+                self.assertNotIn("Infinity", markup)
+
+    def test_donut_retains_text_summary_and_owner_isolation(self):
+        own_set = self.make_set("donut-own")
+        foreign_set = self.make_set("donut-foreign", owner=self.other)
+        SetInventoryItem.objects.create(
+            lego_set=own_set,
+            part_number="own",
+            name="Own",
+            required_quantity=1000,
+            owned_quantity=977,
+        )
+        SetInventoryItem.objects.create(
+            lego_set=foreign_set,
+            part_number="foreign",
+            name="Foreign",
+            required_quantity=1000,
+            owned_quantity=0,
+        )
+        response = self.client.get(reverse("dashboard"))
+        self.assertEqual(response.context["lego_parts_total"], 1000)
+        self.assertEqual(response.context["lego_parts_owned"], 977)
+        self.assertEqual(response.context["lego_parts_missing"], 23)
+        self.assertContains(
+            response,
+            'aria-label="977 Teile vorhanden, 23 Teile fehlend, 1000 Teile gesamt"',
+        )
 
     def test_top_five_aggregates_authoritative_normal_and_minifigure_shortages(self):
         lego_set = self.make_set("top-1")

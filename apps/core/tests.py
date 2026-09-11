@@ -29,7 +29,7 @@ class HealthAndHeadersTests(TestCase):
         self.assertTrue(response["X-Request-ID"])
 
     def test_active_application_surfaces_use_central_version(self):
-        self.assertEqual(APP_VERSION, "8.3.0")
+        self.assertEqual(APP_VERSION, "8.3.1")
         self.assertEqual(settings.BRICKMISSING_VERSION, APP_VERSION)
         self.assertEqual(
             self.client.get(reverse("health")).json()["version"], APP_VERSION

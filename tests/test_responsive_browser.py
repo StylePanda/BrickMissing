@@ -8,7 +8,7 @@ from django.contrib.staticfiles.testing import StaticLiveServerTestCase
 from django.urls import reverse
 
 from apps.accounts.models import User
-from apps.catalog.models import LegoSet
+from apps.catalog.models import LegoSet, SetInventoryItem
 
 
 class ResponsiveBrowserTests(StaticLiveServerTestCase):
@@ -28,7 +28,23 @@ class ResponsiveBrowserTests(StaticLiveServerTestCase):
             theme="Icons",
             year=2022,
             total_parts=10001,
+            image_url="/static/img/dashboard-banner.webp",
         )
+        SetInventoryItem.objects.create(
+            lego_set=self.lego_set,
+            part_number="browser-donut",
+            name="Browser donut allocation",
+            required_quantity=1000,
+            owned_quantity=977,
+        )
+        for index in range(2):
+            LegoSet.objects.create(
+                owner=self.user,
+                set_number=f"responsive-{index}",
+                name=f"Responsive dashboard card {index}",
+                theme="Icons",
+                image_url="/static/img/dashboard-banner.webp" if index == 0 else "",
+            )
 
     def test_application_layout_at_supported_viewports(self):
         edge = Path(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe")

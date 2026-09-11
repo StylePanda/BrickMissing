@@ -148,7 +148,7 @@ def dashboard_collection_data(user):
         shortages.values(),
         key=lambda item: (-item["missing"], item["name"].casefold(), item["identifier"]),
     )[:5]
-    recent_sets = list(sets.order_by("-created_at", "-pk")[:6])
+    recent_sets = list(sets.order_by("-created_at", "-pk")[:3])
     set_count = sets.count()
     return {
         "set_count": set_count,
@@ -165,6 +165,8 @@ def dashboard_collection_data(user):
         "owned_percent": owned_percent,
         "missing_percent": missing_percent,
         "owned_percent_svg": f"{owned_percent:.1f}",
+        "missing_percent_svg": f"{missing_percent:.1f}",
+        "missing_percent_offset_svg": f"{-owned_percent if owned_percent else 0.0:.1f}",
         "owned_percent_display": f"{owned_percent:.1f}".replace(".", ","),
         "missing_percent_display": f"{missing_percent:.1f}".replace(".", ","),
         "recent_sets": recent_sets,
