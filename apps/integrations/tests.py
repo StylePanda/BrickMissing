@@ -49,6 +49,18 @@ class IntegrationSecurityTests(TestCase):
         self.assertEqual(self.client.get(reverse("integrations:image_proxy"), {"url": "http://127.0.0.1/secret"}).status_code, 400)
         self.assertEqual(self.client.get(reverse("integrations:image_proxy"), {"url": "https://example.invalid/x.png"}).status_code, 400)
 
+    @patch("apps.integrations.views.fetch_image")
+    def test_image_proxy_preserves_source_bytes_and_content_type(self, fetch_image):
+        source = b"exact-source-image-bytes"
+        fetch_image.return_value = (source, "image/webp")
+        response = self.client.get(
+            reverse("integrations:image_proxy"),
+            {"url": "https://cdn.rebrickable.com/media/sets/example.webp"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, source)
+        self.assertEqual(response["Content-Type"], "image/webp")
+
     def test_templates_route_external_images_through_proxy(self):
         external = "https://cdn.rebrickable.com/media/sets/100.jpg"
         LegoSet.objects.create(owner=self.user, set_number="100", name="Proxy", image_url=external)

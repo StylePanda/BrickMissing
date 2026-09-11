@@ -216,12 +216,13 @@ class DashboardTests(TestCase):
                 self.assertEqual(response.context["missing_percent_display"], missing_text)
                 self.assertContains(
                     response,
-                    f'class="dashboard-donut-owned" cx="21" cy="21" r="15.9155" pathLength="100" stroke-dasharray="{owned_svg} 100"',
+                    'class="dashboard-donut-owned" cx="21" cy="21" r="15.9155" pathLength="100"',
                 )
                 self.assertContains(
                     response,
-                    f'class="dashboard-donut-missing" cx="21" cy="21" r="15.9155" pathLength="100" stroke-dasharray="{missing_svg} 100" stroke-dashoffset="{offset}"',
+                    f'class="dashboard-donut-missing" cx="21" cy="21" r="15.9155" pathLength="100" stroke-dasharray="{missing_svg} {owned_svg}" stroke-dashoffset="{offset}"',
                 )
+                self.assertNotContains(response, "dashboard-donut-owned\" cx=\"21\" cy=\"21\" r=\"15.9155\" pathLength=\"100\" stroke-dasharray")
                 markup = response.content.decode()
                 self.assertNotIn("NaN", markup)
                 self.assertNotIn("Infinity", markup)

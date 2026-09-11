@@ -343,6 +343,74 @@ async function auditDashboard(client, width) {
       return {left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom};
     });
     const shortcutLabels = [...document.querySelectorAll(".dashboard-shortcuts nav a > span:nth-child(2)")].map((node) => node.textContent.trim());
+    const recentImages = [...document.querySelectorAll(".dashboard-set-media img")].map((image) => {
+      const container = image.parentElement;
+      const imageRect = image.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      const imageStyle = getComputedStyle(image);
+      const containerStyle = getComputedStyle(container);
+      const borderLeft = Number.parseFloat(containerStyle.borderLeftWidth);
+      const borderTop = Number.parseFloat(containerStyle.borderTopWidth);
+      const borderRight = Number.parseFloat(containerStyle.borderRightWidth);
+      const borderBottom = Number.parseFloat(containerStyle.borderBottomWidth);
+      const paddingLeft = Number.parseFloat(containerStyle.paddingLeft);
+      const paddingTop = Number.parseFloat(containerStyle.paddingTop);
+      const paddingRight = Number.parseFloat(containerStyle.paddingRight);
+      const paddingBottom = Number.parseFloat(containerStyle.paddingBottom);
+      const inner = {
+        left: containerRect.left + borderLeft + paddingLeft,
+        top: containerRect.top + borderTop + paddingTop,
+        right: containerRect.right - borderRight - paddingRight,
+        bottom: containerRect.bottom - borderBottom - paddingBottom,
+      };
+      inner.width = inner.right - inner.left;
+      inner.height = inner.bottom - inner.top;
+      const scale = Math.min(inner.width / image.naturalWidth, inner.height / image.naturalHeight);
+      return {
+        srcAttribute: image.getAttribute("src"),
+        src: image.src,
+        currentSrc: image.currentSrc,
+        naturalWidth: image.naturalWidth,
+        naturalHeight: image.naturalHeight,
+        widthAttribute: image.getAttribute("width"),
+        heightAttribute: image.getAttribute("height"),
+        imageRect: {left: imageRect.left, top: imageRect.top, right: imageRect.right, bottom: imageRect.bottom, width: imageRect.width, height: imageRect.height},
+        containerRect: {left: containerRect.left, top: containerRect.top, right: containerRect.right, bottom: containerRect.bottom, width: containerRect.width, height: containerRect.height},
+        inner,
+        expectedWidth: image.naturalWidth * scale,
+        expectedHeight: image.naturalHeight * scale,
+        imageStyle: {
+          display: imageStyle.display,
+          position: imageStyle.position,
+          overflow: imageStyle.overflow,
+          objectFit: imageStyle.objectFit,
+          objectPosition: imageStyle.objectPosition,
+          width: imageStyle.width,
+          height: imageStyle.height,
+          minWidth: imageStyle.minWidth,
+          minHeight: imageStyle.minHeight,
+          maxWidth: imageStyle.maxWidth,
+          maxHeight: imageStyle.maxHeight,
+          aspectRatio: imageStyle.aspectRatio,
+          padding: imageStyle.padding,
+          margin: imageStyle.margin,
+        },
+        containerStyle: {
+          display: containerStyle.display,
+          position: containerStyle.position,
+          overflow: containerStyle.overflow,
+          width: containerStyle.width,
+          height: containerStyle.height,
+          minWidth: containerStyle.minWidth,
+          minHeight: containerStyle.minHeight,
+          maxWidth: containerStyle.maxWidth,
+          maxHeight: containerStyle.maxHeight,
+          aspectRatio: containerStyle.aspectRatio,
+          padding: containerStyle.padding,
+          margin: containerStyle.margin,
+        },
+      };
+    });
     return ({
     title: Boolean(document.querySelector("h1")),
     duplicateSearch: Boolean(document.querySelector("#collection-search")),
@@ -357,10 +425,7 @@ async function auditDashboard(client, width) {
     recentCardCount: recentCards.length,
     recentCardRects,
     recentColumns: new Set(recentCardRects.map(({left}) => Math.round(left))).size,
-    recentImagesContained: [...document.querySelectorAll(".dashboard-set-media img")].every((node) => {
-      const style = getComputedStyle(node);
-      return style.objectFit === "contain" && style.objectPosition === "50% 50%";
-    }),
+    recentImages,
     stats: [...document.querySelectorAll(".dashboard-stats article")].map((node) => ({left: node.getBoundingClientRect().left, right: node.getBoundingClientRect().right})),
     valuesFit: [...document.querySelectorAll(".dashboard-stats strong")].every((node) => node.scrollWidth <= node.clientWidth + 1),
     donutReadable: document.querySelector(".dashboard-donut")?.getBoundingClientRect().width >= 150,
@@ -380,7 +445,19 @@ async function auditDashboard(client, width) {
   assert(result.partsShortcutPath === routes.authenticated.parts, "Dashboard parts shortcut route changed");
   assert(result.recentCardCount === 3, `Dashboard shows ${result.recentCardCount} recent sets instead of three`);
   assert(result.recentColumns === (width <= 480 ? 1 : 3), `Dashboard recent-set columns are incorrect at ${width}px`);
-  assert(result.recentImagesContained, `Dashboard set image is not centered with object-fit contain at ${width}px`);
+  for (const image of result.recentImages) {
+    const tolerance = 1;
+    assert(image.currentSrc === image.src && image.currentSrc.length > 0, `Dashboard image source resolution is inconsistent at ${width}px`);
+    assert(image.naturalWidth > 0 && image.naturalHeight > 0, `Dashboard image has no intrinsic dimensions at ${width}px`);
+    assert(image.widthAttribute === null && image.heightAttribute === null, `Dashboard image has unexpected HTML dimensions at ${width}px`);
+    assert(image.imageStyle.objectFit === "contain" && image.imageStyle.objectPosition === "50% 50%", `Dashboard image contain styles are inactive at ${width}px`);
+    assert(image.imageStyle.width !== "auto" && image.imageStyle.height !== "auto", `Dashboard image did not resolve to rendered dimensions at ${width}px`);
+    assert(image.imageRect.left >= image.inner.left - tolerance && image.imageRect.right <= image.inner.right + tolerance, `Dashboard image crosses its horizontal content box at ${width}px: ${JSON.stringify(image)}`);
+    assert(image.imageRect.top >= image.inner.top - tolerance && image.imageRect.bottom <= image.inner.bottom + tolerance, `Dashboard image crosses its vertical content box at ${width}px: ${JSON.stringify(image)}`);
+    assert(image.imageRect.width <= image.inner.width + tolerance && image.imageRect.height <= image.inner.height + tolerance, `Dashboard image is larger than its visible container at ${width}px`);
+    assert(Math.abs(image.imageRect.width - image.expectedWidth) <= tolerance && Math.abs(image.imageRect.height - image.expectedHeight) <= tolerance, `Dashboard image does not match mathematically expected contain geometry at ${width}px: ${JSON.stringify(image)}`);
+    assert(Math.abs(image.imageRect.width / image.imageRect.height - image.naturalWidth / image.naturalHeight) <= .02, `Dashboard image aspect ratio is distorted at ${width}px`);
+  }
   for (let index = 0; index < result.recentCardRects.length; index += 1) {
     for (let otherIndex = index + 1; otherIndex < result.recentCardRects.length; otherIndex += 1) {
       const first = result.recentCardRects[index];
@@ -398,20 +475,23 @@ async function auditDashboard(client, width) {
 }
 
 async function auditDashboardDonut(client) {
-  const result = await evaluate(client, `(() => {
+  const result = await evaluate(client, `(async () => {
     const root = document.querySelector(".dashboard-donut");
     const owned = root?.querySelector(".dashboard-donut-owned");
     const missing = root?.querySelector(".dashboard-donut-missing");
     const track = root?.querySelector(".dashboard-donut-track");
     const missingLegend = document.querySelector(".dashboard-donut-legend .missing");
+    const numbers = (value) => String(value || "").split(/[ ,]+/).map(Number.parseFloat).filter(Number.isFinite);
     const read = () => ({
-      ownedDash: Number.parseFloat(owned.getAttribute("stroke-dasharray")),
-      missingDash: Number.parseFloat(missing.getAttribute("stroke-dasharray")),
+      ownedDashAttribute: owned.getAttribute("stroke-dasharray"),
+      missingDash: numbers(missing.getAttribute("stroke-dasharray")),
       missingOffset: Number.parseFloat(missing.getAttribute("stroke-dashoffset")),
       pathLength: Number.parseFloat(owned.getAttribute("pathLength")),
-      ownedComputedDash: Number.parseFloat(getComputedStyle(owned).strokeDasharray),
-      missingComputedDash: Number.parseFloat(getComputedStyle(missing).strokeDasharray),
+      ownedComputedDash: getComputedStyle(owned).strokeDasharray,
+      missingComputedDash: numbers(getComputedStyle(missing).strokeDasharray),
       missingComputedOffset: Number.parseFloat(getComputedStyle(missing).strokeDashoffset),
+      ownedStroke: getComputedStyle(owned).stroke,
+      missingStroke: getComputedStyle(missing).stroke,
     });
     const initial = read();
     const scenarios = [
@@ -421,14 +501,53 @@ async function auditDashboardDonut(client) {
       [99.9, .1],
       [0, 0],
     ].map(([ownedValue, missingValue]) => {
-      owned.setAttribute("stroke-dasharray", String(ownedValue) + " 100");
-      missing.setAttribute("stroke-dasharray", String(missingValue) + " 100");
+      root.classList.toggle("is-empty", ownedValue + missingValue === 0);
+      missing.setAttribute("stroke-dasharray", String(missingValue) + " " + String(ownedValue));
       missing.setAttribute("stroke-dashoffset", String(ownedValue ? -ownedValue : 0));
       return {ownedValue, missingValue, ...read()};
     });
-    owned.setAttribute("stroke-dasharray", "97.7 100");
-    missing.setAttribute("stroke-dasharray", "2.3 100");
+    root.classList.remove("is-empty");
+    missing.setAttribute("stroke-dasharray", "2.3 97.7");
     missing.setAttribute("stroke-dashoffset", "-97.7");
+    const svg = root.querySelector("svg");
+    const clone = svg.cloneNode(true);
+    clone.setAttribute("width", "420");
+    clone.setAttribute("height", "420");
+    clone.style.transform = "none";
+    for (const selector of [".dashboard-donut-track", ".dashboard-donut-owned", ".dashboard-donut-missing"]) {
+      const source = svg.querySelector(selector);
+      const target = clone.querySelector(selector);
+      const style = getComputedStyle(source);
+      target.setAttribute("stroke", style.stroke);
+      target.setAttribute("stroke-width", style.strokeWidth);
+      target.setAttribute("stroke-linecap", style.strokeLinecap);
+      target.setAttribute("fill", "none");
+      target.setAttribute("transform", "rotate(-90 21 21)");
+    }
+    const raster = document.createElement("canvas");
+    raster.width = 420;
+    raster.height = 420;
+    const rasterContext = raster.getContext("2d", {willReadFrequently: true});
+    const rasterImage = new Image();
+    rasterImage.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(new XMLSerializer().serializeToString(clone));
+    await rasterImage.decode();
+    rasterContext.drawImage(rasterImage, 0, 0, 420, 420);
+    const colorPixel = document.createElement("canvas");
+    colorPixel.width = 1;
+    colorPixel.height = 1;
+    const colorContext = colorPixel.getContext("2d", {willReadFrequently: true});
+    const rgb = (color) => {
+      colorContext.clearRect(0, 0, 1, 1);
+      colorContext.fillStyle = color;
+      colorContext.fillRect(0, 0, 1, 1);
+      return [...colorContext.getImageData(0, 0, 1, 1).data.slice(0, 3)];
+    };
+    const pixelAtPathPosition = (position) => {
+      const angle = (-90 + position * 3.6) * Math.PI / 180;
+      const x = Math.round(210 + 159.155 * Math.cos(angle));
+      const y = Math.round(210 + 159.155 * Math.sin(angle));
+      return {position, pixel: [...rasterContext.getImageData(x, y, 1, 1).data.slice(0, 3)]};
+    };
     return {
       exists: Boolean(root && owned && missing && track),
       initial,
@@ -438,26 +557,48 @@ async function auditDashboardDonut(client) {
       segmentsUseDifferentColors: getComputedStyle(owned).stroke !== getComputedStyle(missing).stroke,
       missingMatchesLegend: getComputedStyle(missing).stroke === getComputedStyle(missingLegend).borderLeftColor,
       ariaLabel: root?.getAttribute("aria-label") || "",
+      seamSamples: [97.65, 97.7, 97.75, 99.95, 0, .05].map(pixelAtPathPosition),
+      trackColor: rgb(getComputedStyle(track).stroke),
+      ownedColor: rgb(getComputedStyle(owned).stroke),
+      missingColor: rgb(getComputedStyle(missing).stroke),
     };
   })()`);
   const tolerance = .05;
   const close = (actual, expected) => Number.isFinite(actual) && Math.abs(actual - expected) <= tolerance;
   assert(result.exists, "Dashboard donut segments are incomplete");
   assert(close(result.initial.pathLength, 100), "Dashboard donut pathLength is not normalized to 100");
-  assert(close(result.initial.ownedDash, 97.7) && close(result.initial.missingDash, 2.3), "Dashboard donut does not render the 97.7/2.3 test data");
+  assert(result.initial.ownedDashAttribute === null && result.initial.ownedComputedDash === "none", "Dashboard owned underlay is not a complete circle");
+  assert(close(result.initial.missingDash[0], 2.3) && close(result.initial.missingDash[1], 97.7), "Dashboard donut does not render complementary 97.7/2.3 test data");
   assert(close(result.initial.missingOffset, -97.7), "Dashboard missing segment does not start after the owned segment");
-  assert(result.initial.missingDash > 0, "Dashboard missing segment has no positive length");
-  assert(close(result.initial.ownedComputedDash, 97.7) && close(result.initial.missingComputedDash, 2.3), "Computed donut dash lengths differ from SVG values");
+  assert(result.initial.missingDash[0] > 0, "Dashboard missing segment has no positive length");
+  assert(close(result.initial.missingComputedDash[0], 2.3) && close(result.initial.missingComputedDash[1], 97.7), "Computed donut dash lengths differ from SVG values");
   assert(close(result.initial.missingComputedOffset, -97.7), "Computed missing offset differs from the SVG value");
   for (const scenario of result.scenarios) {
-    assert(close(scenario.ownedDash, scenario.ownedValue), `Owned donut segment is incorrect for ${scenario.ownedValue}/${scenario.missingValue}`);
-    assert(close(scenario.missingDash, scenario.missingValue), `Missing donut segment is incorrect for ${scenario.ownedValue}/${scenario.missingValue}`);
+    assert(scenario.ownedDashAttribute === null, `Owned donut underlay is not complete for ${scenario.ownedValue}/${scenario.missingValue}`);
+    assert(close(scenario.missingDash[0], scenario.missingValue) && close(scenario.missingDash[1], scenario.ownedValue), `Missing donut pattern is incorrect for ${scenario.ownedValue}/${scenario.missingValue}`);
     assert(close(scenario.missingOffset, scenario.ownedValue ? -scenario.ownedValue : 0), `Missing donut offset is incorrect for ${scenario.ownedValue}/${scenario.missingValue}`);
-    assert(close(scenario.ownedComputedDash, scenario.ownedValue), `Computed owned segment is incorrect for ${scenario.ownedValue}/${scenario.missingValue}`);
-    assert(close(scenario.missingComputedDash, scenario.missingValue), `Computed missing segment is incorrect for ${scenario.ownedValue}/${scenario.missingValue}`);
+    assert(close(scenario.missingComputedDash[0], scenario.missingValue) && close(scenario.missingComputedDash[1], scenario.ownedValue), `Computed missing pattern is incorrect for ${scenario.ownedValue}/${scenario.missingValue}`);
+    if (scenario.ownedValue + scenario.missingValue === 0) {
+      assert(scenario.ownedStroke === "none" && scenario.missingStroke === "none", "Zero-state donut still paints data segments");
+    } else {
+      assert(close(scenario.ownedValue + scenario.missingValue, 100), `Donut percentages do not close at 100 for ${scenario.ownedValue}/${scenario.missingValue}`);
+      const missingStart = scenario.ownedValue;
+      const ownedEnd = scenario.ownedValue;
+      const missingEnd = missingStart + scenario.missingValue;
+      assert(close(ownedEnd, missingStart), `Owned end and missing start diverge for ${scenario.ownedValue}/${scenario.missingValue}`);
+      assert(close(missingEnd, 100), `Missing segment does not close the circle for ${scenario.ownedValue}/${scenario.missingValue}`);
+    }
   }
   assert(result.ownedLinecap === "butt" && result.missingLinecap === "butt", "Rounded line caps distort small donut segments");
   assert(result.segmentsUseDifferentColors && result.missingMatchesLegend, "Donut segment colors do not match the legend");
+  const colorDifference = (first, second) => first.reduce((sum, value, index) => sum + (value - second[index]) ** 2, 0);
+  for (const sample of result.seamSamples) {
+    const nearestDataColor = Math.min(
+      colorDifference(sample.pixel, result.ownedColor),
+      colorDifference(sample.pixel, result.missingColor),
+    );
+    assert(nearestDataColor < colorDifference(sample.pixel, result.trackColor), `Dark track leaks through the donut seam at ${sample.position}: ${JSON.stringify(result)}`);
+  }
   assert(result.ariaLabel.includes("977 Teile vorhanden") && result.ariaLabel.includes("23 Teile fehlend"), "Donut text alternative is incomplete");
 }
 
@@ -564,7 +705,7 @@ try {
       await setViewport(client, width, height);
       for (const name of ["dashboard", "sets", "setForm"]) {
         await navigate(client, routes.authenticated[name]);
-        const capture = await client.send("Page.captureScreenshot", {format: "png", fromSurface: true});
+        const capture = await client.send("Page.captureScreenshot", {format: "png", fromSurface: true, captureBeyondViewport: name === "dashboard"});
         await writeFile(join(artifactDirectory, `${name}-${width}x${height}.png`), Buffer.from(capture.data, "base64"));
       }
     }

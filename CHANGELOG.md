@@ -1,5 +1,11 @@
 # Changelog
 
+## 8.3.2 — 11 September 2026
+
+- Fixed dashboard product images so their rendered boxes stay completely inside the image area instead of being clipped by the card wrapper.
+- Fixed the present-versus-missing donut so no dark antialiasing gap appears between the two mathematically complementary segments.
+- No database migration.
+
 ## 8.3.1 — 11 September 2026
 
 - Fixed the dashboard to show only the three most recently created owner-scoped sets.

@@ -43,7 +43,11 @@ class ResponsiveBrowserTests(StaticLiveServerTestCase):
                 set_number=f"responsive-{index}",
                 name=f"Responsive dashboard card {index}",
                 theme="Icons",
-                image_url="/static/img/dashboard-banner.webp" if index == 0 else "",
+                image_url=(
+                    "/static/img/dashboard-banner.webp"
+                    if index == 0
+                    else "/static/icons/brickmissing.svg"
+                ),
             )
 
     def test_application_layout_at_supported_viewports(self):
