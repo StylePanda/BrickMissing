@@ -1,5 +1,16 @@
 # Changelog
 
+## 8.4.1 — 12 September 2026
+
+### Fixed
+
+- Fixed text overflow and responsive wrapping in the missing-parts saved-view form.
+- Restored stable checkbox and color-name alignment in the grouped color filter.
+- Changed the cards-view indicator from a button-like pill to non-interactive status text.
+- Prevented quantity and status action labels from being squeezed outside their buttons.
+- Improved responsive spacing and grouping for missing-part allocation controls.
+- No database migration or dependency change.
+
 ## 8.4.0 — 12 September 2026
 
 ### Added / Changed

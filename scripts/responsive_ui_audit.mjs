@@ -209,12 +209,13 @@ async function auditMissingParts(client, width) {
         allocationCount: card.querySelectorAll(".allocation-row").length,
         allocationRects: [...card.querySelectorAll(".allocation-row")].map((allocation) => {
           const allocationRect = rect(allocation);
+          const controlsNode = allocation.querySelector(".allocation-controls");
           const controls = [...allocation.querySelectorAll("input:not([type=hidden]), select, button, a")].map((control) => ({
             tag: control.tagName,
             text: control.textContent.trim(),
             rect: rect(control),
           }));
-          return {allocationRect, controls, controlsFit: controls.every((control) => within(control.rect, allocationRect))};
+          return {allocationRect, controlsRect: rect(controlsNode), controlsColumns: controlsNode ? getComputedStyle(controlsNode).gridTemplateColumns : "", controls, controlsFit: controls.every((control) => within(control.rect, allocationRect))};
         }),
         imageFits: [...card.querySelectorAll(".missing-card-image img, .allocation-thumb img")]
           .filter((image) => !image.hidden && image.getBoundingClientRect().width)
@@ -232,10 +233,10 @@ async function auditMissingParts(client, width) {
   assert(!result.hasLegacyTable, "Missing-parts view still renders the legacy table");
   assert(result.resultsHead.includes("Fehlteile"), "Missing-parts result heading lacks its label");
   assert(result.filterPanel.left >= -1 && result.filterPanel.right <= width + 1, `Missing-parts filters escape at ${width}px`);
+  assert(result.cards.some(({allocationCount}) => allocationCount >= 3), "Multiple set allocations are not grouped in one card");
   for (let index = 0; index < result.cards.length; index += 1) {
     const card = result.cards[index];
     assert(card.rect.left >= -1 && card.rect.right <= width + 1, `Missing-parts card escapes at ${width}px`);
-    assert(card.allocationCount >= 3, "Multiple set allocations are not grouped in one card");
     assert(card.allocationRects.every(({controlsFit}) => controlsFit), `Allocation controls are clipped at ${width}px: ${JSON.stringify(card.allocationRects)}`);
     assert(card.imageFits, `Missing-parts image is cropped or distorted at ${width}px`);
     assert(card.progressFits, `Missing-parts progress leaves its section at ${width}px: ${JSON.stringify({progress: card.progressRect, total: card.totalRect})}`);
@@ -248,6 +249,144 @@ async function auditMissingParts(client, width) {
         && card.rect.top < other.bottom && card.rect.bottom > other.top;
       assert(!overlaps, `Missing-parts cards overlap at ${width}px`);
     }
+  }
+}
+
+async function auditMissingPartsHotfixControls(client, width) {
+  const result = await evaluate(client, `(() => {
+    const rect = (node) => {
+      const value = node?.getBoundingClientRect();
+      return value && {left: value.left, right: value.right, top: value.top, bottom: value.bottom, width: value.width, height: value.height};
+    };
+    const within = (child, parent, tolerance = 1) => Boolean(child && parent)
+      && child.left >= parent.left - tolerance && child.right <= parent.right + tolerance
+      && child.top >= parent.top - tolerance && child.bottom <= parent.bottom + tolerance;
+    const textRect = (node) => {
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      const value = range.getBoundingClientRect();
+      return {left: value.left, right: value.right, top: value.top, bottom: value.bottom, width: value.width, height: value.height};
+    };
+    const overlaps = (first, second) => first.left < second.right && first.right > second.left
+      && first.top < second.bottom && first.bottom > second.top;
+
+    const saveDetails = document.querySelector(".missing-view-tools .save-view-details");
+    saveDetails.open = true;
+    const saveForm = saveDetails.querySelector(".save-view-form");
+    const saveInput = saveForm.querySelector("input[name=name]");
+    const saveButton = saveForm.querySelector("button");
+    const saveInputRect = rect(saveInput);
+    const saveButtonRect = rect(saveButton);
+    const saveButtonTextRect = textRect(saveButton);
+    const save = {
+      formDisplay: getComputedStyle(saveForm).display,
+      columns: getComputedStyle(saveForm).gridTemplateColumns,
+      input: saveInputRect,
+      button: saveButtonRect,
+      buttonText: saveButtonTextRect,
+      buttonWhiteSpace: getComputedStyle(saveButton).whiteSpace,
+      buttonScrollWidth: saveButton.scrollWidth,
+      buttonClientWidth: saveButton.clientWidth,
+      textFits: within(saveButtonTextRect, saveButtonRect),
+      contentFits: saveButton.scrollWidth <= saveButton.clientWidth + 1,
+      sameRow: Math.abs(saveInputRect.top - saveButtonRect.top) < 8,
+      stacked: saveButtonRect.top >= saveInputRect.bottom - 1,
+      overlap: overlaps(saveInputRect, saveButtonRect),
+    };
+
+    const colorDetails = document.querySelector("[data-color-filter]");
+    colorDetails.open = true;
+    const colorPopover = colorDetails.querySelector(".color-filter-popover");
+    const popoverRect = rect(colorPopover);
+    const colorRows = [...colorDetails.querySelectorAll(".color-options label")].map((row) => {
+      const checkbox = row.querySelector('input[type="checkbox"]');
+      const name = row.querySelector("span");
+      return {
+        group: row.closest("fieldset")?.querySelector("legend")?.textContent.trim() || "",
+        label: name.textContent.trim(),
+        row: rect(row),
+        checkbox: rect(checkbox),
+        name: rect(name),
+        rowDisplay: getComputedStyle(row).display,
+        columns: getComputedStyle(row).gridTemplateColumns,
+        alignItems: getComputedStyle(row).alignItems,
+        nameFits: within(rect(name), popoverRect),
+      };
+    });
+    const colorActions = [...colorDetails.querySelectorAll(".color-filter-actions button")].map((button) => ({
+      text: button.textContent.trim(), rect: rect(button), visible: Boolean(button.offsetWidth && button.offsetHeight),
+    }));
+    colorDetails.open = false;
+    saveDetails.open = false;
+
+    const view = document.querySelector(".missing-view-label");
+    const viewStyle = getComputedStyle(view);
+    const viewStatus = {
+      exists: Boolean(view),
+      tag: view?.tagName,
+      role: view?.getAttribute("role"),
+      tabindex: view?.getAttribute("tabindex"),
+      cursor: viewStyle.cursor,
+      background: viewStyle.backgroundColor,
+      borderWidth: viewStyle.borderWidth,
+      onclick: Boolean(view?.onclick),
+    };
+
+    const allocationControls = [...document.querySelectorAll(".allocation-controls")].map((controls) => {
+      const forms = [...controls.querySelectorAll(":scope > .allocation-form")];
+      const formRects = forms.map(rect);
+      return {
+        columns: getComputedStyle(controls).gridTemplateColumns,
+        hasQuantity: Boolean(controls.querySelector(".quantity-form")),
+        hasStatus: Boolean(controls.querySelector(".status-form")),
+        groupsOverlap: formRects.some((first, index) => formRects.slice(index + 1).some((second) => overlaps(first, second))),
+        labelsLinked: forms.every((form) => {
+          const label = form.querySelector("label");
+          const control = form.querySelector("input:not([type=hidden]), select");
+          return Boolean(label && control && label.htmlFor === control.id);
+        }),
+        buttons: [...controls.querySelectorAll("button")].map((button) => ({
+          text: button.textContent.trim(),
+          rect: rect(button),
+          textRect: textRect(button),
+          textFits: within(textRect(button), rect(button)),
+          contentFits: button.scrollWidth <= button.clientWidth + 1,
+          whiteSpace: getComputedStyle(button).whiteSpace,
+        })),
+      };
+    });
+    return {save, popover: popoverRect, colorRows, colorActions, viewStatus, allocationControls};
+  })()`);
+
+  if (process.env.BRICKMISSING_AUDIT_TRACE === "1") {
+    process.stdout.write(`Missing-parts hotfix metrics ${width}px: ${JSON.stringify(result)}\n`);
+  }
+  assert(result.save.textFits && result.save.contentFits, `Saved-view button text overflows at ${width}px: ${JSON.stringify(result.save)}`);
+  assert(!result.save.overlap, `Saved-view input and button overlap at ${width}px`);
+  if (width >= 1280) assert(result.save.sameRow, `Saved-view controls are not side by side at ${width}px: ${JSON.stringify(result.save)}`);
+  else assert(result.save.stacked, `Saved-view controls are not cleanly stacked at ${width}px: ${JSON.stringify(result.save)}`);
+
+  assert(result.colorRows.length >= 4, "Color filter test fixtures are incomplete");
+  const checkboxSizes = new Set(result.colorRows.map(({checkbox}) => `${checkbox.width}x${checkbox.height}`));
+  assert(checkboxSizes.size === 1, `Color swatches differ in size at ${width}px: ${JSON.stringify(result.colorRows)}`);
+  for (const group of new Set(result.colorRows.map(({group}) => group))) {
+    const rows = result.colorRows.filter((row) => row.group === group);
+    assert(new Set(rows.map(({checkbox}) => checkbox.left)).size === 1, `${group} swatches are not aligned at ${width}px`);
+    assert(new Set(rows.map(({name}) => name.left)).size === 1, `${group} color names are not aligned at ${width}px`);
+  }
+  assert(result.colorRows.every(({rowDisplay, alignItems, nameFits}) => rowDisplay === "grid" && alignItems === "center" && nameFits), `Color rows are unstable at ${width}px: ${JSON.stringify(result.colorRows)}`);
+  assert(result.colorRows.some(({label}) => label === "Glow in Dark White") && result.colorRows.some(({label}) => label === "Dark Bluish Gray"), "Long color-name fixtures are missing");
+  assert(result.colorActions.map(({text}) => text).includes("Alle Farben anzeigen") && result.colorActions.map(({text}) => text).includes("Übernehmen") && result.colorActions.every(({visible}) => visible), `Color-filter actions are unavailable at ${width}px`);
+
+  assert(result.viewStatus.exists && result.viewStatus.tag === "SPAN", "Cards-view information is missing or interactive");
+  assert(result.viewStatus.role === null && result.viewStatus.tabindex === null && !result.viewStatus.onclick, "Cards-view information exposes button semantics");
+  assert(result.viewStatus.cursor !== "pointer" && result.viewStatus.borderWidth === "0px", `Cards-view information still looks interactive at ${width}px: ${JSON.stringify(result.viewStatus)}`);
+
+  assert(result.allocationControls.some(({hasQuantity, hasStatus}) => hasQuantity && hasStatus), "Normal part controls are missing");
+  assert(result.allocationControls.some(({hasQuantity, hasStatus}) => hasQuantity && !hasStatus), "Minifigure quantity-only controls are missing");
+  for (const controls of result.allocationControls) {
+    assert(!controls.groupsOverlap && controls.labelsLinked, `Allocation control groups overlap or lose labels at ${width}px: ${JSON.stringify(controls)}`);
+    assert(controls.buttons.every(({textFits, contentFits}) => textFits && contentFits), `Allocation button text overflows at ${width}px: ${JSON.stringify(controls.buttons)}`);
   }
 }
 
@@ -722,7 +861,10 @@ try {
       await navigate(client, path);
       await auditOverflow(client, name, width);
       if (name === "dashboard") await auditDashboard(client, width);
-      if (name === "missingParts") await auditMissingParts(client, width);
+      if (name === "missingParts") {
+        await auditMissingParts(client, width);
+        await auditMissingPartsHotfixControls(client, width);
+      }
     }
   }
   for (const width of desktopWidths) {
@@ -731,7 +873,10 @@ try {
       await navigate(client, routes.authenticated[name]);
       await auditOverflow(client, name, width);
       if (name === "dashboard") await auditDashboard(client, width);
-      if (name === "missingParts") await auditMissingParts(client, width);
+      if (name === "missingParts") {
+        await auditMissingParts(client, width);
+        await auditMissingPartsHotfixControls(client, width);
+      }
     }
   }
 
@@ -771,6 +916,14 @@ try {
         await navigate(client, routes.authenticated[name]);
         const capture = await client.send("Page.captureScreenshot", {format: "png", fromSurface: true, captureBeyondViewport: ["dashboard", "missingParts"].includes(name)});
         await writeFile(join(artifactDirectory, `${name}-${width}x${height}.png`), Buffer.from(capture.data, "base64"));
+        if (name === "missingParts") {
+          await evaluate(client, `(() => {
+            document.querySelector(".missing-view-tools .save-view-details").open = true;
+            document.querySelector("[data-color-filter]").open = true;
+          })()`);
+          const controlsCapture = await client.send("Page.captureScreenshot", {format: "png", fromSurface: true, captureBeyondViewport: true});
+          await writeFile(join(artifactDirectory, `${name}-controls-${width}x${height}.png`), Buffer.from(controlsCapture.data, "base64"));
+        }
       }
     }
   }

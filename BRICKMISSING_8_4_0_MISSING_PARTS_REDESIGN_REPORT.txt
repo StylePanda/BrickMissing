@@ -1,0 +1,213 @@
+BrickMissing 8.4.0 – Fehlteile-Redesign
+========================================
+
+IMPLEMENTATION STATUS: READY
+PRODUCTION VALIDATION: PENDING
+
+Version vorher: 8.3.2
+Version nachher: 8.4.0
+
+1. Seitenstruktur vorher/nachher
+Vorher dominierte eine mindestens 1540 px breite Arbeitstabelle mit sechs Spalten und
+horizontalem Scrollcontainer. Jetzt werden Fehlteile als eigenständige, weiche
+Midnight-Violet-Collection-Karten dargestellt. Jede Karte priorisiert Teilidentität,
+Set-Zuordnungen, Gesamtbestand und anschließend Status/Kosten. Die Ergebnismenge ist als
+„X Fehlteile“ beschriftet. Die Kartenansicht ist die alleinige neue Standardansicht.
+
+Ein Karten-/Tabellen-Toggle wurde bewusst nicht implementiert: Zwei gleichzeitig gerenderte
+interaktive Darstellungen würden Formulare und IDs duplizieren; ein echter Wechsel hätte ein
+neues Frontend-State-System oder zusätzliche View-Logik benötigt. Die Aufgabenstellung erlaubt
+in diesem Fall ausdrücklich die ausschließliche Kartenansicht.
+
+2. Filterbereich
+Alle bestehenden Filter bleiben erhalten: Suche, Status, Bestand, Farbe, Set, Teileart,
+Seltenheit und Sortierung. Sie liegen in einem eigenen großen, abgerundeten Container. Die
+zweite Ebene enthält links Aktualisieren/Filter zurücksetzen und rechts die vorhandene
+Saved-View-Funktion. Der leere Saved-View-Zustand ist als abgegrenzter Empty State gestaltet.
+
+3. Kartenlayout
+Desktop: vier visuelle Spalten für Teil, Zuordnungen, Gesamt und Status/Kosten.
+Small Desktop/Tablet: zweispaltige bzw. einspaltige Umbrüche.
+Mobil: vollständig vertikale Karte ohne Dokument-Overflow.
+
+4. Teilbild/Teilinformationen
+Das vorhandene Teilbild bzw. der sichere Fallback wird in einer neutralen, festen Bildfläche
+mit object-fit: contain gezeigt. Name, Part-/Design-/Element-ID, Farbe und vorhandene Teileart
+(Set-Teil, Ohne Set oder Minifigurenteil) bilden eine abgestufte Hierarchie. Es wurde keine
+neue Kategorisierungslogik eingeführt.
+
+5. Set-Zuordnungen
+Jede Zuordnung ist eine eigene Sub-Card. Bereits verfügbare Set-/Minifigurbilder werden aus
+den vorab geladenen Beziehungen verwendet. Setnummer, Setname, optional Minifigur, spezifische
+Owned-/Required-/Missing-Werte und Workflowstatus bleiben getrennt vom Gruppen-Gesamtwert.
+
+6. Speicherlogik
+Normale Part-Zuordnungen speichern technisch weiterhin getrennt:
+- Menge: catalog:missing_part_quantity / set_part_owned_quantity
+- Status: catalog:missing_part_status / bestehende Konsistenzprüfung und AJAX-Antwort
+Minifigurteile besitzen weiterhin ausschließlich die bestehende Mengenaktion
+organizer:minifigure_part_quantity.
+
+Die Endpunkte wurden nicht zusammengeführt. Die Formulare sind visuell in einem gemeinsamen
+Control-Bereich gruppiert und heißen eindeutig „Menge speichern“ und „Status speichern“ statt
+zweier nicht unterscheidbarer „Speichern“-Buttons. Damit bleibt das Backend-Verhalten sicher
+unverändert.
+
+7. Mehrfach-Zuordnungen
+Mehrere Sets erscheinen untereinander im selben Zuordnungscontainer. Die Karte darf dadurch
+höher werden; horizontal werden keine zusätzlichen Zuordnungsspalten erzeugt.
+
+8. Gesamtbereich
+Required, Owned und Missing kommen unverändert aus den bereits autoritativ aggregierten
+group-Werten des View-Kontexts. Keine Part.owned_quantity-Parallellogik wurde ergänzt.
+
+9. Progressbar
+Ein natives, zugängliches progress-Element verwendet ausschließlich group.owned als value und
+group.required als max. Der Browser visualisiert das Verhältnis; aria-label und aria-valuetext
+nennen vorhandene und fehlende Mengen. Es gibt keine neue Mengenberechnung.
+
+10. Gruppenstatus
+Der unverändert vom bestehenden group_quantity_status/stock_state erzeugte Status wird als
+Badge plus kurze Beschreibung gezeigt. Mengen werden dort nicht wiederholt.
+
+11. Kosten
+Der bestehende aggregierte group.cost wird dezent im Statusbereich gezeigt. Nullwerte erscheinen
+als „Kein Preis hinterlegt“. Preisquelle und Berechnung wurden nicht verändert.
+
+12. Aktionen
+Bearbeiten und Pick a Brick bleiben je normaler Zuordnung als kleine Secondary-Links erreichbar.
+Fehlteil hinzufügen und Etikettendruck bleiben im Seitenkopf. Es wurde kein neues Menüsystem
+eingeführt.
+
+13. Responsive-Verhalten
+Edge/CDP prüft 320, 375, 390, 430, 768, 1024, 1280, 1440 und 1920 px. Geprüft werden Dokument-
+Overflow, Kartenüberlappung, abgeschnittene Controls, contain-Bilder, lesbare Zuordnungen,
+Progressbar und sichtbarer Status/Kostenbereich. Visuell geprüft wurden die erzeugten Vollseiten-
+Screenshots für 390, 768 und 1440 px.
+
+14. Accessibility
+Sichtbare Labels und eindeutige for/id-Zuordnung für Menge und Status; native Formcontrols;
+Tastatur- und Focus-Verhalten der vorhandenen Komponenten; textuelle Statusangaben zusätzlich
+zur Farbe; beschriftete Progressbar; Lightbox- und externe-Link-Hinweise; semantische Sections,
+Articles, Überschriften und Navigationslabels.
+
+15. Performance/Query-Verhalten
+Keine View-Query wurde ergänzt. Part.lego_set sowie MinifigurePart.minifigure und deren lego_set
+waren bereits select_related. Ein Regressionstest bestätigt, dass die Render-Query-Anzahl bei
+zusätzlichen Set-Zuordnungen konstant bleibt. Keine Query pro Karte oder Zuordnung.
+
+16. Geänderte Dateien
+- brickmissing_version.py
+- README.md
+- CHANGELOG.md
+- templates/catalog/missing_parts.html
+- static/css/app.css
+- static/js/missing-parts.js
+- apps/catalog/tests.py
+- apps/core/tests.py
+- tests/test_responsive_browser.py
+- scripts/responsive_ui_audit.mjs
+- RELEASE_NOTES_8.4.0.md (lokal/untracked)
+- BRICKMISSING_8_4_0_MISSING_PARTS_REDESIGN_REPORT.txt (lokal/untracked)
+
+17. Tests
+Gezielte Fehlteile-, Karten-, Bild/Fallback-, Identitäts-, Farbe-/Teileart-, Mehrfachzuordnungs-,
+Mengen-, Status-, Gesamtwert-, Kosten-, Action-, Owner-, Minifigur-, Filter-, Sortier-, Saved-
+View-, Owned-Quantity-, Reconciliation- und Gruppenstatus-Regressionen: PASS. Die neuen Karten-
+Tests sind Teil der vollständigen Suite.
+
+18. Vollständige Django-Suite
+python manage.py test --noinput: PASS – 519/519 Tests, 216.269 s.
+
+19. Ruff
+ruff check .: PASS – All checks passed.
+Ein zusätzlicher, nicht verlangter ruff-format Repository-Check meldet den bereits vorhandenen
+Formatierungsbestand in 81 Dateien; keine fremden Dateien wurden mechanisch umformatiert.
+
+20. Migration-Check
+python manage.py makemigrations --check --dry-run: PASS – No changes detected.
+python manage.py check: PASS – no issues.
+
+21. Edge/CDP
+tests.test_responsive_browser: PASS. Alle neun geforderten Viewports sind enthalten.
+node --check scripts/responsive_ui_audit.mjs: PASS.
+node --check static/js/missing-parts.js: PASS.
+
+22. Release-Build
+Lokaler Build dist/brickmissing-8.4.0: PASS.
+
+23. Verify
+Reguläre Release-Verifikation: PASS – 347 Dateien.
+Dependency-freie Release-Verifikation mit Python -S: PASS – 347 Dateien.
+git diff --check: PASS.
+
+24. Manifest 8.4.0
+RELEASE_MANIFEST.json im lokalen Artefakt meldet Version 8.4.0; Hash-/Größen-/Allowlist-
+Verifikation: PASS.
+
+25. Release Notes
+RELEASE_NOTES_8.4.0.md wurde lokal erstellt und bleibt untracked.
+
+26. Keine Migration
+Keine Model- oder Migrationsdatei geändert; Drift-Check PASS.
+
+27. Keine Dependency
+Keine Dependency und keine neue Icon-Library ergänzt.
+
+28. Kein Produktionszugriff
+PRODUCTION VALIDATION bleibt PENDING. Es gab keinen Produktionszugriff und keine Änderung an
+Produktionsdaten.
+
+29. Keine Secrets
+Keine Secrets gelesen, verändert oder ausgegeben. Der Release-Verifier akzeptiert das Artefakt.
+
+30. Kein Commit/Push/Tag/Release/Deployment
+Nicht ausgeführt: Commit, Push, Git-Tag, GitHub Release, Deployment.
+
+SPÄTERE MANUELLE PRODUKTIONSPRÜFUNG – PENDING
+------------------------------------------------
+1. Fehlteile-Seite öffnen. – PENDING
+2. Karten wirken deutlich freundlicher als alte Tabelle. – PENDING
+3. Teilbilder vollständig sichtbar. – PENDING
+4. Teilname/ID/Farbe korrekt. – PENDING
+5. Teileart korrekt. – PENDING
+6. Set-Zuordnungen korrekt. – PENDING
+7. Mehrere Zuordnungen sauber dargestellt. – PENDING
+8. Menge ändern funktioniert. – PENDING
+9. Status ändern funktioniert. – PENDING
+10. Speichern funktioniert. – PENDING
+11. Bearbeiten funktioniert. – PENDING
+12. Pick a Brick funktioniert. – PENDING
+13. Gesamtmenge korrekt. – PENDING
+14. Fortschrittsbalken korrekt. – PENDING
+15. Gruppenstatus korrekt. – PENDING
+16. Kosten korrekt. – PENDING
+17. Suche funktioniert. – PENDING
+18. Statusfilter funktioniert. – PENDING
+19. Bestandsfilter funktioniert. – PENDING
+20. Farbfilter funktioniert. – PENDING
+21. Setfilter funktioniert. – PENDING
+22. Teileartfilter funktioniert. – PENDING
+23. Seltenheitsfilter funktioniert. – PENDING
+24. Sortierung funktioniert. – PENDING
+25. Gespeicherte Ansichten funktionieren. – PENDING
+26. Ansicht speichern funktioniert. – PENDING
+27. Fehlteil hinzufügen funktioniert. – PENDING
+28. Etikettendruck funktioniert. – PENDING
+29. Desktop sauber. – PENDING
+30. Tablet sauber. – PENDING
+31. Smartphone sauber. – PENDING
+32. Kein horizontaler Overflow. – PENDING
+33. Mengenlogik unverändert. – PENDING
+34. Owner-Isolation korrekt. – PENDING
+35. Minifigurteile korrekt. – PENDING
+36. UI-Version = 8.4.0. – PENDING
+37. Healthcheck = 8.4.0. – PENDING
+38. Manifest = 8.4.0. – PENDING
+
+WEITERER WORKFLOW – NICHT AUSGEFÜHRT
+------------------------------------
+PC -> GitHub -> Produktionsserver -> Release-Build -> Verify -> Deploy -> manuelle
+Produktionsprüfung -> Git-Tag v8.4.0 -> GitHub Release 8.4.0.
+
+Nach der lokalen Fertigstellung wurde nicht selbstständig weitergemacht.

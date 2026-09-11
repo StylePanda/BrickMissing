@@ -152,6 +152,8 @@ class MissingPartsCardRedesignTests(TestCase):
 
         self.assertContains(response, "data-missing-card", count=1)
         self.assertNotContains(response, "<table")
+        self.assertContains(response, 'class="missing-view-label"')
+        self.assertNotContains(response, 'role="button"')
         for css_class in (
             "missing-card-part",
             "missing-card-allocations",

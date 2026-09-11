@@ -9,6 +9,7 @@ from django.urls import reverse
 
 from apps.accounts.models import User
 from apps.catalog.models import LegoSet, Part, SetInventoryItem
+from apps.organizer.models import MinifigurePart, SetMinifigure
 
 
 class ResponsiveBrowserTests(StaticLiveServerTestCase):
@@ -34,7 +35,7 @@ class ResponsiveBrowserTests(StaticLiveServerTestCase):
             lego_set=self.lego_set,
             part_number="browser-donut",
             name="Browser donut allocation",
-            required_quantity=1000,
+            required_quantity=998,
             owned_quantity=977,
         )
         related_sets = []
@@ -61,6 +62,30 @@ class ResponsiveBrowserTests(StaticLiveServerTestCase):
                 quantity=3,
                 owned_quantity=1 if index == 0 else 0,
             )
+        for index, color in enumerate(("Black", "Glow in Dark White", "White")):
+            Part.objects.create(
+                owner=self.user,
+                element_id=f"complete-color-{index}",
+                name=f"Completed {color} fixture",
+                color=color,
+                quantity=0,
+                owned_quantity=0,
+            )
+        figure = SetMinifigure.objects.create(
+            owner=self.user,
+            lego_set=self.lego_set,
+            figure_number="responsive-figure",
+            name="Responsive Minifigure",
+        )
+        MinifigurePart.objects.create(
+            minifigure=figure,
+            part_number="973",
+            element_id="responsive-mini-part",
+            name="Responsive Minifigure Torso",
+            color_name="White",
+            quantity=2,
+            owned_quantity=0,
+        )
 
     def test_application_layout_at_supported_viewports(self):
         edge = Path(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe")
