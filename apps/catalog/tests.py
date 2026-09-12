@@ -152,7 +152,8 @@ class MissingPartsCardRedesignTests(TestCase):
 
         self.assertContains(response, "data-missing-card", count=1)
         self.assertNotContains(response, "<table")
-        self.assertContains(response, 'class="missing-view-label"')
+        self.assertNotContains(response, "Kartenansicht")
+        self.assertNotContains(response, "missing-view-label")
         self.assertNotContains(response, 'role="button"')
         for css_class in (
             "missing-card-part",
@@ -1382,11 +1383,21 @@ class MissingSavedViewsTests(TestCase):
         self.other = user_model.objects.create_user("otherviews", "otherviews@example.test", "A-long-safe-password-123")
         self.client.force_login(self.user)
 
-    def test_saved_view_is_visible_and_load_restores_get_filters(self):
+    def test_saved_view_ui_is_absent_but_existing_load_restores_get_filters(self):
         item = SavedView.objects.create(owner=self.user, area="missing_parts", name="Bestellt Schwarz", path="/fehlteile/", configuration={"query": "q=Brick&status=ordered&color=Black&sort=-missing"})
-        response = self.client.get(reverse("catalog:missing_parts"))
-        self.assertContains(response, "Gespeicherte Ansichten")
-        self.assertContains(response, "Bestellt Schwarz")
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.get(reverse("catalog:missing_parts"))
+        self.assertFalse(any("core_savedview" in query["sql"].lower() for query in queries))
+        self.assertNotIn("saved_views", response.context)
+        for absent in (
+            "Aktuelle Ansicht speichern", "Gespeicherte Ansichten",
+            "Noch keine gespeicherten Ansichten", "Bestellt Schwarz",
+            "save-view-form", "save-view-details", "missing-view-tools",
+            "saved-views", "Kartenansicht", "missing-view-label",
+        ):
+            self.assertNotContains(response, absent)
+        self.assertContains(response, 'class="missing-filter-panel no-print"')
+        self.assertContains(response, 'class="missing-results-head"')
         loaded = self.client.get(reverse("saved_view_load", args=[item.pk]))
         self.assertEqual(loaded.status_code, 302)
         self.assertIn("q=Brick&status=ordered&color=Black&sort=-missing", loaded["Location"])
@@ -1405,6 +1416,16 @@ class MissingSavedViewsTests(TestCase):
         deleted = self.client.post(reverse("saved_view_delete", args=[own.pk]), {"next": "/fehlteile/"})
         self.assertEqual(deleted.status_code, 302)
         self.assertFalse(SavedView.objects.filter(pk=own.pk).exists())
+
+    def test_empty_saved_views_leave_no_ui_or_accessibility_references(self):
+        response = self.client.get(reverse("catalog:missing_parts"))
+        for absent in (
+            "Aktuelle Ansicht speichern", "Gespeicherte Ansichten",
+            "Noch keine gespeicherten Ansichten", "saved-views-title",
+            "save-view-form", "missing-view-tools", "Kartenansicht",
+            "missing-view-label", "aria-controls=\"saved-views",
+        ):
+            self.assertNotContains(response, absent)
 
 
 class SetDetailMinifigureCompletenessTests(TestCase):

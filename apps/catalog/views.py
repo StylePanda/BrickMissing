@@ -15,7 +15,6 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from apps.audit.models import AuditEvent
-from apps.core.models import SavedView
 from apps.core.rate_limit import limited
 from apps.core.services import record_recent
 from apps.integrations.services import normalize_rebrickable_set_number
@@ -781,7 +780,6 @@ def missing_parts(request):
             "sets": LegoSet.objects.filter(owner=request.user, deleted_at__isnull=True).order_by("set_number"),
             "part_kind": part_kind,
             "rarity": rarity,
-            "saved_views": SavedView.objects.filter(owner=request.user, area="missing_parts").order_by("name"),
         },
     )
 

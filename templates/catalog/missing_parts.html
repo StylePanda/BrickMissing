@@ -21,19 +21,9 @@
     <label>Sortierung<select name="sort"><option value="name"{% if sort == 'name' %} selected{% endif %}>Name A–Z</option><option value="-name"{% if sort == '-name' %} selected{% endif %}>Name Z–A</option><option value="part_number"{% if sort == 'part_number' %} selected{% endif %}>Teilenummer aufsteigend</option><option value="color"{% if sort == 'color' %} selected{% endif %}>Farbe A–Z</option><option value="-quantity"{% if sort == '-quantity' %} selected{% endif %}>Benötigte Menge absteigend</option><option value="-missing"{% if sort == '-missing' %} selected{% endif %}>Fehlmenge absteigend</option><option value="-owned_quantity"{% if sort == '-owned_quantity' %} selected{% endif %}>Vorhandene Menge absteigend</option><option value="size_form"{% if sort == 'size_form' %} selected{% endif %}>Größe/Form – aufsteigend</option><option value="-size_form"{% if sort == '-size_form' %} selected{% endif %}>Größe/Form – absteigend</option></select></label>
     <div class="missing-filter-actions"><button class="primary" type="submit">Aktualisieren</button><a class="button ghost" href="{% url 'catalog:missing_parts' %}">Filter zurücksetzen</a></div>
   </form>
-  <div class="missing-view-tools">
-    {% include "components/save_view.html" with saved_view_area="missing_parts" save_view_compact=True %}
-    <section class="saved-views" aria-labelledby="saved-views-title">
-      <h2 id="saved-views-title">Gespeicherte Ansichten</h2>
-      <div class="saved-views-list">
-        {% for item in saved_views %}<div class="saved-view-row"><strong>{{ item.name }}</strong><span><a class="button" href="{% url 'saved_view_load' item.pk %}">Laden</a><form method="post" action="{% url 'saved_view_delete' item.pk %}" class="inline-form">{% csrf_token %}<input type="hidden" name="next" value="/fehlteile/"><button class="danger" type="submit">Löschen</button></form></span></div>
-        {% empty %}<p class="saved-views-empty"><span aria-hidden="true">◇</span><span><strong>Noch keine gespeicherten Ansichten</strong><small>Speichere deine aktuelle Filterkombination für den schnellen Zugriff.</small></span></p>{% endfor %}
-      </div>
-    </section>
-  </div>
 </section>
 
-<div class="missing-results-head"><div><p class="eyebrow">Aktuelle Auswahl</p><h2>{{ missing_total }} Fehlteile</h2></div><span class="missing-view-label" aria-label="Aktive Ansicht: Kartenansicht"><span aria-hidden="true">▦</span> Kartenansicht</span></div>
+<div class="missing-results-head"><div><p class="eyebrow">Aktuelle Auswahl</p><h2>{{ missing_total }} Fehlteile</h2></div></div>
 
 <section class="missing-card-list" aria-label="Gefundene Fehlteile">
 {% for group in page_obj %}

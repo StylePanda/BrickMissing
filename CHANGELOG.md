@@ -1,5 +1,21 @@
 # Changelog
 
+## 8.4.2 — 12 September 2026
+
+### Changed
+
+- Fehlteile-Oberfläche weiter vereinfacht; Filter und Ergebnisse stehen kompakter beieinander.
+
+### Removed
+
+- Saved-View-Bereich aus der Fehlteile-Oberfläche entfernt. Persistierte Ansichten, Backend und andere Seiten bleiben erhalten.
+- Nicht-interaktive Kartenansicht-Anzeige entfernt.
+
+### Fixed
+
+- Unnötige Leerflächen im oberen Bereich der Fehlteile-Seite reduziert.
+- Keine Datenbankmigration oder Dependency-Änderung.
+
 ## 8.4.1 — 12 September 2026
 
 ### Fixed

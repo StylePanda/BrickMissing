@@ -226,13 +226,30 @@ async function auditMissingParts(client, width) {
         stateVisible: Boolean(card.querySelector(".missing-card-state")?.getBoundingClientRect().height),
       })),
       filterPanel: rect(document.querySelector(".missing-filter-panel")),
+      filterForm: rect(document.querySelector(".missing-filters")),
+      filterActions: rect(document.querySelector(".missing-filter-actions")),
+      resultsRegion: rect(document.querySelector(".missing-results-head")),
+      resultsHeading: rect(document.querySelector(".missing-results-head h2")),
       resultsHead: document.querySelector(".missing-results-head h2")?.textContent || "",
+      removedUi: [".missing-view-tools", ".save-view-details", ".save-view-form", ".saved-views", ".missing-view-label"].some((selector) => document.querySelector(selector)),
+      removedText: ["Aktuelle Ansicht speichern", "Gespeicherte Ansichten", "Noch keine gespeicherten Ansichten", "Kartenansicht"].some((label) => document.body.textContent.includes(label)),
+      orphanedAria: [...document.querySelectorAll("[aria-controls], [aria-labelledby]")].flatMap((node) => {
+        const attribute = node.getAttribute("aria-controls") || node.getAttribute("aria-labelledby");
+        return attribute.split(/\\s+/).filter((id) => !document.getElementById(id)).map((id) => ({element: node.outerHTML.slice(0, 180), id}));
+      }),
     };
   })()`);
   assert(result.cardCount > 0, "Missing-parts cards are absent");
   assert(!result.hasLegacyTable, "Missing-parts view still renders the legacy table");
   assert(result.resultsHead.includes("Fehlteile"), "Missing-parts result heading lacks its label");
+  assert(!result.removedUi && !result.removedText, `Removed missing-parts UI remains at ${width}px`);
+  assert(!result.orphanedAria.length, `Missing-parts page has orphaned ARIA references at ${width}px: ${JSON.stringify(result.orphanedAria)}`);
   assert(result.filterPanel.left >= -1 && result.filterPanel.right <= width + 1, `Missing-parts filters escape at ${width}px`);
+  assert(result.filterActions.bottom <= result.filterForm.bottom + 1 && result.filterForm.bottom <= result.filterPanel.bottom + 1, `Missing-parts filters have empty trailing space at ${width}px`);
+  assert(result.filterPanel.bottom - result.filterActions.bottom <= 48, `Missing-parts filter panel keeps excessive space after its actions at ${width}px`);
+  assert(result.filterPanel.bottom <= result.resultsRegion.top && result.resultsRegion.top - result.filterPanel.bottom <= 96, `Missing-parts results are too far from filters at ${width}px`);
+  assert(Math.abs(result.resultsHeading.left - result.resultsRegion.left) <= 1, `Missing-parts result heading is not left aligned at ${width}px`);
+  assert(result.cards[0]?.rect.top >= result.resultsRegion.bottom && result.cards[0]?.rect.top - result.resultsRegion.bottom <= 96, `Missing-parts cards are too far from heading at ${width}px`);
   assert(result.cards.some(({allocationCount}) => allocationCount >= 3), "Multiple set allocations are not grouped in one card");
   for (let index = 0; index < result.cards.length; index += 1) {
     const card = result.cards[index];
@@ -270,30 +287,6 @@ async function auditMissingPartsHotfixControls(client, width) {
     const overlaps = (first, second) => first.left < second.right && first.right > second.left
       && first.top < second.bottom && first.bottom > second.top;
 
-    const saveDetails = document.querySelector(".missing-view-tools .save-view-details");
-    saveDetails.open = true;
-    const saveForm = saveDetails.querySelector(".save-view-form");
-    const saveInput = saveForm.querySelector("input[name=name]");
-    const saveButton = saveForm.querySelector("button");
-    const saveInputRect = rect(saveInput);
-    const saveButtonRect = rect(saveButton);
-    const saveButtonTextRect = textRect(saveButton);
-    const save = {
-      formDisplay: getComputedStyle(saveForm).display,
-      columns: getComputedStyle(saveForm).gridTemplateColumns,
-      input: saveInputRect,
-      button: saveButtonRect,
-      buttonText: saveButtonTextRect,
-      buttonWhiteSpace: getComputedStyle(saveButton).whiteSpace,
-      buttonScrollWidth: saveButton.scrollWidth,
-      buttonClientWidth: saveButton.clientWidth,
-      textFits: within(saveButtonTextRect, saveButtonRect),
-      contentFits: saveButton.scrollWidth <= saveButton.clientWidth + 1,
-      sameRow: Math.abs(saveInputRect.top - saveButtonRect.top) < 8,
-      stacked: saveButtonRect.top >= saveInputRect.bottom - 1,
-      overlap: overlaps(saveInputRect, saveButtonRect),
-    };
-
     const colorDetails = document.querySelector("[data-color-filter]");
     colorDetails.open = true;
     const colorPopover = colorDetails.querySelector(".color-filter-popover");
@@ -317,21 +310,6 @@ async function auditMissingPartsHotfixControls(client, width) {
       text: button.textContent.trim(), rect: rect(button), visible: Boolean(button.offsetWidth && button.offsetHeight),
     }));
     colorDetails.open = false;
-    saveDetails.open = false;
-
-    const view = document.querySelector(".missing-view-label");
-    const viewStyle = getComputedStyle(view);
-    const viewStatus = {
-      exists: Boolean(view),
-      tag: view?.tagName,
-      role: view?.getAttribute("role"),
-      tabindex: view?.getAttribute("tabindex"),
-      cursor: viewStyle.cursor,
-      background: viewStyle.backgroundColor,
-      borderWidth: viewStyle.borderWidth,
-      onclick: Boolean(view?.onclick),
-    };
-
     const allocationControls = [...document.querySelectorAll(".allocation-controls")].map((controls) => {
       const forms = [...controls.querySelectorAll(":scope > .allocation-form")];
       const formRects = forms.map(rect);
@@ -355,17 +333,12 @@ async function auditMissingPartsHotfixControls(client, width) {
         })),
       };
     });
-    return {save, popover: popoverRect, colorRows, colorActions, viewStatus, allocationControls};
+    return {popover: popoverRect, colorRows, colorActions, allocationControls};
   })()`);
 
   if (process.env.BRICKMISSING_AUDIT_TRACE === "1") {
     process.stdout.write(`Missing-parts hotfix metrics ${width}px: ${JSON.stringify(result)}\n`);
   }
-  assert(result.save.textFits && result.save.contentFits, `Saved-view button text overflows at ${width}px: ${JSON.stringify(result.save)}`);
-  assert(!result.save.overlap, `Saved-view input and button overlap at ${width}px`);
-  if (width >= 1280) assert(result.save.sameRow, `Saved-view controls are not side by side at ${width}px: ${JSON.stringify(result.save)}`);
-  else assert(result.save.stacked, `Saved-view controls are not cleanly stacked at ${width}px: ${JSON.stringify(result.save)}`);
-
   assert(result.colorRows.length >= 4, "Color filter test fixtures are incomplete");
   const checkboxSizes = new Set(result.colorRows.map(({checkbox}) => `${checkbox.width}x${checkbox.height}`));
   assert(checkboxSizes.size === 1, `Color swatches differ in size at ${width}px: ${JSON.stringify(result.colorRows)}`);
@@ -377,10 +350,6 @@ async function auditMissingPartsHotfixControls(client, width) {
   assert(result.colorRows.every(({rowDisplay, alignItems, nameFits}) => rowDisplay === "grid" && alignItems === "center" && nameFits), `Color rows are unstable at ${width}px: ${JSON.stringify(result.colorRows)}`);
   assert(result.colorRows.some(({label}) => label === "Glow in Dark White") && result.colorRows.some(({label}) => label === "Dark Bluish Gray"), "Long color-name fixtures are missing");
   assert(result.colorActions.map(({text}) => text).includes("Alle Farben anzeigen") && result.colorActions.map(({text}) => text).includes("Übernehmen") && result.colorActions.every(({visible}) => visible), `Color-filter actions are unavailable at ${width}px`);
-
-  assert(result.viewStatus.exists && result.viewStatus.tag === "SPAN", "Cards-view information is missing or interactive");
-  assert(result.viewStatus.role === null && result.viewStatus.tabindex === null && !result.viewStatus.onclick, "Cards-view information exposes button semantics");
-  assert(result.viewStatus.cursor !== "pointer" && result.viewStatus.borderWidth === "0px", `Cards-view information still looks interactive at ${width}px: ${JSON.stringify(result.viewStatus)}`);
 
   assert(result.allocationControls.some(({hasQuantity, hasStatus}) => hasQuantity && hasStatus), "Normal part controls are missing");
   assert(result.allocationControls.some(({hasQuantity, hasStatus}) => hasQuantity && !hasStatus), "Minifigure quantity-only controls are missing");
@@ -918,7 +887,6 @@ try {
         await writeFile(join(artifactDirectory, `${name}-${width}x${height}.png`), Buffer.from(capture.data, "base64"));
         if (name === "missingParts") {
           await evaluate(client, `(() => {
-            document.querySelector(".missing-view-tools .save-view-details").open = true;
             document.querySelector("[data-color-filter]").open = true;
           })()`);
           const controlsCapture = await client.send("Page.captureScreenshot", {format: "png", fromSurface: true, captureBeyondViewport: true});
