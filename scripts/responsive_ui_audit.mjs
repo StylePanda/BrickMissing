@@ -124,7 +124,7 @@ async function evaluate(client, expression) {
     awaitPromise: true,
     returnByValue: true,
   });
-  if (result.exceptionDetails) throw new Error(result.exceptionDetails.text || "Browser evaluation failed");
+  if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text || "Browser evaluation failed");
   return result.result.value;
 }
 
@@ -267,6 +267,124 @@ async function auditMissingParts(client, width) {
       assert(!overlaps, `Missing-parts cards overlap at ${width}px`);
     }
   }
+}
+
+async function auditMinifigures(client, width) {
+  const initial = await evaluate(client, `(() => {
+    const rect = (node) => { const box = node.getBoundingClientRect(); return {left: box.left, right: box.right, top: box.top, bottom: box.bottom, width: box.width, height: box.height}; };
+    const sets = [...document.querySelectorAll("[data-set-group]")];
+    const figures = [...sets[0].querySelectorAll("[data-minifigure]")];
+    const secondClosed = !sets[1].open;
+    sets[1].open = true;
+    const singleCard = rect(sets[1].querySelector(".minifigure-card"));
+    const singleGrid = rect(sets[1].querySelector(".minifigure-grid"));
+    sets[1].open = false;
+    const kpis = [...document.querySelectorAll(".minifigure-kpi")].map(rect);
+    const filters = [...document.querySelectorAll(".minifigure-filters > label")].map(rect);
+    const select = document.querySelector('select[name="completeness"]');
+    return {
+      kpis, filters, sets: sets.length, firstOpen: sets[0].open, secondClosed,
+      singleCardSpans: Math.abs(singleCard.width - singleGrid.width) <= 1,
+      firstSetFigures: figures.length, figureRects: figures.map(rect),
+      partClosed: !figures[0].querySelector(".minifigure-parts").open,
+      values: [...document.querySelectorAll("[data-minifigure-kpi]")].map((node) => Number(node.textContent)),
+      options: [...select.options].map((option) => option.value),
+      hasTable: Boolean(document.querySelector(".minifigure-set-group table")),
+      figureFallback: Boolean(document.querySelector(".minifigure-card-image.minifigure-image-fallback")),
+      partFallback: Boolean(document.querySelector(".minifigure-part-image.minifigure-image-fallback")),
+      links: Boolean(document.querySelector(".minifigure-set-name[href], .minifigure-edit[href]")),
+      progress: [...figures].every((card) => card.querySelector("progress") && card.querySelector("[data-figure-status]")),
+    };
+  })()`);
+  const overlaps = (first, second) => first.left < second.right && first.right > second.left && first.top < second.bottom && first.bottom > second.top;
+  const noPairOverlap = (rects) => rects.every((first, index) => rects.slice(index + 1).every((second) => !overlaps(first, second)));
+  assert(initial.sets === 2 && initial.firstOpen && initial.secondClosed, `Minifigure set collapse state is wrong at ${width}px`);
+  assert(initial.firstSetFigures === 2 && initial.partClosed && !initial.hasTable, `Minifigure collection structure is wrong at ${width}px`);
+  assert(initial.singleCardSpans, `Single minifigure does not fill its set group at ${width}px`);
+  assert(initial.values.join(",") === "1,1,1", `Minifigure KPI values are wrong at ${width}px: ${initial.values}`);
+  assert(initial.options.join(",") === ",complete,partial,missing", `Minifigure completeness options are wrong at ${width}px`);
+  assert(initial.figureFallback && initial.partFallback, `Minifigure image fallbacks are missing at ${width}px`);
+  assert(initial.links && initial.progress, `Minifigure actions or progress are missing at ${width}px`);
+  assert(noPairOverlap(initial.kpis) && noPairOverlap(initial.filters) && noPairOverlap(initial.figureRects), `Minifigure cards or filters overlap at ${width}px`);
+  if (width >= 1001) assert(Math.abs(initial.figureRects[0].top - initial.figureRects[1].top) <= 1, `Minifigures are not side by side at ${width}px`);
+  else assert(initial.figureRects[1].top >= initial.figureRects[0].bottom, `Minifigures are not stacked at ${width}px`);
+
+  const accordion = await evaluate(client, `(() => {
+    const details = document.querySelector("[data-minifigure] .minifigure-parts");
+    const summary = details.querySelector("summary");
+    summary.focus();
+    const focused = document.activeElement === summary;
+    summary.click();
+    return {focused, open: details.open};
+  })()`);
+  assert(accordion.focused && accordion.open, `Minifigure part accordion is not keyboard-focusable or clickable at ${width}px`);
+  await evaluate(client, `Promise.all([...document.querySelector("[data-set-group]").querySelectorAll(".minifigure-set-image img, .minifigure-card-image img, .minifigure-part-image img")].map((img) => { img.loading = "eager"; return img.decode().catch(() => null); }))`);
+  const expanded = await evaluate(client, `(() => {
+    const rect = (node) => { const box = node.getBoundingClientRect(); return {left: box.left, right: box.right, top: box.top, bottom: box.bottom, width: box.width, height: box.height}; };
+    const set = document.querySelector("[data-set-group]");
+    const figure = set.querySelector("[data-minifigure]");
+    const parts = [...figure.querySelectorAll("[data-minifigure-part]")];
+    const images = [...set.querySelectorAll(".minifigure-set-image img, .minifigure-card-image img, .minifigure-part-image img")].map((node) => ({
+      image: rect(node), wrapper: rect(node.parentElement), objectFit: getComputedStyle(node).objectFit,
+      src: node.getAttribute("src"), currentSrc: node.currentSrc, naturalWidth: node.naturalWidth,
+      naturalHeight: node.naturalHeight,
+    }));
+    return {
+      set: rect(set), figure: rect(figure), parts: parts.map(rect), images,
+      controls: [...figure.querySelectorAll(".minifigure-part-quantity input, .minifigure-part-quantity button")].map(rect),
+      form: rect(figure.querySelector(".minifigure-part-quantity")),
+      formGrid: getComputedStyle(figure.querySelector(".minifigure-part-quantity > div")).gridTemplateColumns,
+      progress: rect(figure.querySelector("progress")), status: rect(figure.querySelector("[data-figure-status]")),
+      detailsOpen: figure.querySelector(".minifigure-parts").open,
+      visibleText: figure.querySelector(".minifigure-parts summary").innerText,
+    };
+  })()`);
+  const inside = (child, parent) => child.left >= parent.left - 1 && child.right <= parent.right + 1 && child.top >= parent.top - 1 && child.bottom <= parent.bottom + 1;
+  assert(expanded.detailsOpen && expanded.visibleText.includes("Einzelteile ausblenden"), `Minifigure part accordion did not open at ${width}px`);
+  assert(expanded.parts.length === 2 && noPairOverlap(expanded.parts), `Minifigure part cards overlap at ${width}px`);
+  if (width > 600) assert(Math.abs(expanded.parts[0].top - expanded.parts[1].top) <= 1, `Minifigure part cards are not side by side at ${width}px`);
+  else assert(expanded.parts[1].top >= expanded.parts[0].bottom, `Minifigure part cards are not stacked at ${width}px`);
+  assert(expanded.parts.every((part) => inside(part, expanded.figure)), `Minifigure part cards leave the figure card at ${width}px`);
+  assert(expanded.controls.every((control) => control.width === 0 || expanded.parts.some((part) => inside(control, part))), `Minifigure quantity controls are clipped at ${width}px: ${JSON.stringify({controls: expanded.controls, form: expanded.form, formGrid: expanded.formGrid, parts: expanded.parts})}`);
+  assert(inside(expanded.progress, expanded.figure) && inside(expanded.status, expanded.figure), `Minifigure progress or status is clipped at ${width}px`);
+  assert(expanded.images.every(({image, wrapper, objectFit, src, currentSrc, naturalWidth, naturalHeight}) => objectFit === "contain" && inside(image, wrapper) && src && currentSrc && naturalWidth > 0 && naturalHeight > 0), `Minifigure images are cropped or unloaded at ${width}px: ${JSON.stringify(expanded.images)}`);
+  await evaluate(client, `(() => { const set = document.querySelector("[data-set-group]"); set.open = false; set.open = true; set.querySelector(".minifigure-parts").open = false; })()`);
+}
+
+async function auditMinifigureQuantity(client) {
+  await navigate(client, routes.authenticated.minifigures);
+  const setup = await evaluate(client, `(() => {
+    const parts = document.querySelectorAll("[data-minifigure]")[1].querySelector(".minifigure-parts");
+    parts.open = true;
+    const button = parts.querySelector("[data-minifigure-part] .minifigure-part-shortcuts button");
+    const form = button.closest("form");
+    return {path: location.pathname, formAction: form.action, handler: form.dataset.inlineInventory, figures: document.querySelectorAll("[data-minifigure]").length};
+  })()`);
+  assert(setup.handler === "true", `Minifigure inline inventory handler is absent: ${JSON.stringify(setup)}`);
+  await evaluate(client, `document.querySelectorAll("[data-minifigure]")[1].querySelector("[data-minifigure-part] .minifigure-part-shortcuts button").click()`);
+  let state;
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    await delay(100);
+    state = await evaluate(client, `(() => {
+      const figure = document.querySelectorAll("[data-minifigure]")[1];
+      if (!figure) return {path: location.pathname, figures: document.querySelectorAll("[data-minifigure]").length};
+      const part = figure.querySelector("[data-minifigure-part]");
+      if (!part || !part.querySelector("[data-part-owned]")) return {path: location.pathname, figure: figure.outerHTML.slice(0, 250), part: part?.outerHTML.slice(0, 250)};
+      return {
+        partOwned: part.querySelector("[data-part-owned]").textContent.trim(),
+        partStatus: part.querySelector("[data-part-status]")?.textContent.trim(),
+        figureOwned: figure.querySelector("[data-figure-owned]")?.textContent.trim(),
+        figureStatus: figure.querySelector("[data-figure-status]")?.textContent.trim(),
+        progress: figure.querySelector("progress")?.value,
+        completeKpi: document.querySelector('[data-minifigure-kpi="complete"]')?.textContent.trim(),
+        partialKpi: document.querySelector('[data-minifigure-kpi="partial"]')?.textContent.trim(),
+        path: location.pathname,
+      };
+    })()`);
+    if (state.figureStatus === "Vollständig") break;
+  }
+  assert(state.partOwned === "2" && state.partStatus === "Komplett" && state.figureOwned === "2" && state.figureStatus === "Vollständig" && state.progress === 100, `Minifigure quantity update did not refresh its cards: ${JSON.stringify(state)}`);
+  assert(state.completeKpi === "2" && state.partialKpi === "0", `Minifigure KPI values did not refresh after quantity update: ${JSON.stringify(state)}`);
 }
 
 async function auditMissingPartsHotfixControls(client, width) {
@@ -834,11 +952,12 @@ try {
         await auditMissingParts(client, width);
         await auditMissingPartsHotfixControls(client, width);
       }
+      if (name === "minifigures") await auditMinifigures(client, width);
     }
   }
   for (const width of desktopWidths) {
     await setViewport(client, width, width >= 1440 ? 900 : 1024);
-    for (const name of ["dashboard", "sets", "setForm", "setDetail", "missingParts"]) {
+    for (const name of ["dashboard", "sets", "setForm", "setDetail", "missingParts", "minifigures"]) {
       await navigate(client, routes.authenticated[name]);
       await auditOverflow(client, name, width);
       if (name === "dashboard") await auditDashboard(client, width);
@@ -846,6 +965,7 @@ try {
         await auditMissingParts(client, width);
         await auditMissingPartsHotfixControls(client, width);
       }
+      if (name === "minifigures") await auditMinifigures(client, width);
     }
   }
 
@@ -881,9 +1001,9 @@ try {
     ];
     for (const [width, height] of screenshots) {
       await setViewport(client, width, height);
-      for (const name of ["dashboard", "sets", "setForm", "missingParts"]) {
+      for (const name of ["dashboard", "sets", "setForm", "missingParts", "minifigures"]) {
         await navigate(client, routes.authenticated[name]);
-        const capture = await client.send("Page.captureScreenshot", {format: "png", fromSurface: true, captureBeyondViewport: ["dashboard", "missingParts"].includes(name)});
+        const capture = await client.send("Page.captureScreenshot", {format: "png", fromSurface: true, captureBeyondViewport: ["dashboard", "missingParts", "minifigures"].includes(name)});
         await writeFile(join(artifactDirectory, `${name}-${width}x${height}.png`), Buffer.from(capture.data, "base64"));
         if (name === "missingParts") {
           await evaluate(client, `(() => {
@@ -892,9 +1012,15 @@ try {
           const controlsCapture = await client.send("Page.captureScreenshot", {format: "png", fromSurface: true, captureBeyondViewport: true});
           await writeFile(join(artifactDirectory, `${name}-controls-${width}x${height}.png`), Buffer.from(controlsCapture.data, "base64"));
         }
+        if (name === "minifigures") {
+          await evaluate(client, `document.querySelector("[data-minifigure] .minifigure-parts").open = true`);
+          const expandedCapture = await client.send("Page.captureScreenshot", {format: "png", fromSurface: true, captureBeyondViewport: true});
+          await writeFile(join(artifactDirectory, `${name}-expanded-${width}x${height}.png`), Buffer.from(expandedCapture.data, "base64"));
+        }
       }
     }
   }
+  await auditMinifigureQuantity(client);
   process.stdout.write("Responsive browser audit passed.\n");
 } finally {
   if (client && targetId) {

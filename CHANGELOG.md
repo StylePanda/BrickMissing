@@ -1,5 +1,18 @@
 # Changelog
 
+## 8.5.0 — 12 September 2026
+
+### Added
+
+- KPI-Übersicht und Vollständigkeitsfilter für Minifiguren.
+- Kartenbasierte Einzelteildarstellung und Fortschrittsanzeigen.
+
+### Changed
+
+- Minifiguren-Seite auf ein Collection-Layout mit klarer Set- und Figurenhierarchie umgestellt.
+- Responsive Darstellung von Minifiguren und Einzelteilen überarbeitet.
+- Keine Datenbankmigration oder Dependency-Änderung.
+
 ## 8.4.2 — 12 September 2026
 
 ### Changed

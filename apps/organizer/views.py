@@ -1,5 +1,5 @@
 import uuid
-from collections import OrderedDict
+from collections import Counter, OrderedDict
 from urllib.parse import quote
 
 from django.conf import settings
@@ -209,20 +209,6 @@ def minifigure_list(request):
         SetMinifigure.objects.filter(owner=request.user, lego_set__deleted_at__isnull=True)
         .select_related("lego_set")
     )
-    query = request.GET.get("q", "").strip()
-    if query:
-        figures = figures.filter(
-            models.Q(name__icontains=query)
-            | models.Q(figure_number__icontains=query)
-            | models.Q(lego_set__set_number__icontains=query)
-            | models.Q(lego_set__name__icontains=query)
-        )
-    set_id = request.GET.get("set", "")
-    if set_id:
-        figures = figures.filter(lego_set_id=set_id)
-    sort = request.GET.get("sort", "set_number")
-    if sort not in MINIFIGURE_SORTS:
-        sort = "set_number"
     integer_field = models.IntegerField()
     figures = figures.annotate(
         required_total=models.functions.Coalesce(
@@ -255,6 +241,33 @@ def minifigure_list(request):
             output_field=integer_field,
         ),
     )
+    status_counts = Counter(figures.values_list("completeness_order", flat=True))
+    kpis = {
+        "total": sum(status_counts.values()),
+        "complete": status_counts[0],
+        "partial": status_counts[1],
+        "missing": status_counts[2],
+    }
+    query = request.GET.get("q", "").strip()
+    if query:
+        figures = figures.filter(
+            models.Q(name__icontains=query)
+            | models.Q(figure_number__icontains=query)
+            | models.Q(lego_set__set_number__icontains=query)
+            | models.Q(lego_set__name__icontains=query)
+        )
+    set_id = request.GET.get("set", "")
+    if set_id:
+        figures = figures.filter(lego_set_id=set_id)
+    completeness = request.GET.get("completeness", "")
+    completeness_values = {"complete": 0, "partial": 1, "missing": 2}
+    if completeness in completeness_values:
+        figures = figures.filter(completeness_order=completeness_values[completeness])
+    else:
+        completeness = ""
+    sort = request.GET.get("sort", "set_number")
+    if sort not in MINIFIGURE_SORTS:
+        sort = "set_number"
     ordering = {
         "set_number": ("lego_set__set_number", "pk"),
         "-set_number": ("-lego_set__set_number", "pk"),
@@ -286,9 +299,11 @@ def minifigure_list(request):
         {
             "groups": list(groups.values()),
             "figure_count": page_obj.paginator.count,
+            "kpis": kpis,
             "page_obj": page_obj,
             "query": query,
             "set_id": set_id,
+            "completeness": completeness,
             "available_sets": available_sets,
             "sort": sort,
             "sorts": MINIFIGURE_SORTS,

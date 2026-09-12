@@ -35,8 +35,8 @@ class ResponsiveBrowserTests(StaticLiveServerTestCase):
             lego_set=self.lego_set,
             part_number="browser-donut",
             name="Browser donut allocation",
-            required_quantity=998,
-            owned_quantity=977,
+            required_quantity=995,
+            owned_quantity=975,
         )
         related_sets = []
         for index in range(2):
@@ -76,6 +76,7 @@ class ResponsiveBrowserTests(StaticLiveServerTestCase):
             lego_set=self.lego_set,
             figure_number="responsive-figure",
             name="Responsive Minifigure",
+            image_url="/static/icons/brickmissing.svg",
         )
         MinifigurePart.objects.create(
             minifigure=figure,
@@ -85,6 +86,27 @@ class ResponsiveBrowserTests(StaticLiveServerTestCase):
             color_name="White",
             quantity=2,
             owned_quantity=0,
+            image_url="/static/icons/brickmissing.svg",
+        )
+        MinifigurePart.objects.create(
+            minifigure=figure, part_number="responsive-spare", name="Responsive Spare",
+            quantity=1, owned_quantity=0, is_spare=True,
+        )
+        second_figure = SetMinifigure.objects.create(
+            owner=self.user, lego_set=self.lego_set, figure_number="responsive-second",
+            name="Second Responsive Minifigure",
+        )
+        MinifigurePart.objects.create(
+            minifigure=second_figure, part_number="3626", name="Responsive Head",
+            quantity=2, owned_quantity=1,
+        )
+        complete_figure = SetMinifigure.objects.create(
+            owner=self.user, lego_set=related_sets[0], figure_number="responsive-complete",
+            name="Complete Responsive Minifigure", image_url="/static/icons/brickmissing.svg",
+        )
+        MinifigurePart.objects.create(
+            minifigure=complete_figure, part_number="3626b", name="Complete Head",
+            quantity=1, owned_quantity=1, image_url="/static/icons/brickmissing.svg",
         )
 
     def test_application_layout_at_supported_viewports(self):

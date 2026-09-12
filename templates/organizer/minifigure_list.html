@@ -1,22 +1,67 @@
-{% extends "base.html" %}{% load static %}{% block title %}Minifiguren{% endblock %}{% block content %}
-<div class="page-head"><div><p class="eyebrow">Sammlung</p><h1>Minifiguren</h1><p class="muted">Figuren, Einzelteile und Vollständigkeit nach Sets geordnet.</p></div><div class="actions"><a class="button" href="{% url 'organizer:list' 'minifigures' %}">Daten verwalten</a><a class="button primary" href="{% url 'organizer:create' 'minifigures' %}">+ Minifigur</a></div></div>
-<form class="panel filter-bar minifigure-filters" method="get">
-  <label><span class="sr-only">Minifiguren durchsuchen</span><input type="search" name="q" value="{{ query }}" placeholder="Minifigur, Figurennummer oder Set suchen"></label>
-  <label><span class="sr-only">Set filtern</span><select name="set"><option value="">Alle Sets</option>{% for lego_set in available_sets %}<option value="{{ lego_set.pk }}"{% if set_id == lego_set.pk|stringformat:'s' %} selected{% endif %}>{{ lego_set.set_number }} – {{ lego_set.name }}</option>{% endfor %}</select></label>
-  <label><span class="sr-only">Sortierung</span><select name="sort">{% for value,label in sorts.items %}<option value="{{ value }}"{% if sort == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
-  <button type="submit">Daten aktualisieren</button>
-</form>
-<div class="section-head minifigure-results-head"><div><p class="eyebrow">Ergebnisse</p><h2>{{ figure_count }} Figur{{ figure_count|pluralize:"en" }}</h2></div></div>
-{% for group in groups %}<section class="minifigure-set-group">
-  <header><div><span class="eyebrow">Set {{ group.lego_set.set_number }}</span><h2><a href="{% url 'catalog:set_detail' group.lego_set.pk %}">{{ group.lego_set.name }}</a></h2></div><strong>{{ group.figures|length }} Minifigur{{ group.figures|length|pluralize:"en" }}</strong></header>
-  {% for record in group.figures %}<article class="minifigure-row">
-    <div class="minifigure-identity">{% if record.figure.image_url %}<button class="part-image-trigger" type="button" data-lightbox-image="{{ record.figure.image_url|proxied_image_url }}" data-lightbox-title="{{ record.figure.name }}"><img src="{{ record.figure.image_url|proxied_image_url }}" alt="{{ record.figure.name }}" loading="lazy" data-image-fallback></button>{% else %}<span class="part-placeholder">Kein Bild</span>{% endif %}<div><strong>{{ record.figure.figure_number }}</strong><h3>{{ record.figure.name }}</h3><span class="muted">{{ record.figure.quantity }}× im Set</span></div></div>
-    <div class="minifigure-progress"><div><strong>{{ record.owned }}/{{ record.required }}</strong> Teile vorhanden</div><progress max="100" value="{{ record.percent }}" aria-label="Vollständigkeit von {{ record.figure.name }}: {{ record.percent }} Prozent">{{ record.percent }} %</progress><span class="badge {{ record.status }}">{{ record.status_label }}</span></div>
-    <a class="button" href="{% url 'organizer:edit' 'minifigures' record.figure.pk %}">Bearbeiten</a>
-  </article>
-  <details class="minifigure-parts"><summary>Einzelteile anzeigen <span>{{ record.parts|length }} Position{{ record.parts|length|pluralize:"en" }}</span></summary><div class="table-wrap"><table><thead><tr><th>Bild</th><th>Teil</th><th>Farbe</th><th>Benötigt</th><th>Bestand</th><th>Status</th><th>Aktion</th></tr></thead><tbody>{% for part in record.parts %}<tr><td>{% if part.image_url %}<button class="part-image-trigger" type="button" data-lightbox-image="{{ part.image_url|proxied_image_url }}" data-lightbox-title="{{ part.name }}"><img src="{{ part.image_url|proxied_image_url }}" alt="{{ part.name }}" loading="lazy" data-image-fallback></button>{% else %}<span class="part-placeholder">Kein Bild</span>{% endif %}</td><td><strong>{{ part.name }}</strong><small>{{ part.part_number }}{% if part.element_id %} · Element {{ part.element_id }}{% endif %}{% if part.is_spare %} · Ersatzteil{% endif %}</small></td><td>{{ part.color_name|default:"–" }}</td><td>{{ part.quantity }}×</td><td><form class="quantity-form" method="post" action="{% url 'organizer:minifigure_part_quantity' record.figure.pk part.pk %}">{% csrf_token %}<input class="compact-number" type="number" min="0" max="{{ part.quantity }}" name="owned_quantity" value="{{ part.owned_quantity }}" aria-label="Vorhandene Menge"><button>Speichern</button></form></td><td><span class="badge {% if part.missing_quantity == 0 %}found{% elif part.owned_quantity == 0 %}missing{% else %}partial{% endif %}">{% if part.missing_quantity == 0 %}Komplett{% elif part.owned_quantity == 0 %}Fehlend{% else %}Teilweise{% endif %}</span></td><td><div class="actions compact"><form method="post" action="{% url 'organizer:minifigure_part_quantity' record.figure.pk part.pk %}">{% csrf_token %}<input type="hidden" name="owned_quantity" value="{{ part.quantity }}"><button title="Alle vorhanden" aria-label="Alle vorhanden">✓</button></form><form method="post" action="{% url 'organizer:minifigure_part_quantity' record.figure.pk part.pk %}">{% csrf_token %}<input type="hidden" name="owned_quantity" value="0"><button title="Keine vorhanden" aria-label="Keine vorhanden">×</button></form></div></td></tr>{% empty %}<tr><td colspan="7">Für diese Minifigur ist noch keine belastbare Teileliste vorhanden.</td></tr>{% endfor %}</tbody></table></div></details>
-  {% endfor %}
-</section>{% empty %}<section class="panel empty"><h2>Keine Minifiguren gefunden</h2><p>Ändere Suche oder Filter oder füge eine Minifigur hinzu.</p></section>{% endfor %}
+{% extends "base.html" %}{% load static %}
+{% block title %}Minifiguren{% endblock %}
+{% block content %}
+<header class="page-head minifigure-page-head">
+  <div><p class="eyebrow">Sammlung</p><h1>Minifiguren</h1><p class="muted">Figuren, Einzelteile und Vollständigkeit nach Sets geordnet.</p></div>
+  <div class="page-head-actions"><a class="button secondary" href="{% url 'organizer:list' 'minifigures' %}">Daten verwalten</a><a class="button primary" href="{% url 'organizer:create' 'minifigures' %}">+ Minifigur</a></div>
+</header>
+
+<section class="minifigure-kpis" aria-label="Vollständigkeit der Minifiguren-Sammlung">
+  <div class="minifigure-kpi"><span class="minifigure-kpi-icon" aria-hidden="true">▣</span><strong>{{ kpis.total }}</strong><span>Minifiguren</span></div>
+  <div class="minifigure-kpi complete"><span class="minifigure-kpi-icon" aria-hidden="true">✓</span><strong data-minifigure-kpi="complete">{{ kpis.complete }}</strong><span>Vollständig</span></div>
+  <div class="minifigure-kpi partial"><span class="minifigure-kpi-icon" aria-hidden="true">◐</span><strong data-minifigure-kpi="partial">{{ kpis.partial }}</strong><span>Teilweise</span></div>
+  <div class="minifigure-kpi missing"><span class="minifigure-kpi-icon" aria-hidden="true">◇</span><strong data-minifigure-kpi="missing">{{ kpis.missing }}</strong><span>Fehlend</span></div>
+</section>
+
+<section class="minifigure-filter-panel no-print" aria-label="Minifiguren filtern">
+  <form class="minifigure-filters" method="get">
+    <label>Suche<input type="search" name="q" value="{{ query }}" placeholder="Minifigur, Set oder Nummer suchen"></label>
+    <label>Set<select name="set"><option value="">Alle Sets</option>{% for lego_set in available_sets %}<option value="{{ lego_set.pk }}"{% if set_id == lego_set.pk|stringformat:'s' %} selected{% endif %}>{{ lego_set.set_number }} – {{ lego_set.name }}</option>{% endfor %}</select></label>
+    <label>Vollständigkeit<select name="completeness"><option value="">Alle Status</option><option value="complete"{% if completeness == 'complete' %} selected{% endif %}>Vollständig</option><option value="partial"{% if completeness == 'partial' %} selected{% endif %}>Teilweise</option><option value="missing"{% if completeness == 'missing' %} selected{% endif %}>Fehlend</option></select></label>
+    <label>Sortierung<select name="sort">{% for value,label in sorts.items %}<option value="{{ value }}"{% if sort == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+    <div class="minifigure-filter-actions"><button class="primary" type="submit">Aktualisieren</button><a class="button ghost" href="{% url 'organizer:minifigure_list' %}">Filter zurücksetzen</a></div>
+  </form>
+</section>
+
+<div class="minifigure-results-head"><p class="eyebrow">Ergebnisse</p><h2>{{ figure_count }} Minifigur{{ figure_count|pluralize:"en" }}</h2></div>
+
+{% for group in groups %}
+<details class="minifigure-set-group" data-set-group{% if forloop.first %} open{% endif %}>
+  <summary class="minifigure-set-summary">
+    {% if group.lego_set.image_url %}<span class="minifigure-set-image"><span class="minifigure-set-image-fallback" aria-hidden="true">BM</span><img src="{{ group.lego_set.image_url|proxied_image_url }}" alt="" loading="lazy" data-image-fallback></span>{% else %}<span class="minifigure-set-image minifigure-image-fallback" aria-hidden="true">BM</span>{% endif %}
+    <div class="minifigure-set-title"><span class="eyebrow">Set {{ group.lego_set.set_number }}</span><h3><a class="minifigure-set-name" href="{% url 'catalog:set_detail' group.lego_set.pk %}">{{ group.lego_set.name }}</a></h3></div>
+    <span class="minifigure-set-count">{{ group.figures|length }} Minifigur{{ group.figures|length|pluralize:"en" }}</span><span class="minifigure-set-chevron" aria-hidden="true">⌄</span>
+  </summary>
+  <div class="minifigure-set-body">
+    <div class="minifigure-grid">
+    {% for record in group.figures %}
+      <article class="minifigure-card" data-minifigure data-figure-status-code="{{ record.status }}">
+        <div class="minifigure-card-main">
+          {% if record.figure.image_url %}<button class="part-image-trigger minifigure-card-image" type="button" data-lightbox-image="{{ record.figure.image_url|proxied_image_url }}" data-lightbox-title="{{ record.figure.name }}" aria-label="Bild von {{ record.figure.name }} vergrößern"><img src="{{ record.figure.image_url|proxied_image_url }}" alt="{{ record.figure.name }}" loading="lazy" data-image-fallback></button>{% else %}<span class="minifigure-card-image minifigure-image-fallback" role="img" aria-label="Kein Bild für {{ record.figure.name }}">Kein Bild</span>{% endif %}
+          <div class="minifigure-card-content"><p class="minifigure-card-id">{{ record.figure.figure_number }}</p><h4>{{ record.figure.name }}</h4><p class="minifigure-card-quantity">{{ record.figure.quantity }}× im Set</p>
+            <div class="minifigure-progress"><p><strong><span data-figure-owned>{{ record.owned }}</span> von <span data-figure-required>{{ record.required }}</span></strong> Teilen vorhanden</p><progress class="{{ record.status }}" max="100" value="{{ record.percent }}" data-figure-progress aria-label="Vollständigkeit von {{ record.figure.name }}: {{ record.percent }} Prozent">{{ record.percent }} %</progress><div class="minifigure-progress-foot"><span data-figure-percent>{{ record.percent }} %</span><span class="badge {{ record.status }}" data-figure-status>{{ record.status_label }}</span></div></div>
+            <a class="button minifigure-edit" href="{% url 'organizer:edit' 'minifigures' record.figure.pk %}">Bearbeiten</a>
+          </div>
+        </div>
+        <details class="minifigure-parts"><summary><span class="minifigure-parts-open-label">Einzelteile anzeigen ({{ record.parts|length }})</span><span class="minifigure-parts-close-label">Einzelteile ausblenden ({{ record.parts|length }})</span><span aria-hidden="true">⌄</span></summary>
+          <div class="minifigure-part-grid">
+          {% for part in record.parts %}
+            <article class="minifigure-part-card" data-minifigure-part>
+              <div class="minifigure-part-top">{% if part.image_url %}<button class="part-image-trigger minifigure-part-image" type="button" data-lightbox-image="{{ part.image_url|proxied_image_url }}" data-lightbox-title="{{ part.name }}" aria-label="Bild von {{ part.name }} vergrößern"><img src="{{ part.image_url|proxied_image_url }}" alt="{{ part.name }}" loading="lazy" data-image-fallback></button>{% else %}<span class="minifigure-part-image minifigure-image-fallback" role="img" aria-label="Kein Bild für {{ part.name }}">Kein Bild</span>{% endif %}<div><h5>{{ part.name }}</h5><p>{{ part.part_number }}{% if part.element_id %} · Element {{ part.element_id }}{% endif %}</p><p>{{ part.color_name|default:"–" }}{% if part.is_spare %} · Ersatzteil{% endif %}</p></div></div>
+              <div class="minifigure-part-facts"><span>Benötigt <strong>{{ part.quantity }}</strong></span><span>Vorhanden <strong data-part-owned>{{ part.owned_quantity }}</strong></span></div>
+              <span class="badge {% if part.missing_quantity == 0 %}complete{% elif part.owned_quantity == 0 %}missing{% else %}partial{% endif %}" data-part-status>{% if part.missing_quantity == 0 %}Komplett{% elif part.owned_quantity == 0 %}Fehlend{% else %}Teilweise{% endif %}</span>
+              <form class="minifigure-part-quantity" method="post" action="{% url 'organizer:minifigure_part_quantity' record.figure.pk part.pk %}">{% csrf_token %}<label for="mini-owned-{{ part.pk }}">Vorhandene Menge</label><div><input id="mini-owned-{{ part.pk }}" class="compact-number" type="number" min="0" max="{{ part.quantity }}" name="owned_quantity" value="{{ part.owned_quantity }}"><button type="submit">Speichern</button></div></form>
+              <div class="minifigure-part-shortcuts" role="group" aria-label="Schnellaktionen für {{ part.name }}"><form method="post" action="{% url 'organizer:minifigure_part_quantity' record.figure.pk part.pk %}">{% csrf_token %}<input type="hidden" name="owned_quantity" value="{{ part.quantity }}"><button type="submit">Alle vorhanden</button></form><form method="post" action="{% url 'organizer:minifigure_part_quantity' record.figure.pk part.pk %}">{% csrf_token %}<input type="hidden" name="owned_quantity" value="0"><button type="submit">Keine vorhanden</button></form></div>
+            </article>
+          {% empty %}<p class="minifigure-part-empty">Für diese Minifigur ist noch keine belastbare Teileliste vorhanden.</p>{% endfor %}
+          </div>
+        </details>
+      </article>
+    {% endfor %}
+    </div>
+  </div>
+</details>
+{% empty %}<section class="panel empty"><h2>Keine Minifiguren gefunden</h2><p>Ändere Suche oder Filter oder füge eine Minifigur hinzu.</p></section>{% endfor %}
 {% include "components/pagination.html" %}
 <dialog id="image-lightbox" class="image-lightbox" aria-labelledby="image-lightbox-title"><button class="lightbox-close" type="button" data-lightbox-close aria-label="Bildansicht schließen">×</button><img alt=""><p id="image-lightbox-title"></p></dialog>
 {% endblock %}

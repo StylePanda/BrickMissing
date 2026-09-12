@@ -29,6 +29,13 @@
         });
         const payload = await response.json();
         if (!response.ok || !payload.ok) throw new Error(payload.message || "Bestand konnte nicht gespeichert werden.");
+        const previousStatus = figure?.dataset.figureStatusCode;
+        if (previousStatus && previousStatus !== payload.figure.status) {
+          for (const [status, change] of [[previousStatus, -1], [payload.figure.status, 1]]) {
+            const count = document.querySelector(`[data-minifigure-kpi="${status}"]`);
+            if (count) count.textContent = String(Number(count.textContent) + change);
+          }
+        }
         const matchingForms = [...document.querySelectorAll('form[action*="/organisation/minifiguren/"][action$="/bestand/"]')]
           .filter((candidate) => candidate.action === form.action);
         const partRows = new Set([row]);
@@ -49,11 +56,18 @@
         });
         figures.forEach((figureNode) => {
           if (!figureNode) return;
+          figureNode.dataset.figureStatusCode = payload.figure.status;
           figureNode.querySelectorAll("[data-figure-owned]").forEach((node) => { node.textContent = payload.figure.owned; });
           figureNode.querySelectorAll("[data-figure-required]").forEach((node) => { node.textContent = payload.figure.required; });
-          const progress = figureNode.querySelector("[data-figure-progress]"); if (progress) progress.value = payload.figure.percent;
+          figureNode.querySelectorAll("[data-figure-percent]").forEach((node) => { node.textContent = `${payload.figure.percent} %`; });
+          const progress = figureNode.querySelector("[data-figure-progress]");
+          if (progress) {
+            progress.value = payload.figure.percent;
+            progress.className = payload.figure.status;
+            progress.setAttribute("aria-label", `Vollständigkeit von ${figureNode.querySelector("h4")?.textContent || "Minifigur"}: ${payload.figure.percent} Prozent`);
+          }
           const fallbackCount = figureNode.querySelector(".minifigure-progress strong");
-          if (fallbackCount) fallbackCount.textContent = `${payload.figure.owned}/${payload.figure.required}`;
+          if (fallbackCount && !figureNode.querySelector("[data-figure-owned]")) fallbackCount.textContent = `${payload.figure.owned}/${payload.figure.required}`;
           const fallbackProgress = figureNode.querySelector(".minifigure-progress progress");
           if (fallbackProgress) fallbackProgress.value = payload.figure.percent;
           const figureStatus = figureNode.querySelector("[data-figure-status]") || figureNode.querySelector(".minifigure-progress .badge");

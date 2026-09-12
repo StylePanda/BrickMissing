@@ -5,7 +5,9 @@ from urllib.parse import urlencode
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.db import connection
 from django.test import Client, TestCase, override_settings
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
@@ -652,6 +654,97 @@ class MinifigurePageTests(TestCase):
             owner=other, lego_set=foreign_set, figure_number="foreign", name="Geheimfigur"
         )
         self.client.force_login(self.user)
+
+    def test_kpi_query_count_is_constant_across_page_sizes(self):
+        url = reverse("organizer:minifigure_list")
+        with CaptureQueriesContext(connection) as queries:
+            self.client.get(url)
+        small_count = len(queries)
+        self._create_paged_figures()
+        with CaptureQueriesContext(connection) as queries:
+            self.client.get(url)
+        self.assertEqual(len(queries), small_count)
+        self.assertLessEqual(small_count, 13)
+
+    def test_kpis_and_completeness_filter_use_existing_status_definitions(self):
+        complete = SetMinifigure.objects.create(
+            owner=self.user, lego_set=self.lego_set, figure_number="complete", name="Fertig"
+        )
+        MinifigurePart.objects.create(
+            minifigure=complete, part_number="head-complete", name="Kopf", quantity=1,
+            owned_quantity=1,
+        )
+        missing = SetMinifigure.objects.create(
+            owner=self.user, lego_set=self.lego_set, figure_number="missing", name="Fehlt ganz"
+        )
+        MinifigurePart.objects.create(
+            minifigure=missing, part_number="head-missing", name="Kopf", quantity=1,
+            owned_quantity=0,
+        )
+        SetMinifigure.objects.create(
+            owner=self.user, lego_set=self.lego_set, figure_number="unknown", name="Ohne Liste"
+        )
+        url = reverse("organizer:minifigure_list")
+        response = self.client.get(url)
+        self.assertEqual(response.context["kpis"], {
+            "total": 4, "complete": 1, "partial": 1, "missing": 1,
+        })
+        self.assertNotContains(response, "Geheimfigur")
+        for status, expected in (("complete", complete), ("partial", self.figure), ("missing", missing)):
+            with self.subTest(status=status):
+                filtered = self.client.get(url, {"completeness": status})
+                records = [record for group in filtered.context["groups"] for record in group["figures"]]
+                self.assertEqual([record["figure"] for record in records], [expected])
+                self.assertEqual(filtered.context["kpis"], response.context["kpis"])
+        invalid = self.client.get(url, {"completeness": "unknown"})
+        self.assertEqual(invalid.context["figure_count"], 4)
+        self.assertEqual(invalid.context["completeness"], "")
+
+    def test_collection_cards_keep_actions_images_and_part_shortcuts(self):
+        self.lego_set.image_url = "https://example.test/set.png"
+        self.lego_set.save(update_fields=["image_url"])
+        second = SetMinifigure.objects.create(
+            owner=self.user, lego_set=self.lego_set, figure_number="fig-second", name="Zweite Figur"
+        )
+        MinifigurePart.objects.create(
+            minifigure=second, part_number="hair", name="Haare", quantity=1,
+            image_url="https://example.test/hair.png",
+        )
+        response = self.client.get(reverse("organizer:minifigure_list"))
+        self.assertContains(response, 'class="minifigure-kpis"')
+        self.assertContains(response, 'class="minifigure-grid"')
+        self.assertContains(response, 'class="minifigure-part-grid"', count=2)
+        self.assertContains(response, 'data-minifigure data-figure-status-code', count=2)
+        self.assertContains(response, 'data-minifigure-part', count=2)
+        self.assertNotContains(response, "<table")
+        self.assertContains(response, "Einzelteile anzeigen (1)", count=2)
+        self.assertContains(response, "Einzelteile ausblenden (1)", count=2)
+        self.assertContains(response, 'data-image-fallback')
+        self.assertContains(response, 'class="minifigure-set-image-fallback"')
+        self.assertContains(response, "Kein Bild")
+        self.assertContains(response, "Alle vorhanden", count=2)
+        self.assertContains(response, "Keine vorhanden", count=2)
+        self.assertContains(response, reverse("organizer:edit", args=["minifigures", self.figure.pk]))
+        self.assertContains(response, reverse("organizer:list", args=["minifigures"]))
+        self.assertContains(response, reverse("organizer:create", args=["minifigures"]))
+        self.assertContains(response, "fig-000265", count=1)
+
+    def test_set_groups_are_collapsible_and_owner_scoped(self):
+        other_set = LegoSet.objects.create(owner=self.user, set_number="9990", name="Second Set")
+        second = SetMinifigure.objects.create(
+            owner=self.user, lego_set=other_set, figure_number="second", name="Set Two Figure"
+        )
+        response = self.client.get(reverse("organizer:minifigure_list"))
+        groups = response.context["groups"]
+        self.assertEqual([group["lego_set"] for group in groups], [self.lego_set, other_set])
+        self.assertContains(response, 'data-set-group open', count=1)
+        self.assertContains(response, 'data-set-group', count=2)
+        self.assertContains(response, reverse("catalog:set_detail", args=[other_set.pk]))
+        self.assertNotContains(response, "SECRET")
+        self.assertNotContains(response, "Geheimfigur")
+        filtered = self.client.get(reverse("organizer:minifigure_list"), {"set": other_set.pk})
+        self.assertEqual(filtered.context["figure_count"], 1)
+        self.assertEqual(filtered.context["groups"][0]["figures"][0]["figure"], second)
 
     def test_page_group_search_filter_parts_status_and_user_scope(self):
         url = reverse("organizer:minifigure_list")
