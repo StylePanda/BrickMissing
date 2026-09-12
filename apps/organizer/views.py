@@ -193,6 +193,11 @@ def _minifigure_record(figure):
         status, status_label = "partial", "Teilweise"
     return {
         "figure": figure,
+        "display_name": (
+            figure.name.strip()
+            if figure.name.strip().casefold() != figure.figure_number.strip().casefold()
+            else ""
+        ),
         "parts": parts,
         "required": required,
         "owned": owned,

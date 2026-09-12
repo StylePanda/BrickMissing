@@ -284,7 +284,8 @@ async function auditMinifigures(client, width) {
     const select = document.querySelector('select[name="completeness"]');
     return {
       kpis, filters, sets: sets.length, firstOpen: sets[0].open, secondClosed,
-      singleCardSpans: Math.abs(singleCard.width - singleGrid.width) <= 1,
+      singleCardCompact: ${width} <= 1000 || singleCard.width <= Math.min(singleGrid.width, 681),
+      singleCard, singleGrid,
       firstSetFigures: figures.length, figureRects: figures.map(rect),
       partClosed: !figures[0].querySelector(".minifigure-parts").open,
       values: [...document.querySelectorAll("[data-minifigure-kpi]")].map((node) => Number(node.textContent)),
@@ -300,7 +301,7 @@ async function auditMinifigures(client, width) {
   const noPairOverlap = (rects) => rects.every((first, index) => rects.slice(index + 1).every((second) => !overlaps(first, second)));
   assert(initial.sets === 2 && initial.firstOpen && initial.secondClosed, `Minifigure set collapse state is wrong at ${width}px`);
   assert(initial.firstSetFigures === 2 && initial.partClosed && !initial.hasTable, `Minifigure collection structure is wrong at ${width}px`);
-  assert(initial.singleCardSpans, `Single minifigure does not fill its set group at ${width}px`);
+  assert(initial.singleCardCompact, `Single minifigure stretches across its set group at ${width}px`);
   assert(initial.values.join(",") === "1,1,1", `Minifigure KPI values are wrong at ${width}px: ${initial.values}`);
   assert(initial.options.join(",") === ",complete,partial,missing", `Minifigure completeness options are wrong at ${width}px`);
   assert(initial.figureFallback && initial.partFallback, `Minifigure image fallbacks are missing at ${width}px`);
@@ -311,13 +312,13 @@ async function auditMinifigures(client, width) {
 
   const accordion = await evaluate(client, `(() => {
     const details = document.querySelector("[data-minifigure] .minifigure-parts");
-    const summary = details.querySelector("summary");
-    summary.focus();
-    const focused = document.activeElement === summary;
-    summary.click();
-    return {focused, open: details.open};
+    const toggle = document.querySelector("[data-minifigure] .minifigure-parts-toggle");
+    toggle.focus();
+    const focused = document.activeElement === toggle;
+    toggle.click();
+    return {focused, open: details.open, expanded: toggle.getAttribute("aria-expanded"), controls: toggle.getAttribute("aria-controls") === details.id};
   })()`);
-  assert(accordion.focused && accordion.open, `Minifigure part accordion is not keyboard-focusable or clickable at ${width}px`);
+  assert(accordion.focused && accordion.open && accordion.expanded === "true" && accordion.controls, `Minifigure part accordion is not keyboard-focusable or clickable at ${width}px`);
   await evaluate(client, `Promise.all([...document.querySelector("[data-set-group]").querySelectorAll(".minifigure-set-image img, .minifigure-card-image img, .minifigure-part-image img")].map((img) => { img.loading = "eager"; return img.decode().catch(() => null); }))`);
   const expanded = await evaluate(client, `(() => {
     const rect = (node) => { const box = node.getBoundingClientRect(); return {left: box.left, right: box.right, top: box.top, bottom: box.bottom, width: box.width, height: box.height}; };
@@ -334,11 +335,23 @@ async function auditMinifigures(client, width) {
       controls: [...figure.querySelectorAll(".minifigure-part-quantity input, .minifigure-part-quantity button")].map(rect),
       form: rect(figure.querySelector(".minifigure-part-quantity")),
       formGrid: getComputedStyle(figure.querySelector(".minifigure-part-quantity > div")).gridTemplateColumns,
-      progress: rect(figure.querySelector("progress")), status: rect(figure.querySelector("[data-figure-status]")),
+      main: rect(figure.querySelector(".minifigure-card-main")), image: rect(figure.querySelector(".minifigure-card-image")),
+      content: rect(figure.querySelector(".minifigure-card-content")),
+      progress: rect(figure.querySelector("progress")), percent: rect(figure.querySelector("[data-figure-percent]")), status: rect(figure.querySelector("[data-figure-status]")),
+      actions: rect(figure.querySelector(".minifigure-card-actions")),
+      edit: rect(figure.querySelector(".minifigure-edit")), accordion: rect(figure.querySelector(".minifigure-parts-toggle")),
+      quantityInput: rect(figure.querySelector(".minifigure-part-quantity input")),
+      quantitySave: rect(figure.querySelector(".minifigure-part-quantity button")),
+      shortcuts: rect(figure.querySelector(".minifigure-part-shortcuts")),
+      visibleInputs: [...figure.querySelectorAll(".minifigure-part-quantity input")].filter((node) => node.getBoundingClientRect().width).map(rect),
+      shortcutButtons: [...figure.querySelectorAll(".minifigure-part-shortcuts button")].filter((node) => node.getBoundingClientRect().width).map((node) => ({rect: rect(node), border: getComputedStyle(node).borderStyle, cursor: getComputedStyle(node).cursor})),
       detailsOpen: figure.querySelector(".minifigure-parts").open,
-      visibleText: figure.querySelector(".minifigure-parts summary").innerText,
+      visibleText: figure.querySelector(".minifigure-parts-toggle").innerText,
     };
   })()`);
+  if (process.env.BRICKMISSING_AUDIT_TRACE === "1" && [320, 390, 768, 1440, 1920].includes(width)) {
+    process.stdout.write(`Minifigure geometry ${width}px: ${JSON.stringify({singleCard: initial.singleCard, figure: expanded.figure, main: expanded.main, content: expanded.content, progress: expanded.progress, percent: expanded.percent, status: expanded.status, actions: expanded.actions, edit: expanded.edit, accordion: expanded.accordion, parts: expanded.parts, inputs: expanded.visibleInputs})}\n`);
+  }
   const inside = (child, parent) => child.left >= parent.left - 1 && child.right <= parent.right + 1 && child.top >= parent.top - 1 && child.bottom <= parent.bottom + 1;
   assert(expanded.detailsOpen && expanded.visibleText.includes("Einzelteile ausblenden"), `Minifigure part accordion did not open at ${width}px`);
   assert(expanded.parts.length === 2 && noPairOverlap(expanded.parts), `Minifigure part cards overlap at ${width}px`);
@@ -347,6 +360,22 @@ async function auditMinifigures(client, width) {
   assert(expanded.parts.every((part) => inside(part, expanded.figure)), `Minifigure part cards leave the figure card at ${width}px`);
   assert(expanded.controls.every((control) => control.width === 0 || expanded.parts.some((part) => inside(control, part))), `Minifigure quantity controls are clipped at ${width}px: ${JSON.stringify({controls: expanded.controls, form: expanded.form, formGrid: expanded.formGrid, parts: expanded.parts})}`);
   assert(inside(expanded.progress, expanded.figure) && inside(expanded.status, expanded.figure), `Minifigure progress or status is clipped at ${width}px`);
+  assert(expanded.progress.width <= 390 && expanded.percent.left - expanded.progress.right <= 16,
+    `Minifigure progress is disconnected at ${width}px`);
+  assert(expanded.status.top - expanded.progress.bottom <= 24,
+    `Minifigure status is disconnected at ${width}px`);
+  assert(expanded.visibleInputs.every((input) => input.width <= 150),
+    `Minifigure quantity input is too wide at ${width}px`);
+  assert(expanded.shortcutButtons.every(({rect, border, cursor}) => rect.height >= 36 && border !== "none" && cursor === "pointer"),
+    `Minifigure shortcuts do not look interactive at ${width}px`);
+  assert(expanded.accordion.top - expanded.main.bottom <= 24
+    && expanded.parts[0].top - expanded.actions.bottom <= 20,
+    `Minifigure accordion spacing is excessive at ${width}px`);
+  if (width > 600) assert(Math.abs(expanded.edit.top - expanded.accordion.top) <= 12
+    && expanded.edit.left - expanded.accordion.right <= 16,
+    `Minifigure actions are not grouped at ${width}px`);
+  if (width >= 1440) assert(expanded.content.width <= 450 && expanded.parts.every((part) => part.width <= 610),
+    `Minifigure information or part cards stretch at ${width}px`);
   assert(expanded.images.every(({image, wrapper, objectFit, src, currentSrc, naturalWidth, naturalHeight}) => objectFit === "contain" && inside(image, wrapper) && src && currentSrc && naturalWidth > 0 && naturalHeight > 0), `Minifigure images are cropped or unloaded at ${width}px: ${JSON.stringify(expanded.images)}`);
   await evaluate(client, `(() => { const set = document.querySelector("[data-set-group]"); set.open = false; set.open = true; set.querySelector(".minifigure-parts").open = false; })()`);
 }
@@ -385,6 +414,27 @@ async function auditMinifigureQuantity(client) {
   }
   assert(state.partOwned === "2" && state.partStatus === "Komplett" && state.figureOwned === "2" && state.figureStatus === "Vollständig" && state.progress === 100, `Minifigure quantity update did not refresh its cards: ${JSON.stringify(state)}`);
   assert(state.completeKpi === "2" && state.partialKpi === "0", `Minifigure KPI values did not refresh after quantity update: ${JSON.stringify(state)}`);
+  async function assertQuantityAfterClick(clickExpression, expectedOwned, expectedFigureStatus, expectedProgress) {
+    await evaluate(client, clickExpression);
+    let current;
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      await delay(100);
+      current = await evaluate(client, `(() => {
+        const figure = document.querySelectorAll("[data-minifigure]")[1];
+        const part = figure.querySelector("[data-minifigure-part]");
+        return {partOwned: part.querySelector("[data-part-owned]").textContent.trim(),
+          input: part.querySelector(".minifigure-part-quantity input[type=number]").value,
+          figureStatus: figure.querySelector("[data-figure-status]").textContent.trim(),
+          progress: figure.querySelector("progress").value, path: location.pathname};
+      })()`);
+      if (current.partOwned === expectedOwned && current.figureStatus === expectedFigureStatus) break;
+    }
+    assert(current.partOwned === expectedOwned && current.input === expectedOwned
+      && current.figureStatus === expectedFigureStatus && current.progress === expectedProgress
+      && current.path === setup.path, `Minifigure quantity action did not refresh the card: ${JSON.stringify(current)}`);
+  }
+  await assertQuantityAfterClick(`document.querySelectorAll("[data-minifigure]")[1].querySelectorAll("[data-minifigure-part] .minifigure-part-shortcuts button")[1].click()`, "0", "Fehlend", 0);
+  await assertQuantityAfterClick(`(() => { const part = document.querySelectorAll("[data-minifigure]")[1].querySelector("[data-minifigure-part]"); part.querySelector(".minifigure-part-quantity input[type=number]").value = "1"; part.querySelector(".minifigure-part-quantity button").click(); })()`, "1", "Teilweise", 50);
 }
 
 async function auditMissingPartsHotfixControls(client, width) {
@@ -998,6 +1048,7 @@ try {
       [390, 844],
       [768, 1024],
       [1440, 900],
+      [1920, 1080],
     ];
     for (const [width, height] of screenshots) {
       await setViewport(client, width, height);

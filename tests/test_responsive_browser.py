@@ -156,4 +156,6 @@ class ResponsiveBrowserTests(StaticLiveServerTestCase):
             timeout=180,
             check=False,
         )
+        if os.environ.get("BRICKMISSING_AUDIT_TRACE") == "1":
+            print(result.stdout)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

@@ -1,4 +1,11 @@
 (() => {
+  document.querySelectorAll(".minifigure-parts").forEach((details) => {
+    const toggle = document.querySelector(`.minifigure-parts-toggle[aria-controls="${details.id}"]`);
+    const syncExpanded = () => toggle?.setAttribute("aria-expanded", String(details.open));
+    toggle?.addEventListener("click", () => { details.open = !details.open; syncExpanded(); });
+    details.addEventListener("toggle", syncExpanded);
+    syncExpanded();
+  });
   const forms = document.querySelectorAll('form[action*="/organisation/minifiguren/"][action$="/bestand/"]');
   if (!forms.length) return;
   const timeoutMs = 8000;
@@ -64,7 +71,7 @@
           if (progress) {
             progress.value = payload.figure.percent;
             progress.className = payload.figure.status;
-            progress.setAttribute("aria-label", `Vollständigkeit von ${figureNode.querySelector("h4")?.textContent || "Minifigur"}: ${payload.figure.percent} Prozent`);
+            progress.setAttribute("aria-label", `Vollständigkeit von ${figureNode.querySelector("h4")?.textContent || figureNode.querySelector(".minifigure-card-id")?.textContent || "Minifigur"}: ${payload.figure.percent} Prozent`);
           }
           const fallbackCount = figureNode.querySelector(".minifigure-progress strong");
           if (fallbackCount && !figureNode.querySelector("[data-figure-owned]")) fallbackCount.textContent = `${payload.figure.owned}/${payload.figure.required}`;

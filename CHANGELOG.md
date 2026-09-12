@@ -1,5 +1,19 @@
 # Changelog
 
+## 8.5.1 — 12 September 2026
+
+### Fixed
+
+- Doppelte Minifiguren-ID bei fehlendem eigenständigen Displaynamen.
+- Übermäßig gestreckte Minifigurenkarten und Fortschrittsanzeigen auf Desktop.
+- Isolierte Minifigurenaktionen und übermäßige Accordion-Abstände.
+- Unnötig breite Mengenfelder und unklare Darstellung der Mengen-Schnellaktionen.
+
+### Changed
+
+- Minifiguren- und Einzelteilkarten kompakter gestaltet.
+- Keine Datenbankmigration oder Dependency-Änderung.
+
 ## 8.5.0 — 12 September 2026
 
 ### Added

@@ -729,6 +729,54 @@ class MinifigurePageTests(TestCase):
         self.assertContains(response, reverse("organizer:create", args=["minifigures"]))
         self.assertContains(response, "fig-000265", count=1)
 
+    def test_figure_identity_omits_duplicate_or_blank_display_names(self):
+        cases = (
+            ("fig-014772", "fig-014772", False),
+            ("fig-014773", "  FIG-014773  ", False),
+            ("fig-014774", "   ", False),
+            ("fig-014775", "  Ayrton Senna  ", True),
+        )
+        for identifier, name, _ in cases:
+            SetMinifigure.objects.create(
+                owner=self.user, lego_set=self.lego_set,
+                figure_number=identifier, name=name,
+            )
+        response = self.client.get(reverse("organizer:minifigure_list"))
+        for identifier, _, _ in cases:
+            with self.subTest(identifier=identifier):
+                self.assertContains(response, f'<p class="minifigure-card-id">{identifier}</p>')
+                self.assertNotContains(response, f"<h4>{identifier}</h4>")
+                self.assertNotContains(response, f"<h4>{identifier.upper()}</h4>")
+        self.assertContains(response, "<h4>Ayrton Senna</h4>")
+        self.assertContains(response, "<h4>Mann mit blauer Jacke</h4>")
+
+    def test_progress_display_preserves_existing_status_and_zero_required_case(self):
+        cases = (
+            ("four", 4, 4, 100, "complete", "Vollständig"),
+            ("three", 4, 3, 75, "partial", "Teilweise"),
+            ("one", 4, 1, 25, "partial", "Teilweise"),
+            ("zero", 4, 0, 0, "missing", "Fehlend"),
+            ("unknown", 0, 0, 0, "unknown", "Unbekannt"),
+        )
+        for identifier, required, owned, _, _, _ in cases:
+            figure = SetMinifigure.objects.create(
+                owner=self.user, lego_set=self.lego_set,
+                figure_number=identifier, name=f"Figure {identifier}",
+            )
+            if required:
+                MinifigurePart.objects.create(
+                    minifigure=figure, part_number=f"part-{identifier}",
+                    name="Kopf", quantity=required, owned_quantity=owned,
+                )
+        response = self.client.get(reverse("organizer:minifigure_list"))
+        records = {record["figure"].figure_number: record for group in response.context["groups"] for record in group["figures"]}
+        for identifier, required, owned, percent, status, label in cases:
+            with self.subTest(identifier=identifier):
+                record = records[identifier]
+                self.assertEqual((record["required"], record["owned"], record["percent"], record["status"], record["status_label"]),
+                                 (required, owned, percent, status, label))
+                self.assertContains(response, f'aria-label="Vollständigkeit von Figure {identifier}: {percent} Prozent"')
+
     def test_set_groups_are_collapsible_and_owner_scoped(self):
         other_set = LegoSet.objects.create(owner=self.user, set_number="9990", name="Second Set")
         second = SetMinifigure.objects.create(
