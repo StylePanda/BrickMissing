@@ -271,7 +271,9 @@ async function auditMissingParts(client, width) {
 
 async function auditMinifigures(client, width) {
   const initial = await evaluate(client, `(() => {
-    const rect = (node) => { const box = node.getBoundingClientRect(); return {left: box.left, right: box.right, top: box.top, bottom: box.bottom, width: box.width, height: box.height}; };
+    const rect = (node) => { const box = node.getBoundingClientRect(); return {x: box.x, y: box.y, left: box.left, right: box.right, top: box.top, bottom: box.bottom, width: box.width, height: box.height}; };
+    const style = (node) => { const css = getComputedStyle(node); return Object.fromEntries(["display", "position", "width", "height", "minHeight", "maxHeight", "padding", "paddingTop", "paddingBottom", "borderTopWidth", "borderBottomWidth", "margin", "gap", "rowGap", "alignItems", "alignContent", "justifyContent", "lineHeight", "flex", "flexGrow", "gridTemplateRows", "gridAutoRows", "overflow", "boxSizing", "transform"].map((key) => [key, css[key]])); };
+    const inspect = (node) => ({rect: rect(node), style: style(node)});
     const sets = [...document.querySelectorAll("[data-set-group]")];
     const figures = [...sets[0].querySelectorAll("[data-minifigure]")];
     const secondClosed = !sets[1].open;
@@ -286,6 +288,16 @@ async function auditMinifigures(client, width) {
       kpis, filters, sets: sets.length, firstOpen: sets[0].open, secondClosed,
       singleCardCompact: ${width} <= 1000 || singleCard.width <= Math.min(singleGrid.width, 681),
       singleCard, singleGrid,
+      closedGeometry: {
+        set: inspect(sets[0]), header: inspect(sets[0].querySelector(".minifigure-set-summary")),
+        setBody: inspect(sets[0].querySelector(".minifigure-set-body")), grid: inspect(sets[0].querySelector(".minifigure-grid")),
+        figures: figures.map((figure) => ({card: inspect(figure), main: inspect(figure.querySelector(".minifigure-card-main")),
+          image: inspect(figure.querySelector(".minifigure-card-image")), info: inspect(figure.querySelector(".minifigure-card-content")),
+          progress: inspect(figure.querySelector(".minifigure-progress")), status: inspect(figure.querySelector("[data-figure-status]")),
+          actions: inspect(figure.querySelector(".minifigure-card-actions")), button: inspect(figure.querySelector(".minifigure-parts-toggle")),
+          text: inspect(figure.querySelector(".minifigure-parts-open-label")), chevron: inspect(figure.querySelector(".minifigure-parts-chevron")),
+          details: inspect(figure.querySelector(".minifigure-parts")), partGrid: inspect(figure.querySelector(".minifigure-part-grid"))})),
+      },
       firstSetFigures: figures.length, figureRects: figures.map(rect),
       partClosed: !figures[0].querySelector(".minifigure-parts").open,
       values: [...document.querySelectorAll("[data-minifigure-kpi]")].map((node) => Number(node.textContent)),
@@ -297,8 +309,37 @@ async function auditMinifigures(client, width) {
       progress: [...figures].every((card) => card.querySelector("progress") && card.querySelector("[data-figure-status]")),
     };
   })()`);
+  if (process.env.BRICKMISSING_AUDIT_TRACE === "1" && [390, 768, 1440, 1920].includes(width)) {
+    process.stdout.write(`Minifigure closed DOM ${width}px: ${JSON.stringify(initial.closedGeometry)}\n`);
+  }
   const overlaps = (first, second) => first.left < second.right && first.right > second.left && first.top < second.bottom && first.bottom > second.top;
   const noPairOverlap = (rects) => rects.every((first, index) => rects.slice(index + 1).every((second) => !overlaps(first, second)));
+  const centerY = (rect) => rect.top + rect.height / 2;
+  const closed = initial.closedGeometry;
+  const px = (value) => Number.parseFloat(value) || 0;
+  assert(closed.grid.style.alignItems === "start", `Minifigure grid stretches its cards at ${width}px`);
+  assert(Math.abs(closed.set.rect.bottom - closed.grid.rect.bottom - px(closed.setBody.style.paddingBottom) - px(closed.set.style.borderBottomWidth)) <= 1,
+    `Minifigure set keeps empty space after the card grid at ${width}px`);
+  for (const {card, main, image, info, status, actions, button, text, chevron, details} of closed.figures) {
+    const bottomBorder = px(card.style.borderBottomWidth);
+    const topBorder = px(card.style.borderTopWidth);
+    assert(details.rect.height <= 1 && Math.abs(card.rect.bottom - actions.rect.bottom - bottomBorder) <= 1,
+      `Closed minifigure card reserves empty space below its actions at ${width}px`);
+    assert(Math.abs(actions.rect.top - main.rect.bottom) <= 1
+      && Math.abs(card.rect.height - main.rect.height - actions.rect.height - details.rect.height - topBorder - bottomBorder) <= 1,
+      `Closed minifigure rows are stretched at ${width}px`);
+    const visibleHeight = Math.max(image.rect.bottom, info.rect.bottom) - Math.min(image.rect.top, info.rect.top);
+    assert(main.rect.height <= visibleHeight + px(main.style.paddingTop) + px(main.style.paddingBottom) + 1,
+      `Minifigure main area exceeds its visible content at ${width}px`);
+    assert(Math.abs(centerY(button.rect) - centerY(text.rect)) <= 1.5
+      && Math.abs(centerY(text.rect) - centerY(chevron.rect)) <= 1.5
+      && Math.abs(centerY(button.rect) - centerY(chevron.rect)) <= 1.5,
+      `Closed minifigure chevron is not centered at ${width}px`);
+    if (width > 600) assert(actions.rect.height <= Math.max(button.rect.height, 44) + px(actions.style.paddingTop) + px(actions.style.paddingBottom) + px(actions.style.borderTopWidth) + 1,
+      `Closed minifigure action row has excess height at ${width}px`);
+    assert(status.rect.bottom <= main.rect.bottom - px(main.style.paddingBottom) + 1,
+      `Minifigure status leaves the main content at ${width}px`);
+  }
   assert(initial.sets === 2 && initial.firstOpen && initial.secondClosed, `Minifigure set collapse state is wrong at ${width}px`);
   assert(initial.firstSetFigures === 2 && initial.partClosed && !initial.hasTable, `Minifigure collection structure is wrong at ${width}px`);
   assert(initial.singleCardCompact, `Single minifigure stretches across its set group at ${width}px`);
@@ -309,6 +350,22 @@ async function auditMinifigures(client, width) {
   assert(noPairOverlap(initial.kpis) && noPairOverlap(initial.filters) && noPairOverlap(initial.figureRects), `Minifigure cards or filters overlap at ${width}px`);
   if (width >= 1001) assert(Math.abs(initial.figureRects[0].top - initial.figureRects[1].top) <= 1, `Minifigures are not side by side at ${width}px`);
   else assert(initial.figureRects[1].top >= initial.figureRects[0].bottom, `Minifigures are not stacked at ${width}px`);
+  if (width >= 1001) {
+    const unequalNeighbors = await evaluate(client, `(() => {
+      const figures = document.querySelectorAll("[data-set-group] [data-minifigure]");
+      const name = figures[1].querySelector(".minifigure-card-content h4");
+      const original = name.textContent;
+      const firstBefore = figures[0].getBoundingClientRect().height;
+      name.textContent = "Langer Figurenname ".repeat(30);
+      const firstAfter = figures[0].getBoundingClientRect().height;
+      const secondAfter = figures[1].getBoundingClientRect().height;
+      name.textContent = original;
+      return {firstBefore, firstAfter, secondAfter};
+    })()`);
+    assert(Math.abs(unequalNeighbors.firstAfter - unequalNeighbors.firstBefore) <= 1
+      && unequalNeighbors.secondAfter > unequalNeighbors.firstAfter + 20,
+    `A taller neighboring figure stretches a closed card at ${width}px: ${JSON.stringify(unequalNeighbors)}`);
+  }
 
   const accordion = await evaluate(client, `(() => {
     const details = document.querySelector("[data-minifigure] .minifigure-parts");
@@ -332,6 +389,7 @@ async function auditMinifigures(client, width) {
     }));
     return {
       set: rect(set), figure: rect(figure), parts: parts.map(rect), images,
+      partsGrid: rect(figure.querySelector(".minifigure-part-grid")),
       controls: [...figure.querySelectorAll(".minifigure-part-quantity input, .minifigure-part-quantity button")].map(rect),
       form: rect(figure.querySelector(".minifigure-part-quantity")),
       formGrid: getComputedStyle(figure.querySelector(".minifigure-part-quantity > div")).gridTemplateColumns,
@@ -350,7 +408,7 @@ async function auditMinifigures(client, width) {
     };
   })()`);
   if (process.env.BRICKMISSING_AUDIT_TRACE === "1" && [320, 390, 768, 1440, 1920].includes(width)) {
-    process.stdout.write(`Minifigure geometry ${width}px: ${JSON.stringify({singleCard: initial.singleCard, figure: expanded.figure, main: expanded.main, content: expanded.content, progress: expanded.progress, percent: expanded.percent, status: expanded.status, actions: expanded.actions, edit: expanded.edit, accordion: expanded.accordion, parts: expanded.parts, inputs: expanded.visibleInputs})}\n`);
+    process.stdout.write(`Minifigure geometry ${width}px: ${JSON.stringify({singleCard: initial.singleCard, figure: expanded.figure, main: expanded.main, image: expanded.image, content: expanded.content, progress: expanded.progress, percent: expanded.percent, status: expanded.status, actions: expanded.actions, edit: expanded.edit, accordion: expanded.accordion, partsGrid: expanded.partsGrid, parts: expanded.parts, inputs: expanded.visibleInputs})}\n`);
   }
   const inside = (child, parent) => child.left >= parent.left - 1 && child.right <= parent.right + 1 && child.top >= parent.top - 1 && child.bottom <= parent.bottom + 1;
   assert(expanded.detailsOpen && expanded.visibleText.includes("Einzelteile ausblenden"), `Minifigure part accordion did not open at ${width}px`);
@@ -369,6 +427,7 @@ async function auditMinifigures(client, width) {
   assert(expanded.shortcutButtons.every(({rect, border, cursor}) => rect.height >= 36 && border !== "none" && cursor === "pointer"),
     `Minifigure shortcuts do not look interactive at ${width}px`);
   assert(expanded.accordion.top - expanded.main.bottom <= 24
+    && expanded.partsGrid.top - expanded.actions.bottom <= 8
     && expanded.parts[0].top - expanded.actions.bottom <= 20,
     `Minifigure accordion spacing is excessive at ${width}px`);
   if (width > 600) assert(Math.abs(expanded.edit.top - expanded.accordion.top) <= 12
@@ -377,6 +436,39 @@ async function auditMinifigures(client, width) {
   if (width >= 1440) assert(expanded.content.width <= 450 && expanded.parts.every((part) => part.width <= 610),
     `Minifigure information or part cards stretch at ${width}px`);
   assert(expanded.images.every(({image, wrapper, objectFit, src, currentSrc, naturalWidth, naturalHeight}) => objectFit === "contain" && inside(image, wrapper) && src && currentSrc && naturalWidth > 0 && naturalHeight > 0), `Minifigure images are cropped or unloaded at ${width}px: ${JSON.stringify(expanded.images)}`);
+  await delay(200);
+  const openedChevron = await evaluate(client, `(() => {
+    const figure = document.querySelector("[data-minifigure]");
+    const button = figure.querySelector(".minifigure-parts-toggle");
+    const rect = (node) => { const box = node.getBoundingClientRect(); return {x: box.x, y: box.y, top: box.top, width: box.width, height: box.height}; };
+    return {button: rect(button), text: rect(button.querySelector(".minifigure-parts-close-label")), chevron: rect(button.querySelector(".minifigure-parts-chevron"))};
+  })()`);
+  const initialChevron = closed.figures[0];
+  if (process.env.BRICKMISSING_AUDIT_TRACE === "1" && [390, 768, 1440, 1920].includes(width)) {
+    process.stdout.write(`Minifigure opened chevron ${width}px: ${JSON.stringify(openedChevron)}\n`);
+  }
+  assert(Math.abs(centerY(openedChevron.button) - centerY(openedChevron.chevron)) <= 1.5
+    && Math.abs(centerY(openedChevron.text) - centerY(openedChevron.chevron)) <= 1.5
+    && Math.abs(openedChevron.chevron.x - initialChevron.chevron.rect.x) <= 1
+    && Math.abs((centerY(openedChevron.chevron) - centerY(openedChevron.button))
+      - (centerY(initialChevron.chevron.rect) - centerY(initialChevron.button.rect))) <= 1
+    && Math.abs(openedChevron.chevron.width - initialChevron.chevron.rect.width) <= 1
+    && Math.abs(openedChevron.chevron.height - initialChevron.chevron.rect.height) <= 1,
+    `Opening minifigure parts moves the chevron at ${width}px: ${JSON.stringify({before: initialChevron.chevron.rect, after: openedChevron})}`);
+  await evaluate(client, `document.querySelector("[data-minifigure] .minifigure-parts-toggle").click()`);
+  await delay(200);
+  const closedAgain = await evaluate(client, `(() => {
+    const figure = document.querySelector("[data-minifigure]");
+    const button = figure.querySelector(".minifigure-parts-toggle");
+    const box = button.querySelector(".minifigure-parts-chevron").getBoundingClientRect();
+    return {x: box.x, y: box.y, buttonY: button.getBoundingClientRect().y, width: box.width, height: box.height, expanded: button.getAttribute("aria-expanded"), open: figure.querySelector(".minifigure-parts").open};
+  })()`);
+  assert(!closedAgain.open && closedAgain.expanded === "false"
+    && Math.abs(closedAgain.x - initialChevron.chevron.rect.x) <= 1
+    && Math.abs((closedAgain.y - closedAgain.buttonY) - (initialChevron.chevron.rect.y - initialChevron.button.rect.y)) <= 1
+    && Math.abs(closedAgain.width - initialChevron.chevron.rect.width) <= 1
+    && Math.abs(closedAgain.height - initialChevron.chevron.rect.height) <= 1,
+    `Closing minifigure parts moves the chevron at ${width}px`);
   await evaluate(client, `(() => { const set = document.querySelector("[data-set-group]"); set.open = false; set.open = true; set.querySelector(".minifigure-parts").open = false; })()`);
 }
 
@@ -1065,6 +1157,7 @@ try {
         }
         if (name === "minifigures") {
           await evaluate(client, `document.querySelector("[data-minifigure] .minifigure-parts").open = true`);
+          await delay(200);
           const expandedCapture = await client.send("Page.captureScreenshot", {format: "png", fromSurface: true, captureBeyondViewport: true});
           await writeFile(join(artifactDirectory, `${name}-expanded-${width}x${height}.png`), Buffer.from(expandedCapture.data, "base64"));
         }

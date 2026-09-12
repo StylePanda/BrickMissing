@@ -1,5 +1,16 @@
 # Changelog
 
+## 8.5.2 — 12 September 2026
+
+### Fixed
+
+- Unnötige Leerhöhe geschlossener Minifigurenkarten durch kompaktere vertikale Innenabstände.
+- Übermäßige vertikale Abstände zwischen Hauptinhalt, Aktionen und Einzelteilen im geöffneten Zustand.
+- Vertikal versetzte Accordion-Chevrons; zentrierte Darstellung ohne Positionssprung beim Umschalten.
+- Mögliches Stretching kompakter Minifigurenkarten durch Geometrie-Regression abgesichert.
+
+Keine Datenbankmigration oder Dependency-Änderung.
+
 ## 8.5.1 — 12 September 2026
 
 ### Fixed

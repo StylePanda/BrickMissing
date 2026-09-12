@@ -664,7 +664,7 @@ class MinifigurePageTests(TestCase):
         with CaptureQueriesContext(connection) as queries:
             self.client.get(url)
         self.assertEqual(len(queries), small_count)
-        self.assertLessEqual(small_count, 13)
+        self.assertEqual(small_count, 13)
 
     def test_kpis_and_completeness_filter_use_existing_status_definitions(self):
         complete = SetMinifigure.objects.create(
