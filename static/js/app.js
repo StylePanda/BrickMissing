@@ -225,6 +225,7 @@ if (lightbox) {
 }
 document.querySelectorAll("form").forEach((form) => {
   form.addEventListener("submit", (event) => {
+    if (form.matches(".status-form")) return;
     if (event.defaultPrevented || !form.checkValidity()) return;
     const button = form.querySelector('button[type="submit"], button:not([type]), input[type="submit"]');
     if (!button || button.classList.contains("is-loading")) return;

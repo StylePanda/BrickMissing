@@ -52,16 +52,18 @@ class ResponsiveBrowserTests(StaticLiveServerTestCase):
                 ),
             ))
         for index, lego_set in enumerate((self.lego_set, *related_sets)):
-            Part.objects.create(
+            part = Part.objects.create(
                 owner=self.user,
                 lego_set=lego_set,
                 part_number="3001",
                 element_id="browser-missing-card",
                 name="Responsive missing-part card with a deliberately long descriptive name",
                 color="Dark Bluish Gray",
-                quantity=3,
+                quantity=2 if index == 1 else 3,
                 owned_quantity=1 if index == 0 else 0,
             )
+            if index == 1:
+                self.status_test_part = part
         for index, color in enumerate(("Black", "Glow in Dark White", "White")):
             Part.objects.create(
                 owner=self.user,
@@ -117,6 +119,7 @@ class ResponsiveBrowserTests(StaticLiveServerTestCase):
 
         routes = {
             "login": reverse("accounts:login"),
+            "statusPart": reverse("catalog:missing_part_status", args=[self.status_test_part.pk]),
             "authenticated": {
                 "dashboard": reverse("dashboard"),
                 "sets": reverse("catalog:set_list"),
@@ -159,3 +162,6 @@ class ResponsiveBrowserTests(StaticLiveServerTestCase):
         if os.environ.get("BRICKMISSING_AUDIT_TRACE") == "1":
             print(result.stdout)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.status_test_part.refresh_from_db()
+        self.assertEqual((self.status_test_part.status, self.status_test_part.owned_quantity),
+                         (Part.Status.ORDERED, 0))

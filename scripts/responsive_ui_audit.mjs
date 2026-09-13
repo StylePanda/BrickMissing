@@ -269,6 +269,91 @@ async function auditMissingParts(client, width) {
   }
 }
 
+async function auditMissingStatusSave(client) {
+  await navigate(client, routes.authenticated.missingParts);
+  const baseline = await evaluate(client, `(() => {
+    const form = [...document.querySelectorAll(".status-form")].find((node) => new URL(node.action).pathname === ${JSON.stringify(routes.statusPart)});
+    if (!form) return null;
+    const allocation = form.closest("[data-part-allocation]");
+    const group = form.closest("[data-part-group]");
+    return {status: allocation.dataset.partStatus, selected: form.elements.status.value,
+      badge: allocation.querySelector("[data-allocation-status-label]")?.textContent.trim(),
+      group: group.querySelector("[data-group-status]")?.textContent.trim(),
+      owned: allocation.querySelector("[data-allocation-owned]")?.textContent.trim(),
+      missing: allocation.querySelector("[data-allocation-missing]")?.textContent.trim(),
+      progress: group.querySelector(".missing-card-total progress")?.value};
+  })()`);
+  assert(baseline?.status === "missing" && baseline.selected === "missing"
+    && baseline.badge === "Fehlt" && baseline.owned === "0" && baseline.missing === "2"
+    && baseline.group && Number.isFinite(baseline.progress), `Status-save browser fixture is wrong: ${JSON.stringify(baseline)}`);
+
+  async function submit(value, mode) {
+    return evaluate(client, `(async () => {
+      const form = [...document.querySelectorAll(".status-form")].find((node) => new URL(node.action).pathname === ${JSON.stringify(routes.statusPart)});
+      const allocation = form.closest("[data-part-allocation]");
+      const group = form.closest("[data-part-group]");
+      const originalFetch = window.fetch;
+      let request = null;
+      window.fetch = async (input, options) => {
+        if (${JSON.stringify(mode)} === "network") throw new TypeError("Failed to fetch");
+        if (${JSON.stringify(mode)} === "html") return new Response("<html>server error</html>", {status: 500, headers: {"Content-Type": "text/html"}});
+        if (${JSON.stringify(mode)} === "bad-json") return new Response("{broken", {status: 400, headers: {"Content-Type": "application/json"}});
+        const response = await originalFetch(input, options);
+        request = {url: new URL(input).pathname, method: options.method,
+          payload: [...options.body.entries()].filter(([key]) => key !== "csrfmiddlewaretoken"),
+          status: response.status, contentType: response.headers.get("Content-Type"),
+          body: await response.clone().text()};
+        return response;
+      };
+      form.elements.status.value = ${JSON.stringify(value)};
+      form.requestSubmit();
+      for (let attempt = 0; attempt < 100 && form.dataset.saving === "true"; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      window.fetch = originalFetch;
+      const button = form.querySelector("button");
+      return {request, status: allocation.dataset.partStatus, selected: form.elements.status.value,
+        badge: allocation.querySelector("[data-allocation-status-label]")?.textContent.trim(),
+        group: group.querySelector("[data-group-status]")?.textContent.trim(),
+        owned: allocation.querySelector("[data-allocation-owned]")?.textContent.trim(),
+        missing: allocation.querySelector("[data-allocation-missing]")?.textContent.trim(),
+        progress: group.querySelector(".missing-card-total progress")?.value,
+        error: allocation.querySelector("[data-status-error]")?.textContent.trim() || "",
+        loading: button.classList.contains("is-loading") || button.disabled || button.hasAttribute("aria-busy") || form.dataset.saving === "true"};
+    })()`);
+  }
+
+  const rejected = await submit("received", "real");
+  assert(rejected.request?.url === routes.statusPart && rejected.request.method === "POST"
+    && rejected.request.payload.some(([key, value]) => key === "status" && value === "received")
+    && rejected.request.status === 400 && rejected.request.contentType?.includes("application/json")
+    && JSON.parse(rejected.request.body).message === "Ein Besitzstatus ist erst ohne offene Fehlmenge zulässig.",
+  `Status-save validation response is wrong: ${JSON.stringify(rejected)}`);
+  assert(rejected.error === "Ein Besitzstatus ist erst ohne offene Fehlmenge zulässig."
+    && rejected.selected === baseline.selected && rejected.status === baseline.status
+    && rejected.badge === baseline.badge && rejected.group === baseline.group
+    && rejected.owned === baseline.owned && rejected.missing === baseline.missing
+    && rejected.progress === baseline.progress && !rejected.loading,
+  `Status-save validation corrupts the UI or leaves its spinner: ${JSON.stringify(rejected)}`);
+  for (const mode of ["html", "bad-json", "network"]) {
+    const failed = await submit("received", mode);
+    assert(failed.error === "Status konnte nicht gespeichert werden."
+      && failed.selected === baseline.selected && failed.status === baseline.status
+      && failed.badge === baseline.badge && failed.group === baseline.group
+      && failed.owned === baseline.owned && failed.missing === baseline.missing
+      && failed.progress === baseline.progress && !failed.loading,
+    `Status-save ${mode} response leaks a parser error or corrupts the UI: ${JSON.stringify(failed)}`);
+  }
+  const accepted = await submit("ordered", "real");
+  assert(accepted.request?.status === 200 && accepted.request.contentType?.includes("application/json")
+    && JSON.parse(accepted.request.body).ok === true && accepted.status === "ordered"
+    && accepted.selected === "ordered" && accepted.badge === "Bestellt"
+    && accepted.group === baseline.group && accepted.owned === baseline.owned
+    && accepted.missing === baseline.missing && accepted.progress === baseline.progress
+    && !accepted.error && !accepted.loading,
+  `Valid status save fails or leaves the spinner: ${JSON.stringify(accepted)}`);
+}
+
 async function auditMinifigures(client, width) {
   const initial = await evaluate(client, `(() => {
     const rect = (node) => { const box = node.getBoundingClientRect(); return {x: box.x, y: box.y, left: box.left, right: box.right, top: box.top, bottom: box.bottom, width: box.width, height: box.height}; };
@@ -1165,6 +1250,7 @@ try {
     }
   }
   await auditMinifigureQuantity(client);
+  await auditMissingStatusSave(client);
   process.stdout.write("Responsive browser audit passed.\n");
 } finally {
   if (client && targetId) {

@@ -8,7 +8,7 @@ from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Case, Count, F, IntegerField, Q, Sum, Value, When
-from django.http import HttpResponse, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -868,32 +868,45 @@ def missing_part_quantity(request, pk):
 @require_POST
 @transaction.atomic
 def missing_part_status(request, pk):
-    part = get_object_or_404(
-        with_authoritative_missing_quantity(Part.objects.select_for_update()),
-        pk=pk,
-        owner=request.user,
-        deleted_at__isnull=True,
-    )
+    ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+
+    def error_response(message, *, status=400):
+        if ajax:
+            return JsonResponse({"ok": False, "message": message}, status=status)
+        return HttpResponse(message, status=status)
+
+    try:
+        part = get_object_or_404(
+            with_authoritative_missing_quantity(Part.objects.select_for_update()),
+            pk=pk,
+            owner=request.user,
+            deleted_at__isnull=True,
+        )
+    except Http404:
+        if ajax:
+            return error_response("Fehlteil nicht gefunden.", status=404)
+        raise
     status = request.POST.get("status")
     if status not in Part.Status.values:
-        return HttpResponse("Der Status ist ungültig.", status=400)
+        return error_response("Der Status ist ungültig.")
     if not workflow_status_is_consistent(
         status,
         part.authoritative_required_quantity,
         part.authoritative_owned_quantity,
         part.authoritative_missing_quantity,
     ):
-        return HttpResponse(
-            "Ein Besitzstatus ist erst ohne offene Fehlmenge zulässig.", status=400
-        )
+        return error_response("Ein Besitzstatus ist erst ohne offene Fehlmenge zulässig.")
     part.status = status
-    part.full_clean()
+    try:
+        part.full_clean()
+    except ValidationError as exc:
+        return error_response(exc.messages[0])
     part.save(update_fields=["status", "updated_at"])
     part = with_authoritative_missing_quantity(
         Part.objects.select_related("lego_set").filter(pk=part.pk)
     ).get()
     AuditEvent.objects.create(actor=request.user, target_user=request.user, action="missing_part.status_changed", entity_type="part", entity_id=str(part.pk), details={"status": status}, request_id=request.request_id)
-    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+    if ajax:
         return JsonResponse({"ok": True, "part": {
             "id": str(part.pk), "owned": part.authoritative_owned_quantity,
             "missing": part.authoritative_missing_quantity, "status": part.status,

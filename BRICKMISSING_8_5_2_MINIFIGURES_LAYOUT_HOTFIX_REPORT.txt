@@ -1,0 +1,110 @@
+BrickMissing 8.5.2 – Minifiguren Layout-Hotfix
+IMPLEMENTATION STATUS: READY
+PRODUCTION VALIDATION: PENDING
+Version vorher: 8.5.1
+Version nachher: 8.5.2
+
+1. Ausgangszustand 8.5.1: Collection-Karten, Progress, Aktionen und kompakte Einzelteilkarten waren vorhanden. Die geschlossene Karte war auf 1440/1920 px 313 px hoch; die geöffnete Karte mit zwei Teilen 608,17 px.
+2. Root Cause geschlossene Karte: Edge/CDP zeigte keine versteckte Leer-Row. Das 210-px-Bild bestimmt die natürliche Hauptbereichshöhe; 20 px Padding oben/unten und 8 px Padding oben/unten in der Aktionszeile addierten vermeidbare Höhe.
+3. Konkrete DOM-/CSS-Ursache: .minifigure-card ist ein Grid mit Hauptbereich, Aktionszeile und geschlossenem details (0 px). .minifigure-grid hat bereits align-items:start; keine feste Höhe, min-height, 1fr-Row oder geöffnete Nachbarkarte dehnte die geschlossene Karte. Der Informationsblock folgt der 210-px-Bildhöhe. Der sichtbare Leerraum war überwiegend innerhalb dieses natürlichen Bild-/Informationsblocks und durch vertikale Innenabstände verursacht.
+4. Fix geschlossene Höhe: .minifigure-card-main verwendet 12 statt 20 px vertikales Padding; .minifigure-card-actions 4 statt 8 px. Bei <=375 px bleibt der Hauptbereich ebenfalls bei 12 px vertikal. Bildhöhe, Breite, object-fit:contain und Fallback bleiben unverändert. Keine feste Kartenhöhe.
+5. Root Cause geöffnet: Der Abstand zwischen Aktionszeile und erster Teilekarte war bereits 4 px, also keine versteckte Leerzone im Einzelteil-Grid. Der Hauptbereich und die Aktionszeile trugen dieselben vermeidbaren 24 px zur geöffneten Gesamthöhe bei.
+6. Fix geöffnet: dieselbe lokale Padding-Verdichtung; das Einzelteil-Grid und seine Karten bleiben unverändert und wachsen natürlich mit der Teilezahl. Abstand Aktionszeile → Grid 0 px; → erste Karte 4 px.
+7. Root Cause Chevron-Offset: Das bisherige Unicode-Zeichen ⌄ hatte eine 25-px-Zeilenbox und fontabhängige Glyphenmetrik. Obwohl die DOM-Box zentriert war, lag die gezeichnete Form sichtbar neben der Textmitte.
+8. Vorherige Chevron-Implementierung: span mit Textzeichen, font-size:1.25rem; offener Zustand per transform:rotate(180deg).
+9. Chevron-Fix: vorhandene Button-/Label-Struktur mit einem 16×16-inline-SVG und mittig gezeichnetem Pfad. Inline-Grid mit align-items:center zentriert Text und SVG; beide Label belegen dieselbe Grid-Zelle und das verborgene Label reserviert nur die gemeinsame Breite. transform-origin:center hält den Pfeil bei Rotation stabil. SVG ist aria-hidden/focusable=false; Button und aria-expanded/aria-controls bleiben erhalten.
+10. Geometrie geschlossen (Edge/CDP; x/y/w/h in px):
+    1440 vorher: Set 36/632,52/1353/456; Header 37/633,52/1351/105; Grid 57/754,52/1311/313; Karte 57/754,52/647,5/313; Hauptbereich 58/755,52/645,5/250; Bild 78/775,52/190/210; Info 288/775,52/395,5/210; Progressbereich 288/869,67/390/84,98; Aktionen 58/1005,52/645,5/61; Chevron 246,09/1024,02/11,48/25.
+    1440 nachher: Set 36/632,52/1353/432; Header 37/633,52/1351/105; Grid 57/754,52/1311/289; Karte 57/754,52/647,5/289; Hauptbereich 58/755,52/645,5/234; Bild 78/767,52/190/210; Info 288/767,52/395,5/210; Progressbereich 288/861,67/390/84,98; Aktionen 58/989,52/645,5/53; Chevron 263,17/1008,52/16/16.
+    1920 vorher: Set 72,5/634,89/1760/456; Header 73,5/635,89/1758/105; Grid 93,5/756,89/1718/313; Karte 93,5/756,89/680/313; Hauptbereich 94,5/757,89/678/250; Bild 114,5/777,89/190/210; Info 324,5/777,89/428/210; Progressbereich 324,5/872,05/390/84,98; Aktionen 94,5/1007,89/678/61; Chevron 282,59/1026,39/11,48/25.
+    1920 nachher: Set 72,5/634,89/1760/432; Header 73,5/635,89/1758/105; Grid 93,5/756,89/1718/289; Karte 93,5/756,89/680/289; Hauptbereich 94,5/757,89/678/234; Bild 114,5/769,89/190/210; Info 324,5/769,89/428/210; Progressbereich 324,5/864,05/390/84,98; Aktionen 94,5/991,89/678/53; Chevron 299,67/1010,89/16/16.
+    Ergänzende Status-/Button-Messwerte (x/y/w/h): 1440 vorher Status 288/927,31/62,34/27,34, Button 74/1014,52/191,58/44; nachher Status 288/919,31/62,34/27,34, Button 74/994,52/213,17/44. 1920 vorher Status 324,5/929,69/62,34/27,34, Button 110,5/1016,89/191,58/44; nachher Status 324,5/921,69/62,34/27,34, Button 110,5/996,89/213,17/44. Die Button-Breite reserviert nun beide Beschriftungen und hält den Chevron-x-Wert beim Toggle stabil.
+    Karte unten minus Aktionszeile unten: vorher und nachher 1 px (nur der Rand). Set unten minus Grid unten: 21 px (20 px Padding plus 1 px Rand). Keine reservierte Leerhöhe.
+11. Geometrie geöffnet: 1440 vorher Karte x57/y754,52/w1311/h608,17, Hauptbereich h250, Aktionszeile h61, erste Teilekarte x78/y1070,52/w610/h275,17. Nachher Karte x57/y754,52/w1311/h584,17, Hauptbereich x58/y755,52/w680/h234, Aktionen x58/y989,52/w1309/h53, Teile-Grid x58/y1042,52/w1309/h295,17, erste Karte x78/y1046,52/w610/h275,17. Bei 1920 vorher Karte x93,5/y756,89/w1376/h608,17; nachher x93,5/y756,89/w1376/h584,17. Geöffnete Höhe sank ebenfalls um 24 px; erste Karte bleibt 4 px unter der Aktionszeile.
+12. Chevron-CenterY: Auf 1440 geschlossen Button 1016,52, sichtbares Label 1016,52, SVG 1016,52; auf 1920 alle 1018,89. Geöffnet nach browserbedingtem Scrollen auf 1440 Button/Text/SVG jeweils 607,52; auf 1920 jeweils 608,89. Relative Abweichung 0 px, Testtoleranz 1,5 px.
+13. Toggle-Stabilität: x, relative centerY, Breite und Höhe des SVG bleiben beim Öffnen und Schließen innerhalb 1 px. Absolute viewport-y darf sich beim browserbedingten Fokus-Scrollen ändern; innerhalb des Buttons springt der Pfeil nicht. Rotation beginnt am geometrischen Mittelpunkt.
+14. Eine Minifigur: zweiter Test-Set-Container wird im Browser geöffnet; Einzelkarte bleibt auf Desktop maximal 680 px breit und links ausgerichtet.
+15. Mehrere Minifiguren: erster Test-Set enthält zwei Figuren. Temporär verlängerte Nachbarbezeichnung macht nur deren Karte höher; die geschlossene erste Karte bleibt unverändert. Geöffnete Karte wächst über zwei Grid-Spalten, die geschlossene Nachbarkarte bleibt kompakt.
+16. Grid-/Flex-Stretching: Computed .minifigure-grid align-items:start, .minifigure-card Grid-Rows geschlossen 234px 53px 0px (Desktop); details 0 px. Dynamischer Test schützt vor Nachbar-Stretching.
+17. Set-Container: 1440/1920 von 456 auf 432 px bei geschlossenem Zustand; Set-Header bleibt 105 px und visuell unverändert. Unten bleibt nur normales Padding plus Rand.
+18. Mobile/Tablet/Desktop: Edge/CDP bei 320, 375, 390, 430, 768, 1024, 1280, 1440, 1920 px. Keine horizontale Dokumentüberläufe, Überlappungen oder abgeschnittenen Controls. Mobile stapelt Bild/Info und Aktionen natürlich; Desktop-Karten bleiben kompakt.
+19. Accessibility: echter Button, bestehende Tastaturbedienbarkeit und aria-expanded/aria-controls geprüft; SVG aus Accessibility-Tree ausgeschlossen. Fokusstil, Textstatus, Progress, Bild-Alt-Attribute und Mengenlabels bleiben erhalten.
+20. Query-Anzahl: 8.5.1 = 13, 8.5.2 = 13 für die repräsentative owner-scoped Minifiguren-Seite. Der bestehende paginierte Query-Test verlangt jetzt exakt 13; Template/CSS/SVG erzeugen keine Query.
+21. Geänderte Dateien: brickmissing_version.py; README.md; CHANGELOG.md; apps/core/tests.py; apps/organizer/tests.py; templates/organizer/minifigure_list.html; static/css/app.css; scripts/responsive_ui_audit.mjs. Lokale, untracked Dateien: RELEASE_NOTES_8.5.2.md und dieser Report. Edge-Logs/Screenshots im ignorierten var-Verzeichnis.
+22. Gezielte Tests: 30 Organizer-/Owner-/Minifiguren-/Versionstests PASS; Query-Test separat PASS; Edge/CDP-Browsertest PASS mit geschlossen/geöffnet, Chevron-Center und Toggle, Ein-/Mehrfiguren, Mengenaktionen, KPI/Filter und Responsive-Prüfungen.
+23. Vollständige Django-Suite: 526 Tests PASS (210,062 s); umfasst Organizer, Catalog/Inventory, Owned/Missing, Mengenendpunkt, Bearbeiten, Owner-Isolation und weitere Regressionsprüfungen.
+24. Ruff: ruff check . PASS.
+25. Migration-Check: manage.py makemigrations --check --dry-run → No changes detected.
+26. git diff --check: PASS; nur Git-Hinweise zu vorhandener LF/CRLF-Arbeitskopie.
+27. Node-Checks: node --check scripts/responsive_ui_audit.mjs PASS; keine weitere JS/MJS-Datei geändert.
+28. Edge/CDP: vorhandenes Edge-Profil und scripts/responsive_ui_audit.mjs; echter DOM-Stil und Bounding-Rects vor/nach Fix, alle neun Breiten PASS.
+29. 390 Screenshots: var/responsive-artifacts/minifigures-390x844.png und minifigures-expanded-390x844.png lokal visuell geprüft.
+30. 768 Screenshots: var/responsive-artifacts/minifigures-768x1024.png und minifigures-expanded-768x1024.png lokal visuell geprüft.
+31. 1440 Screenshots: var/responsive-artifacts/minifigures-1440x900.png und minifigures-expanded-1440x900.png lokal visuell geprüft; kompakte geschlossene und geöffnete Karte, zentrierter Chevron.
+32. 1920 Screenshots: var/responsive-artifacts/minifigures-1920x1080.png und minifigures-expanded-1920x1080.png lokal visuell geprüft; Bildgröße und kompakte Karten erhalten.
+33. Release-Build: scripts/build_release.py lokal PASS; dist/brickmissing-8.5.2.
+34. Verify: scripts/verify_release.py PASS, 347 Dateien.
+35. Dependency-free Verify: python -S scripts/verify_release.py PASS, 347 Dateien.
+36. Manifest: RELEASE_MANIFEST.json version = 8.5.2, 347 deklarierte Dateien.
+37. Release Notes: RELEASE_NOTES_8.5.2.md lokal/untracked erstellt.
+38. Keine Migration.
+39. Keine Dependency hinzugefügt.
+40. Kein Produktionszugriff.
+41. Keine Secrets verwendet oder ausgegeben; Release-Scanner/Verifier prüft auf verbotene Dateien und Schlüsselmaterial.
+42. Kein Commit, Push, Tag, GitHub Release oder Deployment durchgeführt.
+
+SPÄTERE MANUELLE PRODUKTIONSPRÜFUNG – PENDING
+1. Minifiguren-Seite öffnen.
+2. Set mit einer Minifigur öffnen.
+3. Minifigur zunächst geschlossen lassen.
+4. Geschlossene Karte ist kompakt.
+5. Kein großer leerer Bereich unter dem Inhalt.
+6. Minifigurenbild bleibt groß.
+7. Bild vollständig sichtbar.
+8. ID korrekt.
+9. „1 im Set“ korrekt.
+10. Vollständigkeitsinformation korrekt.
+11. Progress korrekt.
+12. Prozent korrekt.
+13. Status korrekt.
+14. Action-Zeile kompakt.
+15. „Einzelteile anzeigen (4)“ korrekt.
+16. Chevron exakt vertikal zum Text zentriert.
+17. Bearbeiten korrekt.
+18. Einzelteile öffnen.
+19. Chevron wechselt Richtung ohne Positionssprung.
+20. „Einzelteile ausblenden (4)“ korrekt.
+21. Geöffneter Hauptbereich kompakt.
+22. Kein unnötiger Leerraum vor Einzelteilkarten.
+23. Einzelteilkarten korrekt.
+24. Teilbilder korrekt.
+25. Mengencontrols korrekt.
+26. Speichern funktioniert.
+27. Alle vorhanden funktioniert.
+28. Keine vorhanden funktioniert.
+29. Einzelteile wieder schließen.
+30. Karte wird wieder korrekt kompakt.
+31. Kein Höhenrest nach dem Schließen.
+32. Set mit mehreren Minifiguren prüfen.
+33. Geschlossene Nachbarkarte wird nicht unnötig gestreckt.
+34. Geöffnete Karte beeinflusst andere Karten nicht falsch.
+35. 1920 px sauber.
+36. 1440 px sauber.
+37. 1280 px sauber.
+38. 1024 px sauber.
+39. 768 px sauber.
+40. 430 px sauber.
+41. 390 px sauber.
+42. 375 px sauber.
+43. 320 px sauber.
+44. Kein horizontaler Overflow.
+45. Keine Überlappung.
+46. Keine abgeschnittenen Controls.
+47. Keine Fachlogikregression.
+48. KPI unverändert korrekt.
+49. Filter unverändert korrekt.
+50. Version UI = 8.5.2.
+51. Healthcheck = 8.5.2.
+52. Manifest = 8.5.2.
+
+Workflow nach lokaler Fertigstellung: PC → GitHub → Produktionsserver → Release-Build → Verify → Deploy → manuelle Produktionsprüfung → Git-Tag v8.5.2 → GitHub Release 8.5.2. Hier wurden nur lokaler Build und lokale Verifikation ausgeführt; keine Weitergabe zu GitHub, kein Produktionsserver, kein Deployment, Tag oder GitHub Release.

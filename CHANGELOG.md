@@ -1,5 +1,16 @@
 # Changelog
 
+## 8.5.3 — 13 September 2026
+
+### Fixed
+
+- Technischen „Unexpected token … is not valid JSON“-Fehler beim Speichern eines Fehlteile-Status behoben.
+- Erwartbare Status-Validierungsfehler im AJAX-Workflow als strukturierte JSON-Antworten ausgegeben.
+- Fachliche Fehlermeldung im UI statt eines JSON-Parserfehlers angezeigt.
+- Ladezustand des Status-Speichern-Buttons auch bei Fehlern zuverlässig beendet.
+
+Keine Datenbankmigration oder Dependency-Änderung.
+
 ## 8.5.2 — 12 September 2026
 
 ### Fixed
