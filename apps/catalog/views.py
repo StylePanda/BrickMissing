@@ -35,6 +35,7 @@ from .services import (
     AmbiguousAuthoritativeAllocation,
     dashboard_collection_data,
     filter_sets_by_missing_colors,
+    group_authoritative_missing_parts,
     missing_color_values,
     set_authoritative_owned_quantity,
     set_part_owned_quantity,
@@ -511,7 +512,15 @@ def missing_parts(request):
         Part.objects.filter(
             owner=request.user,
             deleted_at__isnull=True,
-        ).select_related("lego_set")
+        )
+        .filter(
+            Q(lego_set__isnull=True)
+            | Q(
+                lego_set__owner=request.user,
+                lego_set__deleted_at__isnull=True,
+            )
+        )
+        .select_related("lego_set")
     ).filter(authoritative_missing_quantity__gt=0)
     query = request.GET.get("q", "").strip()
     selected_colors = [value for value in request.GET.getlist("color") if value]
@@ -586,26 +595,7 @@ def missing_parts(request):
             part.authoritative_missing_quantity,
         )
         part.display_status_label = workflow_status_label(part.display_status)
-    grouped = {}
-    for part in records:
-        identity = part.element_id.strip().casefold()
-        if not identity:
-            identity = (part.design_id or part.part_number).strip().casefold()
-        key = (identity, part.color.strip().casefold())
-        group = grouped.setdefault(key, {
-            "element_id": part.element_id, "design_id": part.design_id,
-            "part_number": part.part_number, "name": part.name, "color": part.color,
-            "image_url": part.image_url, "required": 0, "owned": 0, "missing": 0,
-            "allocations": [], "cost": 0,
-        })
-        group["required"] += part.authoritative_required_quantity
-        group["owned"] += part.authoritative_owned_quantity
-        group["missing"] += part.authoritative_missing_quantity
-        group["cost"] += part.unit_price * part.authoritative_required_quantity
-        if not group["image_url"] and part.image_url:
-            group["image_url"] = part.image_url
-        group["allocations"].append(part)
-    groups = list(grouped.values())
+    groups = group_authoritative_missing_parts(records)
     if part_kind in {"all", "minifigure"}:
         minifigure_parts = MinifigurePart.objects.filter(
             minifigure__owner=request.user,

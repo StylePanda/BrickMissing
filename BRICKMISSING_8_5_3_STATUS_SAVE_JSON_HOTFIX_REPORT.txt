@@ -1,0 +1,63 @@
+BrickMissing 8.5.3 – Status-Speichern/JSON-Hotfix
+IMPLEMENTATION STATUS: READY
+PRODUCTION VALIDATION: PENDING
+Version vorher: 8.5.2
+Version nachher: 8.5.3
+
+1. Reproduktion: Eine lokale, transaktional zurückgerollte Set-Zuordnung mit required=2, owned=0, missing=2 und sichtbarem Status „Fehlt“ wurde per Statusformular auf „Erhalten“ (received) gestellt und gespeichert.
+2. Endpoint: /fehlteile/<UUID>/status/; URL-Name catalog:missing_part_status, Django-View apps.catalog.views.missing_part_status.
+3. Request: POST, FormData mit status=received und CSRF-Token; Accept: application/json und X-Requested-With: XMLHttpRequest.
+4. HTTP-Status vor Fix: 400 Bad Request.
+5. Content-Type vor Fix: text/html; charset=utf-8.
+6. Response vor Fix: Plaintext im HttpResponse, keine JSON-Struktur.
+7. Fachliche Meldung: „Ein Besitzstatus ist erst ohne offene Fehlmenge zulässig.“
+8. Root Cause: workflow_status_is_consistent lehnte den Besitzstatus bei offener Fehlmenge fachlich korrekt ab. Die View gab vor der JSON-Erfolgsverzweigung einen Plaintext-HttpResponse zurück, obwohl der Fetch-Handler unabhängig vom HTTP-Status response.json() aufrief. Der resultierende SyntaxError wurde als technische Meldung im UI angezeigt. Zusätzlich startete die globale Formularlogik in app.js einen Spinner, den der bisherige Status-Handler nicht entfernte.
+9. Backend-Fix: Der Status-Endpunkt gibt bei erwartbaren Validierungsfehlern und owner-scoped 404 für XMLHttpRequest JsonResponse mit {ok:false,message:...} aus. Nicht-AJAX-Formulare behalten den bestehenden Plaintext-400-Vertrag. Die Statusvalidierung, autoritative Mengenabfrage und der Erfolgsweg bleiben erhalten.
+10. Frontend-Fix: missing-parts.js prüft Content-Type und response.ok, parst JSON nur bei passendem Typ, übernimmt die vorhandene fachliche message und verwendet für defektes JSON, HTML oder Netzwerkfehler eine neutrale Meldung. Die globale Ladezustandslogik überspringt ausschließlich .status-form; deren AJAX-Handler verwaltet Spinner und Button selbst.
+11. Vertrag nach Fix: Erfolg HTTP 200, application/json, {ok:true,part:{...}}. Fachliche Ablehnung HTTP 400, application/json, {ok:false,message:"Ein Besitzstatus ist erst ohne offene Fehlmenge zulässig."}. Ungültiger Status ebenfalls HTTP 400 JSON; fremder/nicht vorhandener Datensatz HTTP 404 JSON. Derselbe transaktionale Reproduktionsrequest wurde nach dem Fix erneut ausgeführt und bestätigte genau HTTP 400/application-json, ohne gespeicherte Status- oder Mengenänderung.
+12. Validierungsfehler: Die Speicherung wird weiterhin abgelehnt; Status bleibt missing, quantity=2, owned=0, missing=2. Das UI zeigt die Fachmeldung statt „Unexpected token“ und stellt das Dropdown auf den angezeigten Status zurück.
+13. Gültiger Wechsel: Mit gleicher Fehlmenge ist „Bestellt“ (ordered) erlaubt; HTTP 200 JSON, sichtbarer Zuordnungsstatus „Bestellt“, Menge unverändert. Der Gruppenstatus bleibt mengenbasiert.
+14. Ladezustand: Der Handler setzt is-loading, aria-busy und disabled während des Requests und entfernt alle in finally bei Erfolg, Validierungsfehler, HTML, defektem JSON und Netzwerkfehler. Ein 15-s-Abbruch verhindert unbegrenztes Warten.
+15. UI nach Fehler: Zuordnungsbadge, Dropdown, Gruppenbadge, owned/missing und Progress bleiben unverändert; alte Fehlermeldungen werden nach erfolgreichem Speichern entfernt.
+16. Owner-Isolation: Query bleibt owner- und deleted_at-gefiltert. Fremde und nicht vorhandene IDs ergeben denselben JSON-404 ohne Mutation. Kein neuer Berechtigungsweg.
+17. Geänderte Dateien: brickmissing_version.py, README.md, CHANGELOG.md, apps/core/tests.py, apps/catalog/views.py, static/js/app.js, static/js/missing-parts.js, scripts/responsive_ui_audit.mjs, tests/test_responsive_browser.py; neuer gezielter Test apps/catalog/test_status_save_json.py. Diese Release Notes und der Report bleiben lokal/untracked.
+18. Gezielte Tests: 16 Status-/Catalog-/Versionstests PASS, darunter JSON-Erfolg und -Fehler, HTTP-Status/Content-Type, Fachmeldung, unveränderte Menge, Owner-/404-Pfad und nicht-AJAX-Vertrag.
+19. Relevante Regressionen: gesamte Catalog-Suite 171 Tests PASS; bisherige Statusvalidierung und Mengenpfade unverändert. Kein zusätzlicher DB-Query-Pfad im Fehler-Response: neue Verzweigungen erzeugen ausschließlich Response-Objekte nach der bestehenden Abfrage.
+20. manage.py check: PASS, 0 Issues.
+21. Ruff: ruff check . PASS.
+22. Migration-Check: manage.py makemigrations --check --dry-run PASS, „No changes detected“.
+23. git diff --check: PASS; nur vorhandene LF/CRLF-Hinweise von Git.
+24. Node-Check: node --check für static/js/app.js, static/js/missing-parts.js und scripts/responsive_ui_audit.mjs PASS.
+25. Browser-Test: Edge/CDP PASS. Echter 0-von-2-Status-POST: HTTP 400 JSON und Fachmeldung; Spinner endet, UI bleibt unverändert. Simulierte HTML-Antwort, defektes JSON und Netzwerkfehler liefern neutrale Meldung ohne Parserfehler. Gültiger Wechsel zu ordered: HTTP 200 JSON, Badge/Dropdown korrekt, Spinner endet.
+26. Vollständige Django-Suite: PASS, 531 Tests, Exit-Code 0.
+27. Release-Build: PASS, lokal unter dist/brickmissing-8.5.3.
+28. Release-Verify und dependency-free Verify mit python -S: beide PASS, je 348 Dateien.
+29. Manifest 8.5.3: PASS; RELEASE_MANIFEST.json meldet Version 8.5.3 und 348 Dateien.
+30. Keine Datenbankmigration oder Modeländerung.
+31. Keine Dependency hinzugefügt.
+32. Kein Produktionszugriff.
+33. Keine Secrets verwendet oder ausgegeben. Die Browser-Test-Credentials sind ausschließlich ephemer aus dem bestehenden lokalen Testfixture.
+34. Kein Commit, Push, Tag, GitHub Release oder Deployment durchgeführt.
+
+MANUELLE PRODUKTIONSPRÜFUNG – PENDING
+1. Fehlteile-Seite öffnen.
+2. Betroffene Set-Zuordnung öffnen.
+3. 0 von 2 vorhanden prüfen.
+4. Sichtbaren Ausgangsstatus prüfen.
+5. Anderen Status auswählen.
+6. Status speichern.
+7. Kein „Unexpected token“.
+8. Kein „is not valid JSON“.
+9. Fachliche Meldung verständlich.
+10. Spinner endet.
+11. Abgelehnter Status bleibt unverändert.
+12. Menge bleibt unverändert.
+13. Gruppenstatus bleibt korrekt.
+14. Gültigen Statuswechsel testen.
+15. Gültiger Statuswechsel funktioniert.
+16. Keine JS-Fehlermeldung.
+17. Version UI = 8.5.3.
+18. Healthcheck = 8.5.3.
+19. Manifest des später bereitgestellten Artefakts = 8.5.3.
+
+Nächster Workflow nach lokaler Fertigstellung: PC → GitHub → Produktionsserver → Release-Build → Verify → Deploy → manuelle Produktionsprüfung → Git-Tag v8.5.3 → GitHub Release 8.5.3. Hier erfolgte keine Weitergabe, kein Deployment und keine Veröffentlichung.

@@ -1,5 +1,16 @@
 # Changelog
 
+## 8.5.4 — 19 September 2026
+
+### Fixed
+
+- Fehlteile-Seite und CSV-Export verwenden nun dieselbe farbisolierte, autoritative Gruppierung vor der bewussten globalen CSV-Aggregation nach `elementId`.
+- Doppelte historische `Part`-Mirrors können dieselbe Set-Zuordnung weder in der Fehlteile-Ansicht noch im CSV mehrfach zählen.
+- Fehlteile aus gelöschten Sets werden auf der aktiven Fehlteile-Seite ebenso ausgeschlossen wie im CSV-Export.
+- Den realen Identitätsfall `30237a`/Set `7744` einschließlich weiterer Set-/Farbzuordnungen als UI-vs.-CSV-Invariante abgesichert.
+
+Keine Datenbankmigration oder Dependency-Änderung.
+
 ## 8.5.3 — 13 September 2026
 
 ### Fixed

@@ -931,36 +931,68 @@ def authoritative_lego_export_parts(user, *, colors=()):
     )
 
 
-def authoritative_lego_export_rows(user, *, colors=()):
-    """Build deterministic LEGO rows without counting a mirror more than once."""
-    parts = authoritative_lego_export_parts(user, colors=colors).values(
-        "pk",
-        "lego_set_id",
-        "element_id",
-        "color",
-        "authoritative_missing_quantity",
-        "_has_normal_inventory",
-        "_has_minifigure_inventory",
-    )
-    totals = {}
+def group_authoritative_missing_parts(parts):
+    """Group annotated Part allocations by the identity shown in missing parts.
+
+    The authoritative quantities must already have been attached with
+    ``with_authoritative_missing_quantity``. Keeping this grouping here gives
+    the missing-parts UI and the CSV export the same color-isolated subtotal
+    before the CSV's intentionally coarser elementId-only aggregation.
+    """
+    grouped = {}
     seen_allocations = set()
     for part in parts:
-        has_inventory = (
-            part["_has_normal_inventory"] or part["_has_minifigure_inventory"]
-        )
+        identity = part.element_id.strip().casefold()
+        if not identity:
+            identity = (part.design_id or part.part_number).strip().casefold()
+        color_identity = part.color.strip().casefold()
+        has_inventory = part._has_normal_inventory or part._has_minifigure_inventory
         allocation_key = (
             "inventory",
-            part["lego_set_id"],
-            part["element_id"],
-            part["color"].casefold(),
-        ) if has_inventory else ("part", part["pk"])
+            part.lego_set_id,
+            identity,
+            color_identity,
+        ) if has_inventory else ("part", part.pk)
         if allocation_key in seen_allocations:
             continue
         seen_allocations.add(allocation_key)
-        element_id = part["element_id"]
-        totals[element_id] = (
-            totals.get(element_id, 0) + part["authoritative_missing_quantity"]
+
+        key = (identity, color_identity)
+        group = grouped.setdefault(
+            key,
+            {
+                "element_id": part.element_id,
+                "design_id": part.design_id,
+                "part_number": part.part_number,
+                "name": part.name,
+                "color": part.color,
+                "image_url": part.image_url,
+                "required": 0,
+                "owned": 0,
+                "missing": 0,
+                "allocations": [],
+                "cost": 0,
+            },
         )
+        group["required"] += part.authoritative_required_quantity
+        group["owned"] += part.authoritative_owned_quantity
+        group["missing"] += part.authoritative_missing_quantity
+        group["cost"] += part.unit_price * part.authoritative_required_quantity
+        if not group["image_url"] and part.image_url:
+            group["image_url"] = part.image_url
+        group["allocations"].append(part)
+    return list(grouped.values())
+
+
+def authoritative_lego_export_rows(user, *, colors=()):
+    """Build deterministic elementId rows from color-isolated UI subtotals."""
+    groups = group_authoritative_missing_parts(
+        authoritative_lego_export_parts(user, colors=colors)
+    )
+    totals = {}
+    for group in groups:
+        element_id = group["element_id"]
+        totals[element_id] = totals.get(element_id, 0) + group["missing"]
     return [
         {"element_id": element_id, "export_quantity": quantity}
         for element_id, quantity in sorted(totals.items())
