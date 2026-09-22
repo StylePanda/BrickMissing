@@ -1,10 +1,10 @@
-# BrickMissing 8.5.5
+# BrickMissing 8.5.6
 
-BrickMissing 8.5.5 ist der Django-Neuaufbau der LEGO-Sammlungs- und
+BrickMissing 8.5.6 ist der Django-Neuaufbau der LEGO-Sammlungs- und
 Fehlteileverwaltung. Production verwendet Nginx → Gunicorn → Django → MariaDB.
 Der alte Python-HTTP-Server ist nur noch Legacy-Referenz und kein V8-Server.
 
-> Release-Status: **8.5.5 – Production Sign-off ausstehend**. Der V8-Runtimepfad
+> Release-Status: **8.5.6 – Production Sign-off ausstehend**. Der V8-Runtimepfad
 > ist Django-only. Der vollständige MariaDB-11.8.6-Rehearsal einschließlich
 > Reconciliation, 106 Tests, echten Locking-Tests und Cleanup ist PASS.
 
@@ -13,6 +13,7 @@ Der alte Python-HTTP-Server ist nur noch Legacy-Referenz und kein V8-Server.
 - responsives Midnight-Violet-Dashboard mit Sammlungskennzahlen, autoritativer Fehlteileübersicht, Schnellzugriff und Themenwelten
 - moderne kartenbasierte Fehlteileansicht mit klaren Set-Zuordnungen, Bestandsfortschritt und kompaktem responsivem Filterbereich
 - Minifiguren-Collection mit KPI-Übersicht, Vollständigkeitsfilter und Einzelteilkarten
+- einzelne Rebrickable-Minifiguren ohne Set mit Bestandteilbestand, Fehlteilen und JSON-Roundtrip
 - Custom User, UUID, eindeutige normalisierte E-Mail, Argon2 und Legacy-Hash-Upgrade
 - Registrierung, Verifikation, Login/Logout, Passwortreset und Profil
 - Sets, Setdetails, Teile, Fehlteile, Suche, Filter, Pagination und Papierkorb
@@ -42,7 +43,7 @@ Legacy-Datei `data/brickmissing.db` wird nicht als Django-Datenbank verwendet.
 
 ## Tests und Qualität
 
-Lokaler Stand 8.5.5: 546 Django-Tests, Ruff, Django Check, Migration-Drift und Release-Verifikation. Die manuelle Produktionsprüfung steht noch aus. `check --deploy` meldet nur W005/W021 als Operatorentscheidungen.
+Lokaler Stand 8.5.6: vollständige automatisierte Validierung und Release-Verifikation. Die manuelle Produktionsprüfung steht noch aus.
 
 ```powershell
 .\.venv\Scripts\python.exe manage.py check

@@ -1180,11 +1180,21 @@ try {
         await auditMissingPartsHotfixControls(client, width);
       }
       if (name === "minifigures") await auditMinifigures(client, width);
+      if (name === "minifigureAdd") {
+        const add = await evaluate(client, `(() => ({
+          title: document.querySelector("h1")?.textContent,
+          search: Boolean(document.querySelector('input[name="q"][type="search"]')),
+          label: Boolean(document.querySelector('label[for="minifigure-search"]')),
+          back: Boolean(document.querySelector('.page-head a[href]')),
+        }))()`);
+        assert(add.title.includes("Minifigur hinzuf"), `Minifigure add title missing at ${width}px`);
+        assert(add.search && add.label && add.back, `Minifigure add form is incomplete at ${width}px`);
+      }
     }
   }
   for (const width of desktopWidths) {
     await setViewport(client, width, width >= 1440 ? 900 : 1024);
-    for (const name of ["dashboard", "sets", "setForm", "setDetail", "missingParts", "minifigures"]) {
+    for (const name of ["dashboard", "sets", "setForm", "setDetail", "missingParts", "minifigures", "minifigureAdd"]) {
       await navigate(client, routes.authenticated[name]);
       await auditOverflow(client, name, width);
       if (name === "dashboard") await auditDashboard(client, width);

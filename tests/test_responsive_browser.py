@@ -138,6 +138,7 @@ class ResponsiveBrowserTests(StaticLiveServerTestCase):
                 "missingParts": reverse("catalog:missing_parts"),
                 "inventory": reverse("inventory:list"),
                 "minifigures": reverse("organizer:minifigure_list"),
+                "minifigureAdd": reverse("organizer:minifigure_add"),
                 "mocs": reverse("organizer:list", args=["mocs"]),
                 "orders": reverse("orders:list"),
                 "profile": reverse("accounts:profile"),

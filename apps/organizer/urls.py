@@ -5,6 +5,7 @@ from . import views
 app_name = "organizer"
 urlpatterns = [
     path("organisation/minifiguren/", views.minifigure_list, name="minifigure_list"),
+    path("organisation/minifiguren/hinzufuegen/", views.minifigure_add, name="minifigure_add"),
     path("organisation/etiketten-qr/", views.label_studio, name="label_studio"),
     path(
         "organisation/etiketten-qr/qr/<uuid:set_pk>.svg",

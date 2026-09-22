@@ -2,8 +2,8 @@
 {% block title %}Minifiguren{% endblock %}
 {% block content %}
 <header class="page-head minifigure-page-head">
-  <div><p class="eyebrow">Sammlung</p><h1>Minifiguren</h1><p class="muted">Figuren, Einzelteile und Vollständigkeit nach Sets geordnet.</p></div>
-  <div class="page-head-actions"><a class="button secondary" href="{% url 'organizer:list' 'minifigures' %}">Daten verwalten</a><a class="button primary" href="{% url 'organizer:create' 'minifigures' %}">+ Minifigur</a></div>
+  <div><p class="eyebrow">Sammlung</p><h1>Minifiguren</h1><p class="muted">Figuren, Einzelteile und Vollständigkeit aus Sets und einzeln hinzugefügten Figuren.</p></div>
+  <div class="page-head-actions"><a class="button secondary" href="{% url 'organizer:list' 'minifigures' %}">Daten verwalten</a><a class="button secondary" href="{% url 'organizer:create' 'minifigures' %}">Manuell</a><a class="button primary" href="{% url 'organizer:minifigure_add' %}">Minifigur hinzufügen</a></div>
 </header>
 
 <section class="minifigure-kpis" aria-label="Vollständigkeit der Minifiguren-Sammlung">
@@ -28,8 +28,8 @@
 {% for group in groups %}
 <details class="minifigure-set-group" data-set-group{% if forloop.first %} open{% endif %}>
   <summary class="minifigure-set-summary">
-    {% if group.lego_set.image_url %}<span class="minifigure-set-image"><span class="minifigure-set-image-fallback" aria-hidden="true">BM</span><img src="{{ group.lego_set.image_url|proxied_image_url }}" alt="" loading="lazy" data-image-fallback></span>{% else %}<span class="minifigure-set-image minifigure-image-fallback" aria-hidden="true">BM</span>{% endif %}
-    <div class="minifigure-set-title"><span class="eyebrow">Set {{ group.lego_set.set_number }}</span><h3><a class="minifigure-set-name" href="{% url 'catalog:set_detail' group.lego_set.pk %}">{{ group.lego_set.name }}</a></h3></div>
+    {% if group.lego_set and group.lego_set.image_url %}<span class="minifigure-set-image"><span class="minifigure-set-image-fallback" aria-hidden="true">BM</span><img src="{{ group.lego_set.image_url|proxied_image_url }}" alt="" loading="lazy" data-image-fallback></span>{% else %}<span class="minifigure-set-image minifigure-image-fallback" aria-hidden="true">BM</span>{% endif %}
+    <div class="minifigure-set-title">{% if group.lego_set %}<span class="eyebrow">Set {{ group.lego_set.set_number }}</span><h3><a class="minifigure-set-name" href="{% url 'catalog:set_detail' group.lego_set.pk %}">{{ group.lego_set.name }}</a></h3>{% else %}<span class="eyebrow">Ohne Set</span><h3>Einzeln hinzugefügt</h3>{% endif %}</div>
     <span class="minifigure-set-count">{{ group.figures|length }} Minifigur{{ group.figures|length|pluralize:"en" }}</span><span class="minifigure-set-chevron" aria-hidden="true">⌄</span>
   </summary>
   <div class="minifigure-set-body">
@@ -38,7 +38,7 @@
       <article class="minifigure-card" data-minifigure data-figure-status-code="{{ record.status }}">
         <div class="minifigure-card-main">
           {% if record.figure.image_url %}<button class="part-image-trigger minifigure-card-image" type="button" data-lightbox-image="{{ record.figure.image_url|proxied_image_url }}" data-lightbox-title="{{ record.figure.name }}" aria-label="Bild von {{ record.figure.name }} vergrößern"><img src="{{ record.figure.image_url|proxied_image_url }}" alt="{{ record.figure.name }}" loading="lazy" data-image-fallback></button>{% else %}<span class="minifigure-card-image minifigure-image-fallback" role="img" aria-label="Kein Bild für {{ record.figure.name }}">Kein Bild</span>{% endif %}
-          <div class="minifigure-card-content"><p class="minifigure-card-id">{{ record.figure.figure_number }}</p>{% if record.display_name %}<h4>{{ record.display_name }}</h4>{% endif %}<p class="minifigure-card-quantity">{{ record.figure.quantity }}× im Set</p>
+          <div class="minifigure-card-content"><p class="minifigure-card-id">{{ record.figure.figure_number }}</p>{% if record.display_name %}<h4>{{ record.display_name }}</h4>{% endif %}<p class="minifigure-card-quantity">{{ record.figure.quantity }}× {% if record.figure.lego_set_id %}im Set{% else %}einzeln{% endif %}</p>
             <div class="minifigure-progress"><p><strong><span data-figure-owned>{{ record.owned }}</span> von <span data-figure-required>{{ record.required }}</span></strong> Teilen vorhanden</p><div class="minifigure-progress-meter"><progress class="{{ record.status }}" max="100" value="{{ record.percent }}" data-figure-progress aria-label="Vollständigkeit von {{ record.display_name|default:record.figure.figure_number }}: {{ record.percent }} Prozent">{{ record.percent }} %</progress><span data-figure-percent>{{ record.percent }} %</span></div><span class="badge {{ record.status }}" data-figure-status>{{ record.status_label }}</span></div>
           </div>
         </div>

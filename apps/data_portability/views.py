@@ -3,7 +3,7 @@ import io
 
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
-from django.db import transaction
+from django.db import models, transaction
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
@@ -19,6 +19,7 @@ from apps.catalog.services import (
     set_part_owned_quantity,
 )
 from apps.core.rate_limit import limited
+from apps.organizer.models import MinifigurePart, SetMinifigure
 
 from .lego_unavailable import analyze_lego_unavailable, parse_lego_unavailable_upload
 from .models import ImportBatch
@@ -36,13 +37,15 @@ def _eligible_missing_parts(user):
 
 
 def _export_color_values(user):
-    return list(
-        _eligible_missing_parts(user)
-        .exclude(color="")
-        .order_by("color")
-        .values_list("color", flat=True)
-        .distinct()
-    )
+    from apps.organizer.models import MinifigurePart
+
+    loose_colors = MinifigurePart.objects.filter(
+        minifigure__owner=user, minifigure__lego_set__isnull=True,
+        is_spare=False, quantity__gt=models.F("owned_quantity"),
+    ).exclude(element_id="").exclude(color_name="").values_list("color_name", flat=True)
+    return sorted(set(
+        _eligible_missing_parts(user).exclude(color="").values_list("color", flat=True)
+    ).union(loose_colors), key=str.casefold)
 
 
 def _import_page_context(user, *, error=None, selected_colors=(), colors=None):
@@ -92,8 +95,33 @@ def export_json(request):
             "lego_set__set_number",
         )
     )
+    figures = [
+        {
+            "source_id": figure.pk,
+            "lego_set__set_number": figure.lego_set.set_number if figure.lego_set_id else None,
+            "figure_number": figure.figure_number,
+            "name": figure.name,
+            "quantity": figure.quantity,
+            "owned_quantity": figure.owned_quantity,
+            "image_url": figure.image_url,
+            "notes": figure.notes,
+            "parts": [
+                {
+                    "part_number": part.part_number, "element_id": part.element_id,
+                    "name": part.name, "color_id": part.color_id,
+                    "color_name": part.color_name, "quantity": part.quantity,
+                    "owned_quantity": part.owned_quantity, "is_spare": part.is_spare,
+                    "image_url": part.image_url,
+                }
+                for part in figure.parts.all()
+            ],
+        }
+        for figure in SetMinifigure.objects.filter(owner=request.user)
+        .select_related("lego_set").prefetch_related("parts").order_by("pk")
+    ]
     response = JsonResponse(
-        {"format": "brickmissing-8", "sets": sets, "parts": parts},
+        {"format": "brickmissing-8", "sets": sets, "parts": parts,
+         "minifigures": figures},
         json_dumps_params={"ensure_ascii": False, "indent": 2},
     )
     response["Content-Disposition"] = 'attachment; filename="brickmissing-8-export.json"'
@@ -101,7 +129,7 @@ def export_json(request):
         actor=request.user,
         target_user=request.user,
         action="export.json",
-        details={"sets": len(sets), "parts": len(parts)},
+        details={"sets": len(sets), "parts": len(parts), "minifigures": len(figures)},
         request_id=request.request_id,
     )
     return response
@@ -264,10 +292,26 @@ def _preview(request, source_format):
         ).exists()
         duplicates += int(exists)
         new += int(not exists)
+    for raw in payload.get("minifigures", []):
+        if raw["set_number"]:
+            exists = SetMinifigure.objects.filter(
+                owner=request.user, lego_set__set_number=raw["set_number"],
+                figure_number=raw["figure_number"],
+            ).exists()
+        else:
+            exists = SetMinifigure.objects.filter(
+                owner=request.user, lego_set__isnull=True, pk=raw["source_id"],
+                figure_number=raw["figure_number"],
+            ).exists() or SetMinifigure.objects.filter(
+                owner=request.user, lego_set__isnull=True, legacy_id=raw["source_id"],
+            ).exists()
+        duplicates += int(exists)
+        new += int(not exists)
     report = {
-        "total": len(payload["sets"]) + len(payload["parts"]),
+        "total": len(payload["sets"]) + len(payload["parts"]) + len(payload.get("minifigures", [])),
         "new": new, "duplicates": duplicates, "errors": errors,
         "sets": len(payload["sets"]), "parts": len(payload["parts"]),
+        "minifigures": len(payload.get("minifigures", [])),
     }
     batch = ImportBatch.objects.create(
         owner=request.user, source_format=source_format, payload=payload, report=report
@@ -352,6 +396,62 @@ def import_confirm(request, pk):
                 item.save()
                 set_part_owned_quantity(item, item.owned_quantity, request.user)
                 counters["created"] += 1
+        for raw in locked.payload.get("minifigures", []):
+            lego_set = None
+            if raw["set_number"]:
+                lego_set = set_map.get(raw["set_number"])
+                if lego_set is None:
+                    lego_set = LegoSet.objects.filter(
+                        owner=request.user, set_number=raw["set_number"], deleted_at__isnull=True,
+                    ).first()
+                if lego_set is None:
+                    raise ValidationError("Ein Minifiguren-Set fehlt im Import.")
+                existing = SetMinifigure.objects.filter(
+                    owner=request.user, lego_set=lego_set, figure_number=raw["figure_number"],
+                ).first()
+            else:
+                existing = SetMinifigure.objects.filter(
+                    owner=request.user, lego_set__isnull=True, pk=raw["source_id"],
+                    figure_number=raw["figure_number"],
+                ).first() or SetMinifigure.objects.filter(
+                    owner=request.user, lego_set__isnull=True, legacy_id=raw["source_id"],
+                ).first()
+            if existing and strategy == "skip":
+                counters["duplicates"] += 1
+                counters["skipped"] += 1
+                continue
+            values = {key: raw[key] for key in (
+                "figure_number", "name", "quantity", "owned_quantity", "image_url", "notes"
+            )}
+            if existing:
+                counters["duplicates"] += 1
+                for key, value in values.items():
+                    setattr(existing, key, value)
+                existing.full_clean()
+                existing.save()
+                figure = existing
+                counters["updated"] += 1
+            else:
+                figure = SetMinifigure(
+                    owner=request.user, lego_set=lego_set,
+                    legacy_id=raw["source_id"] if lego_set is None else None,
+                    **values,
+                )
+                figure.full_clean()
+                figure.save()
+                counters["created"] += 1
+            seen = set()
+            for component in raw["parts"]:
+                lookup = {key: component[key] for key in ("part_number", "color_id", "is_spare")}
+                key = tuple(lookup.values())
+                if key in seen:
+                    raise ValidationError("Doppelte Minifigurenteile im Import.")
+                seen.add(key)
+                component_values = {key: value for key, value in component.items() if key not in lookup}
+                item, _ = MinifigurePart.objects.update_or_create(
+                    minifigure=figure, **lookup, defaults=component_values,
+                )
+                item.full_clean()
         locked.committed_at = timezone.now()
         locked.report = counters
         locked.save(update_fields=["committed_at", "report"])

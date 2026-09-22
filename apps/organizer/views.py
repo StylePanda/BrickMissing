@@ -6,7 +6,7 @@ from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
-from django.db import models, transaction
+from django.db import DatabaseError, models, transaction
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -20,8 +20,15 @@ from apps.catalog.services import (
     set_authoritative_owned_quantity,
     set_completeness,
 )
+from apps.core.rate_limit import limited
 from apps.core.services import record_recent
-from apps.integrations.services import RebrickableError, rebrickable_set_metadata
+from apps.integrations.rebrickable_sync import create_standalone_minifigure
+from apps.integrations.services import (
+    RebrickableError,
+    rebrickable_minifigure,
+    rebrickable_minifigure_search,
+    rebrickable_set_metadata,
+)
 from apps.inventory.models import InventoryItem, WarehouseLocation
 
 from .forms import WishlistItemForm, build_model_form
@@ -121,7 +128,10 @@ def _label_display(record):
 
 
 def _minifigure_display(record):
-    return record.name, f"{record.figure_number} · Set {record.lego_set.set_number}"
+    return record.name, (
+        f"{record.figure_number} · Set {record.lego_set.set_number}"
+        if record.lego_set else f"{record.figure_number} · Einzeln hinzugefügt"
+    )
 
 
 AREA_DISPLAY = {
@@ -209,9 +219,58 @@ def _minifigure_record(figure):
 
 
 @login_required
+@require_http_methods(["GET", "POST"])
+def minifigure_add(request):
+    """Search, preview, then add one independently owned Rebrickable minifigure."""
+    if limited(request, "rebrickable-minifigure", 60, 3600, per_user=True):
+        return render(request, "organizer/minifigure_add.html", {
+            "error": "Zu viele Rebrickable-Anfragen. Bitte versuche es spaeter erneut.",
+        }, status=429)
+    query = request.GET.get("q", "").strip()[:100]
+    selected = (request.POST.get("figure_number") if request.method == "POST"
+                else request.GET.get("figure")) or ""
+    results = []
+    preview = None
+    error = ""
+    if not request.user.rebrickable_api_key_encrypted:
+        error = "Bitte verbinde zuerst Rebrickable in deinen Kontoeinstellungen."
+    elif query or selected:
+        try:
+            api_key = decrypt_secret(request.user.rebrickable_api_key_encrypted)
+            if request.method == "POST":
+                figure, components = rebrickable_minifigure(selected, api_key)
+                with transaction.atomic():
+                    created = create_standalone_minifigure(request.user, figure, components)
+                    AuditEvent.objects.create(
+                        actor=request.user, target_user=request.user,
+                        action="minifigure.standalone_added", entity_type="set_minifigure",
+                        entity_id=str(created.pk), request_id=request.request_id,
+                    )
+                return redirect("organizer:minifigure_list")
+            if query:
+                results = rebrickable_minifigure_search(query, api_key)
+            if selected:
+                figure, components = rebrickable_minifigure(selected, api_key)
+                preview = {"figure": figure, "components": components}
+        except RebrickableError as exc:
+            error = str(exc)
+        except ValueError:
+            error = "Der Rebrickable API-Key konnte nicht gelesen werden."
+        except DatabaseError:
+            error = "Die Minifigur konnte nicht gespeichert werden. Bitte versuche es erneut."
+    return render(request, "organizer/minifigure_add.html", {
+        "query": query, "results": results, "preview": preview,
+        "error": error, "rebrickable_connected": request.user.has_rebrickable_api_key,
+    }, status=400 if request.method == "POST" and error else 200)
+
+
+@login_required
 def minifigure_list(request):
     figures = (
-        SetMinifigure.objects.filter(owner=request.user, lego_set__deleted_at__isnull=True)
+        SetMinifigure.objects.filter(owner=request.user).filter(
+            models.Q(lego_set__isnull=True)
+            | models.Q(lego_set__owner=request.user, lego_set__deleted_at__isnull=True)
+        )
         .select_related("lego_set")
     )
     integer_field = models.IntegerField()
@@ -293,7 +352,10 @@ def minifigure_list(request):
     groups = OrderedDict()
     for record in records:
         lego_set = record["figure"].lego_set
-        group = groups.setdefault(lego_set.pk, {"lego_set": lego_set, "figures": []})
+        group = groups.setdefault(
+            lego_set.pk if lego_set else None,
+            {"lego_set": lego_set, "figures": []},
+        )
         group["figures"].append(record)
     available_sets = LegoSet.objects.filter(
         owner=request.user, deleted_at__isnull=True, minifigures_inventory__isnull=False
@@ -914,8 +976,9 @@ def label_minifigure_qr(request, figure_pk):
         SetMinifigure.objects.select_related("lego_set"),
         pk=figure_pk,
         owner=request.user,
-        lego_set__deleted_at__isnull=True,
     )
+    if figure.lego_set_id and figure.lego_set.deleted_at is not None:
+        raise Http404
     target = f"{_public_origin(request)}{reverse('organizer:detail', args=['minifigures', figure.pk])}"
     return HttpResponse(qr_svg(target, border=4), content_type="image/svg+xml")
 
@@ -1132,10 +1195,9 @@ def minifigure_part_quantity(request, figure_pk, pk):
         figure_record = _minifigure_record(
             SetMinifigure.objects.prefetch_related("parts").get(pk=figure.pk)
         )
-        completeness = set_completeness(
-            LegoSet.objects.prefetch_related(
-                "inventory_items", "minifigures_inventory__parts"
-            ).get(pk=figure.lego_set_id)
+        completeness = (
+            set_completeness(LegoSet.objects.get(pk=figure.lego_set_id))
+            if figure.lego_set_id else None
         )
         return JsonResponse(
             {

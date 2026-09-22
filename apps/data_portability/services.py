@@ -11,6 +11,7 @@ from apps.catalog.models import Part
 MAX_FILE_SIZE = 5 * 1024 * 1024
 MAX_SETS = 10_000
 MAX_PARTS = 100_000
+MAX_MINIFIGURES = 10_000
 
 
 def _integer(value, field, row, *, minimum=0, maximum=2_147_483_647):
@@ -93,11 +94,12 @@ def parse_json_upload(upload):
         raise ValidationError("Ungültige UTF-8-JSON-Datei.") from exc
     if not isinstance(payload, dict) or payload.get("format") not in {"brickmissing-8", "brickmissing"}:
         raise ValidationError("Unbekanntes Importformat.")
-    if not isinstance(payload.get("sets", []), list) or not isinstance(payload.get("parts", []), list):
+    if any(not isinstance(payload.get(key, []), list) for key in ("sets", "parts", "minifigures")):
         raise ValidationError("Sets und Parts müssen Listen sein.")
-    if len(payload.get("sets", [])) > MAX_SETS or len(payload.get("parts", [])) > MAX_PARTS:
+    if (len(payload.get("sets", [])) > MAX_SETS or len(payload.get("parts", [])) > MAX_PARTS
+            or len(payload.get("minifigures", [])) > MAX_MINIFIGURES):
         raise ValidationError("Import enthält zu viele Datensätze.")
-    sets, parts, errors = [], [], []
+    sets, parts, minifigures, errors = [], [], [], []
     for row, raw in enumerate(payload.get("sets", []), 1):
         try:
             if not isinstance(raw, dict):
@@ -123,7 +125,51 @@ def parse_json_upload(upload):
             parts.append(_normal_part(raw, row))
         except ValidationError as exc:
             errors.extend(exc.messages)
-    return {"sets": sets, "parts": parts}, errors
+    part_count = 0
+    for row, raw in enumerate(payload.get("minifigures", []), 1):
+        try:
+            if not isinstance(raw, dict) or not isinstance(raw.get("parts"), list):
+                raise ValidationError(f"Minifigur {row}: Ungültige Daten.")
+            source_id = _integer(raw.get("source_id"), "Quell-ID", row, minimum=1)
+            quantity = _integer(raw.get("quantity", 1), "Menge", row, minimum=1)
+            owned = _integer(raw.get("owned_quantity", 0), "Vorhanden", row)
+            if owned > quantity:
+                raise ValidationError(f"Minifigur {row}: Vorhanden übersteigt Menge.")
+            normalized_parts = []
+            part_count += len(raw["parts"])
+            if part_count > MAX_PARTS:
+                raise ValidationError("Import enthält zu viele Minifigurenteile.")
+            for part_row, component in enumerate(raw["parts"], 1):
+                if not isinstance(component, dict):
+                    raise ValidationError(f"Minifigur {row}, Teil {part_row}: Ungültige Daten.")
+                required = _integer(component.get("quantity", 1), "Menge", part_row)
+                present = _integer(component.get("owned_quantity", 0), "Vorhanden", part_row)
+                if present > required:
+                    raise ValidationError(f"Minifigur {row}, Teil {part_row}: Vorhanden übersteigt Menge.")
+                color_id = component.get("color_id")
+                normalized_parts.append({
+                    "part_number": _text(component.get("part_number"), "Partnummer", part_row, 100, True),
+                    "element_id": _text(component.get("element_id", ""), "Element-ID", part_row, 100),
+                    "name": _text(component.get("name"), "Name", part_row, 191, True),
+                    "color_id": _integer(color_id, "Farb-ID", part_row) if color_id is not None else None,
+                    "color_name": _text(component.get("color_name", ""), "Farbe", part_row, 100),
+                    "quantity": required, "owned_quantity": present,
+                    "is_spare": bool(component.get("is_spare", False)),
+                    "image_url": _text(component.get("image_url", ""), "Bild-URL", part_row, 1000),
+                })
+            minifigures.append({
+                "source_id": source_id,
+                "set_number": _text(raw.get("lego_set__set_number") or "", "Setnummer", row, 100),
+                "figure_number": _text(raw.get("figure_number"), "Minifiguren-ID", row, 100, True),
+                "name": _text(raw.get("name"), "Name", row, 191, True),
+                "quantity": quantity, "owned_quantity": owned,
+                "image_url": _text(raw.get("image_url", ""), "Bild-URL", row, 1000),
+                "notes": _text(raw.get("notes", ""), "Notizen", row, 10000),
+                "parts": normalized_parts,
+            })
+        except ValidationError as exc:
+            errors.extend(exc.messages)
+    return {"sets": sets, "parts": parts, "minifigures": minifigures}, errors
 
 
 def parse_csv_upload(upload):

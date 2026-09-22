@@ -599,8 +599,11 @@ def missing_parts(request):
     if part_kind in {"all", "minifigure"}:
         minifigure_parts = MinifigurePart.objects.filter(
             minifigure__owner=request.user,
-            minifigure__lego_set__deleted_at__isnull=True,
             is_spare=False,
+        ).filter(
+            Q(minifigure__lego_set__isnull=True)
+            | Q(minifigure__lego_set__owner=request.user,
+                minifigure__lego_set__deleted_at__isnull=True)
         ).select_related("minifigure", "minifigure__lego_set")
         if query:
             minifigure_parts = minifigure_parts.filter(
@@ -665,7 +668,8 @@ def missing_parts(request):
                     )[1],
                     "stock": stock_key,
                     "stock_label": stock_state(part.quantity, part.owned_quantity)[1],
-                    "first_set": part.minifigure.lego_set.set_number,
+                    "first_set": (part.minifigure.lego_set.set_number
+                                  if part.minifigure.lego_set_id else ""),
                     "bulk_value": "",
                     "is_minifigure": True,
                 }
@@ -677,7 +681,7 @@ def missing_parts(request):
             part.color_name.strip().casefold(),
         )
         for group in groups if group.get("is_minifigure")
-        for part in group["allocations"]
+        for part in group["allocations"] if part.minifigure.lego_set_id is not None
     }
     normalized_groups = []
     for group in groups:

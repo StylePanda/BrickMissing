@@ -81,6 +81,80 @@ def _reconcile_missing_part_requirement(lego_set, inventory_item):
     part.save(update_fields=["quantity", "updated_at"])
 
 
+def _synchronize_minifigure_components(minifigure, components, *, strict=False):
+    """Upsert the same MinifigurePart allocation shape for set and loose figures."""
+    existing_components = set(
+        MinifigurePart.objects.filter(minifigure=minifigure).values_list(
+            "part_number", "color_id", "is_spare"
+        )
+    )
+    seen_components = set()
+    count = 0
+    for row in components:
+        if not isinstance(row, dict):
+            if strict:
+                raise RebrickableError("Das Minifigureninventar ist unvollstaendig.", "invalid_response")
+            continue
+        part = row.get("part") or {}
+        color = row.get("color") or {}
+        if not isinstance(part, dict) or not isinstance(color, dict):
+            if strict:
+                raise RebrickableError("Das Minifigureninventar ist unvollstaendig.", "invalid_response")
+            continue
+        part_number = str(part.get("part_num") or "")[:100]
+        quantity = _nonnegative(row.get("quantity"))
+        if strict and (not part_number or not quantity or not isinstance(color, dict)):
+            raise RebrickableError("Das Minifigureninventar ist unvollstaendig.", "invalid_response")
+        key = (part_number, color.get("id"), bool(row.get("is_spare")))
+        if not part_number or key in seen_components:
+            continue
+        seen_components.add(key)
+        _upsert_reference(
+            MinifigurePart,
+            {
+                "minifigure": minifigure,
+                "part_number": part_number,
+                "color_id": color.get("id"),
+                "is_spare": key[2],
+            },
+            {
+                "element_id": str(row.get("element_id") or "")[:100],
+                "name": str(part.get("name") or part_number)[:191],
+                "color_name": str(color.get("name") or "")[:100],
+                "quantity": max(quantity, 1),
+                "image_url": str(part.get("part_img_url") or "")[:1000],
+            },
+        )
+        count += 1
+    for old in MinifigurePart.objects.filter(minifigure=minifigure):
+        key = (old.part_number, old.color_id, old.is_spare)
+        if key not in seen_components and key in existing_components and old.quantity:
+            old.quantity = 0
+            old.save(update_fields=["quantity", "updated_at"])
+    if strict and not count:
+        raise RebrickableError("Fuer diese Minifigur ist kein Teileinventar verfuegbar.", "no_inventory")
+    return count
+
+
+@transaction.atomic
+def create_standalone_minifigure(owner, figure, components):
+    """Create one owned physical instance without inventing a parent set."""
+    number = str(figure.get("set_num") or "")[:100]
+    name = str(figure.get("name") or "")[:191]
+    if not number or not name:
+        raise RebrickableError("Rebrickable lieferte unvollstaendige Minifigurendaten.", "invalid_response")
+    minifigure = SetMinifigure.objects.create(
+        owner=owner, lego_set=None, figure_number=number, name=name,
+        quantity=1, owned_quantity=1,
+        image_url=str(figure.get("set_img_url") or "")[:1000],
+    )
+    _synchronize_minifigure_components(minifigure, components, strict=True)
+    MinifigurePart.objects.filter(minifigure=minifigure).update(
+        owned_quantity=models.F("quantity")
+    )
+    return minifigure
+
+
 @transaction.atomic
 def synchronize_set(
     lego_set, api_key, *, set_fetcher=rebrickable_set,
@@ -105,6 +179,8 @@ def synchronize_set(
     for row in parts:
         part = row.get("part") or {}
         color = row.get("color") or {}
+        if not isinstance(part, dict) or not isinstance(color, dict):
+            continue
         part_number = str(part.get("part_num") or "")[:100]
         key = (part_number, color.get("id"), bool(row.get("is_spare")))
         if not part_number or key in seen_inventory:
@@ -173,42 +249,7 @@ def synchronize_set(
             },
         )
         figure_count += 1
-        existing_components = set(
-            MinifigurePart.objects.filter(minifigure=minifigure).values_list(
-                "part_number", "color_id", "is_spare"
-            )
-        )
-        seen_components = set()
-        for row in components:
-            part = row.get("part") or {}
-            color = row.get("color") or {}
-            part_number = str(part.get("part_num") or "")[:100]
-            key = (part_number, color.get("id"), bool(row.get("is_spare")))
-            if not part_number or key in seen_components:
-                continue
-            seen_components.add(key)
-            _upsert_reference(
-                MinifigurePart,
-                {
-                    "minifigure": minifigure,
-                    "part_number": part_number,
-                    "color_id": color.get("id"),
-                    "is_spare": key[2],
-                },
-                {
-                    "element_id": str(row.get("element_id") or "")[:100],
-                    "name": str(part.get("name") or part_number)[:191],
-                    "color_name": str(color.get("name") or "")[:100],
-                    "quantity": max(_nonnegative(row.get("quantity"), 1), 1),
-                    "image_url": str(part.get("part_img_url") or "")[:1000],
-                },
-            )
-            component_count += 1
-        for old in MinifigurePart.objects.filter(minifigure=minifigure):
-            key = (old.part_number, old.color_id, old.is_spare)
-            if key not in seen_components and key in existing_components and old.quantity:
-                old.quantity = 0
-                old.save(update_fields=["quantity", "updated_at"])
+        component_count += _synchronize_minifigure_components(minifigure, components)
     if minifigures_available:
         for old in SetMinifigure.objects.filter(lego_set=lego_set, owner=lego_set.owner):
             if old.figure_number not in seen_figures and old.quantity:

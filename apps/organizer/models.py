@@ -186,7 +186,8 @@ class LabelTemplate(models.Model):
 class SetMinifigure(models.Model):
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     lego_set = models.ForeignKey(
-        LegoSet, on_delete=models.CASCADE, related_name="minifigures_inventory"
+        LegoSet, null=True, blank=True, on_delete=models.CASCADE,
+        related_name="minifigures_inventory"
     )
     legacy_id = models.PositiveBigIntegerField(null=True, blank=True)
     figure_number = models.CharField(max_length=100)

@@ -50,10 +50,12 @@ def dashboard_collection_data(user):
     )
     minifigure_items = MinifigurePart.objects.filter(
         minifigure__owner=user,
-        minifigure__lego_set__owner=user,
-        minifigure__lego_set__deleted_at__isnull=True,
         is_spare=False,
         quantity__gt=0,
+    ).filter(
+        Q(minifigure__lego_set__isnull=True)
+        | Q(minifigure__lego_set__owner=user,
+            minifigure__lego_set__deleted_at__isnull=True)
     )
 
     def allocation_summary(queryset, required_field):
@@ -160,7 +162,10 @@ def dashboard_collection_data(user):
         "lego_parts_missing": totals["missing"],
         "missing_position_count": totals["missing_positions"],
         "minifigure_count": SetMinifigure.objects.filter(
-            owner=user, lego_set__deleted_at__isnull=True
+            owner=user
+        ).filter(
+            Q(lego_set__isnull=True)
+            | Q(lego_set__owner=user, lego_set__deleted_at__isnull=True)
         ).count(),
         "owned_percent": owned_percent,
         "missing_percent": missing_percent,
@@ -826,6 +831,8 @@ def _allocation_owner_and_set(kind, allocation):
 
 def _candidate_part_mirrors(kind, allocation, *, lock=False):
     owner_id, lego_set = _allocation_owner_and_set(kind, allocation)
+    if lego_set is None:
+        return Part.objects.none()
     queryset = Part.objects.filter(
         owner_id=owner_id,
         lego_set=lego_set,
@@ -855,10 +862,8 @@ def set_authoritative_owned_quantity(kind, allocation, quantity, actor):
         lookup.update(lego_set__owner=actor, lego_set__deleted_at__isnull=True)
         related = ("lego_set",)
     else:
-        lookup.update(
-            minifigure__owner=actor,
-            minifigure__lego_set__deleted_at__isnull=True,
-        )
+        lookup.update(minifigure__owner=actor)
+        lookup["minifigure__lego_set__deleted_at__isnull"] = True
         related = ("minifigure", "minifigure__lego_set")
     locked = model.objects.select_for_update().select_related(*related).get(**lookup)
     maximum, _owned = _allocation_values(kind, locked)
@@ -993,6 +998,21 @@ def authoritative_lego_export_rows(user, *, colors=()):
     for group in groups:
         element_id = group["element_id"]
         totals[element_id] = totals.get(element_id, 0) + group["missing"]
+    # Loose figures have no Set/Part mirror. Their own allocation is authoritative.
+    from apps.organizer.models import MinifigurePart
+
+    loose_parts = MinifigurePart.objects.filter(
+        minifigure__owner=user,
+        minifigure__lego_set__isnull=True,
+        is_spare=False,
+        quantity__gt=F("owned_quantity"),
+    ).exclude(element_id="")
+    if colors:
+        loose_parts = loose_parts.filter(color_name__in=colors)
+    for element_id, required, owned in loose_parts.values_list(
+        "element_id", "quantity", "owned_quantity"
+    ):
+        totals[element_id] = totals.get(element_id, 0) + required - owned
     return [
         {"element_id": element_id, "export_quantity": quantity}
         for element_id, quantity in sorted(totals.items())

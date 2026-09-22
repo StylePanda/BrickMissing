@@ -206,6 +206,70 @@ def rebrickable_minifigures(set_number, api_key):
     return result
 
 
+def normalize_rebrickable_minifigure_number(value):
+    number = str(value or "").strip()
+    if not re.fullmatch(r"fig-[0-9]{1,12}", number, re.IGNORECASE):
+        raise RebrickableError("Bitte gib eine Rebrickable-Minifigur-ID ein.", "invalid_minifigure")
+    return number.lower()
+
+
+def _minifigure_not_found(exc):
+    if exc.code == "not_found":
+        raise RebrickableError("Minifigur wurde bei Rebrickable nicht gefunden.", "not_found") from exc
+    raise exc
+
+
+def rebrickable_minifigure_search(query, api_key):
+    """Search Rebrickable minifigs by name or exact Rebrickable ID."""
+    query = str(query or "").strip()
+    if not query or len(query) > 100:
+        raise RebrickableError("Bitte gib einen Suchbegriff ein.", "invalid_minifigure")
+    if re.fullmatch(r"fig-[0-9]{1,12}", query, re.IGNORECASE):
+        number = normalize_rebrickable_minifigure_number(query)
+        try:
+            result = _rebrickable_json(f"minifigs/{number}/", api_key)
+        except RebrickableError as exc:
+            _minifigure_not_found(exc)
+        return [result]
+    data = _rebrickable_json(
+        "minifigs/?search=" + urllib.parse.quote(query, safe="") + "&page_size=20",
+        api_key,
+    )
+    if not isinstance(data, dict) or not isinstance(data.get("results"), list):
+        raise RebrickableError("Rebrickable lieferte keine gueltige Minifigurensuche.", "invalid_response")
+    return [
+        row for row in data["results"]
+        if isinstance(row, dict) and row.get("set_num") and row.get("name")
+    ]
+
+
+def rebrickable_minifigure(number, api_key):
+    """Fetch one figure and its complete component inventory."""
+    number = normalize_rebrickable_minifigure_number(number)
+    try:
+        figure = _rebrickable_json(f"minifigs/{number}/", api_key)
+        if not isinstance(figure, dict) or str(figure.get("set_num") or "").lower() != number:
+            raise RebrickableError("Rebrickable lieferte unvollstaendige Minifigurendaten.", "invalid_response")
+        rows = []
+        page = 1
+        while True:
+            path = f"minifigs/{number}/parts/?page_size=1000&page={page}"
+            payload = _rebrickable_json(path, api_key)
+            if not isinstance(payload, dict) or not isinstance(payload.get("results"), list):
+                raise RebrickableError("Rebrickable lieferte keine gueltige Teileliste.", "invalid_response")
+            rows.extend(payload["results"])
+            if not payload.get("next"):
+                break
+            page += 1
+            if page > 10:
+                raise RebrickableError("Die Teileliste ist zu gross.", "invalid_response")
+        if not rows:
+            raise RebrickableError("Fuer diese Minifigur ist kein Teileinventar verfuegbar.", "no_inventory")
+        return figure, rows
+    except RebrickableError as exc:
+        _minifigure_not_found(exc)
+
+
 def rebrickable_instructions(set_number, api_key):
     number = normalize_rebrickable_set_number(set_number)
     fallback = [

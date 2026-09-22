@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Minifigur hinzuf&uuml;gen{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div><p class="eyebrow">Sammlung</p><h1>Minifigur hinzuf&uuml;gen</h1><p class="muted">Suche nach Name oder Rebrickable-ID. Eine einzeln hinzugef&uuml;gte Figur ben&ouml;tigt kein Set.</p></div>
+  <a class="button" href="{% url 'organizer:minifigure_list' %}">Zur&uuml;ck</a>
+</header>
+<section class="panel panel-body">
+  <form method="get" class="filters">
+    <label for="minifigure-search">Name oder Rebrickable-ID</label>
+    <input id="minifigure-search" type="search" name="q" value="{{ query }}" maxlength="100" placeholder="z. B. Bride oder fig-000678" required>
+    <button class="primary" type="submit">Suchen</button>
+  </form>
+  {% if error %}<p class="error" role="alert">{{ error }}{% if not rebrickable_connected %} <a href="{% url 'accounts:profile' %}#rebrickable">Rebrickable einrichten</a>{% endif %}</p>{% endif %}
+</section>
+{% if results %}
+<section class="panel panel-body" aria-label="Suchergebnisse">
+  <h2>Suchergebnisse</h2>
+  <div class="set-grid">
+  {% for result in results %}
+    <article class="set-card">
+      {% if result.set_img_url %}<img src="{{ result.set_img_url|proxied_image_url }}" alt="{{ result.name }}" loading="lazy">{% else %}<span role="img" aria-label="Kein Bild verf&uuml;gbar">BM</span>{% endif %}
+      <div class="set-body"><h3>{{ result.name }}</h3><p>{{ result.set_num }}</p>
+        <a class="button" href="{% url 'organizer:minifigure_add' %}?figure={{ result.set_num|urlencode }}&amp;q={{ query|urlencode }}">Vorschau</a>
+      </div>
+    </article>
+  {% endfor %}
+  </div>
+</section>
+{% elif query and not error %}<section class="panel panel-body"><p>Keine Minifigur gefunden. Verwende f&uuml;r eine ID die Rebrickable-Nummer (fig-...), keine Katalognummer einer anderen Quelle.</p></section>{% endif %}
+{% if preview %}
+<section class="panel panel-body" aria-label="Minifigurenvorschau">
+  <h2>{{ preview.figure.name }}</h2>
+  <p>Rebrickable-ID: {{ preview.figure.set_num }} &middot; {{ preview.components|length }} Bestandteile</p>
+  {% if preview.figure.set_img_url %}<img src="{{ preview.figure.set_img_url|proxied_image_url }}" alt="{{ preview.figure.name }}" loading="lazy">{% endif %}
+  <ul>{% for component in preview.components|slice:":8" %}<li>{{ component.part.name|default:component.part.part_num }} &middot; {{ component.quantity }}&times;</li>{% endfor %}</ul>
+  <form method="post">{% csrf_token %}<input type="hidden" name="figure_number" value="{{ preview.figure.set_num }}"><button class="primary" type="submit">Diese Minifigur hinzuf&uuml;gen</button></form>
+</section>
+{% endif %}
+{% endblock %}

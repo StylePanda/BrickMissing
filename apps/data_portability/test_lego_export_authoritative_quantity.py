@@ -558,14 +558,14 @@ class LegoExportAuthoritativeQuantityTests(TestCase):
 
         self.assertEqual(self.exported()[1][1:], [["head-black", "1"]])
 
-    def test_export_calculation_is_one_query_for_small_and_large_datasets(self):
+    def test_export_calculation_uses_constant_queries_for_small_and_large_datasets(self):
         self.allocation(
             set_number="7001-1",
             inventory_element_id="",
             inventory_part_number="3711b",
             design_id="3711b",
         )
-        with self.assertNumQueries(1):
+        with self.assertNumQueries(2):
             small = authoritative_lego_export_rows(self.user)
         for index in range(20):
             self.allocation(
@@ -575,7 +575,7 @@ class LegoExportAuthoritativeQuantityTests(TestCase):
                 set_number=f"71{index:02d}-1",
                 inventory_element_id="",
             )
-        with self.assertNumQueries(1):
+        with self.assertNumQueries(2):
             large = authoritative_lego_export_rows(self.user)
 
         self.assertEqual(small, [{"element_id": "3711b", "export_quantity": 1}])

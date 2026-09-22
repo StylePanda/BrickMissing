@@ -1,1 +1,1 @@
-<article class="print-label-small{% if not label %} is-empty{% endif %}">{% if label %}<strong>{{ label.lego_set.set_number }}</strong>{% endif %}</article>
+<article class="print-label-small{% if not label %} is-empty{% endif %}">{% if label %}<strong>{% if label.lego_set %}{{ label.lego_set.set_number }}{% else %}Ohne Set{% endif %}</strong>{% endif %}</article>

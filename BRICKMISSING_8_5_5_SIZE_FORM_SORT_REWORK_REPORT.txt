@@ -1,0 +1,158 @@
+IMPLEMENTATION STATUS: READY
+PRODUCTION VALIDATION: PENDING
+
+Version vorher: 8.5.4
+Version nachher: 8.5.5
+
+1. Bisherige Sortierarchitektur
+apps/catalog/part_sorting.py lieferte part_size_form_sort_key. apps/catalog/views.py nutzte ihn in part_list und missing_parts. /teile/ filterte ein annotiertes, select_related('lego_set') Queryset, lud es per list(order_by('pk')), sortierte Python-seitig und paginierte. /fehlteile/ filterte autoritative Fehlmengen, gruppierte sie mit group_authoritative_missing_parts, ergaenzte MinifigurePart, normalisierte Deduplication/Mengen und sortierte die fertigen Gruppen vor der Pagination. Keine weitere Seite ruft den Helper auf. Sichtbare Optionen blieben unveraendert.
+
+2. Root Cause
+Der alte Tupel-Key begann mit (family_order, family), danach erst (known_flag, +/- product_of_dimensions, dimensions). Daher dominierte die alphabetisch/regelbasierte Formfamilie jede physische Groesse. 6259802 war family other:helicopter und stand zwischen kleinen Helm-Teilen statt bei aehnlich grossen Teilen.
+
+3. Neue Sortierarchitektur
+Ein gemeinsamer Helper erzeugt (known_flag, gerichteter physical_size_score, dimensions, family_order, family, normalisierter Name, Design-ID, Part-Nummer, Element-ID, Farbe). Kein Formblock kann eine groessere/kleinere Groesse ueberholen. Keine Views oder Mengenservices wurden veraendert.
+
+4. Verwendete Groessenmetadaten
+Part besitzt name, design_id, part_number, element_id, color, image_url sowie Mengen/Status/Set-Zuordnung. Es besitzt keine Kategorie oder Dimensionsfelder. MinifigurePart liefert name/part_number/element_id/color_name an die gemeinsame Gruppensortierung. Vorhandene Rebrickable-Namen enthalten 2D-, 3D-, Bruch-, L- und teils Reifen/Rad-mm-Masse. category bleibt optionaler Helper-Parameter, ist in den beiden Views aber nicht lokal vorhanden. IDs und Farben liefern keine Groesseninformation.
+
+5. Dimensionsparser
+Erkennt A x B und A x B x C mit x oder Multiplikationszeichen, optional Dezimal- und Bruchwerten. Werte muessen positiv und plausibel <=96 sein. Mehrere Phrasen: groesste physische Bewertung. Winkel, Jahre, Modell-/Designnummern ohne x-Muster und kontextlose L-Zahlen bleiben unbekannt.
+
+6. 2D-Dimensionen
+Breite und Laenge werden nach Fussabdruck sortiert und zusammen mit der laengsten Achse bewertet. 1 x 8 rangiert ueber 3 x 3; 1 x 16 rangiert ueber 4 x 4.
+
+7. 3D-Dimensionen
+Dritte Zahl bleibt als Hoehe erhalten, einschliesslich 2/3 oder 3/4. Das Modell bewertet A x B x C nach aeusserer Ausdehnung, nicht Kunststoffvolumen. 2 x 2 x 3 > 2 x 2 x 1 und 2 x 4 x 3 > 2 x 4 x 1.
+
+8. L-/Technic-Laengen
+3L bis 15L und lokal belegte laengentragende Namen (Axle, Beam, Liftarm, Hose, Bar, Technic) werden erkannt; benannte Laengen wie Technic Beam 7 ebenfalls. 15L ist deutlich groesser als kompakte 2 x 2-Teile.
+
+9. Size-Score
+Ganzzahlig: floor(100 * groesste Achse) + floor(100 * sqrt(Footprint)) + floor(50 * Hoehe). Bei 1D-Laengen wird eine konservative Breite 1 angenommen; fehlende Hoehe ist 1. Fraction und isqrt vermeiden Float-Tie-Unstetigkeit. Kein Bucket: lokale Daten zeigten keine belastbare Schwelle; der kontinuierliche Score wahrt globale Reihenfolge.
+
+10. Flaeche vs. laengste Dimension
+Laengste Achse und Quadratwurzel des Footprints tragen je Faktor 100; Hoehe Faktor 50. Das bevorzugt raeumliche Ausdehnung vor reiner Flaeche oder Materialmenge. Reifen/Rad-Namen mit Werten >=10 werden aufgrund der lokal belegten mm-Namenskonvention durch 8 mm/Stud geteilt; kleine 2 x 2-Raeder bleiben Stud-Masse.
+
+11. Formfamilien-Verhalten
+Bestehende Regeln wurden um Wing, Base/Baseplate, Bow, Bar und Hose ergaenzt. Form greift erst nach identischem Score und Dimensionen. Andere Kategorien bleiben deterministisch other:<Name/Kategorie>. Aehnliche, aber nicht identische Scores werden nicht durch Form umgeordnet.
+
+12. Unknown-Verhalten
+Nicht verlaesslich messbare Parts haben known_flag=1 und stehen in beiden Richtungen nach allen bekannten Groessen. Untereinander sortieren Form, Name und IDs stabil.
+
+13. Ascending-Verhalten
+known_flag=0, Score aufsteigend. Kleine vor mittleren vor grossen Teilen, global ueber alle Formfamilien.
+
+14. Descending-Verhalten
+known_flag=0, nur Score-Vorzeichen invertiert. Form, Dimensionen und Identitaet behalten ihre stabile Tie-Reihenfolge; Unknown bleibt am Ende.
+
+15. Stabile Tie-Breaker
+Normalisierte Dimensionen, Formfamilie, normalisierter Name, Design-ID, Part-Nummer, Element-ID und Farbe. /teile/ nutzt PK als letzten Tie-Breaker; /fehlteile/ first_set nach dem gemeinsamen Key und bereits per PK geladenen Gruppen.
+
+16. Gleiches Design in Farben
+Score wird ausschliesslich aus gleichem Partnamen/Dimensionen gebildet. Black, White und Red teilen denselben Score. Farbe ist nur letzter Tie-Breaker.
+
+17. Verschiedene Element-IDs
+Bei gleichen Design-/Form-Metadaten gleicher Score. Element-ID ist nur ein stabiler Identitaets-Tie-Breaker, keine Groessenquelle.
+
+18. Analyse 6259802
+Lokale read-only Legacy-SQLite: Element 6259802, Design 30248, Partname 'Helicopter Skid Rails 12 x 6', Farbe Dark Bluish Gray. Keine eigene Kategorie/Dimensionsspalte. Parser erkennt (6,12), Footprint 72, laengste Achse 12. Keine ID-Sonderregel.
+
+19. Alter Sort-Key 6259802
+Ascending: (15, 'other:helicopter', 0, 72, (6,12,0), 'helicopter skid rails 12 x 6', '30248', '', '6259802', 'dark bluish gray'). Descending hatte dieselbe Familie zuerst und -72.
+
+20. Neuer Sort-Key 6259802
+Ascending: (0, 2098, (6,12), 20, 'other:helicopter', 'helicopter skid rails 12 x 6', '30248', '', '6259802', 'dark bluish gray'). Descending: derselbe Key mit -2098.
+
+21. Tatsaechliche Position 6259802
+Auf 1193 aktiven Parts desselben lokalen Legacy-Besitzers: alt ascending 851, neu ascending 673; alt descending 851, neu descending 14. Das ist eine direkte lokale Python-Sortierung derselben Datensaetze, keine manipulierte Beispielmenge. Die leere Development-Django-Datenbank konnte keine Positionsprobe liefern. Die Legacy-SQLite wurde nur read-only verwendet; keine Produktionsdatenbank gelesen.
+
+22. Reale Vorher-/Nachher-Stichprobe
+Alt descending Beginn: Brick Sloped 10 Grad 6 x 8; Brick Wedged Curved Triple 4 x 6 x 2/3; Brick Wedged Curved 10 x 3 links/rechts; Brick Sloped Inverted 45 Grad 6 x 4. 6259802 auf 851 zwischen Headwear-Visor und Helmen.
+Neu descending Beginn: Boat Deck 51 x 12 x 6; Boat Deck 8 x 28 x 3; Vehicle Base Train 6 x 28; Hose/String 35L; Baseplate 16 x 16; Plate 6 x 16. 6259802 auf 14 zwischen Plate 2 x 16 und Vehicle Base 4 x 12 x 3/4. Neu ascending Beginn: Brick Sloped 1 x 1 x 2/3, Bar 1L, Brick 1 x 1; 6259802 auf 673. Alte ascending begann mit Brick 1 x 1 und setzte 6259802 auf 851.
+
+23. /teile/-Integration
+Bestehender View verwendet den neuen zentralen Helper ohne Filter-, Mengen- oder Template-Aenderung. Beide Sortieroptionen bleiben.
+
+24. /fehlteile/-Integration
+Derselbe Helper sortiert die bereits autoritativ gebildeten Gruppen. Farbgruppen, Set- und Minifiguren-Zuordnung, Deduplication, Spare- und Deleted-Set-Exclusion bleiben in unveraendertem View-Code.
+
+25. Filter-Invariante
+Gezielte Response-Tests pruefen Suche, Farbe, Status und beide Richtungen; Ergebnismengen bleiben identisch. Bestehende Catalog-Tests sichern weitere Set-/Stock-/Kind-/Rarity-Filter.
+
+26. Mengen-Invariante
+Keine Mengenfunktion oder View-Aggregation geaendert; 128 gezielte Catalog-/Fehlteile-/CSV-Tests und volle Suite gruen.
+
+27. Mutationsfreiheit
+Helper fuehrt nur lokale String-/Zahlenauswertung aus. Bestehende und neue View-Tests pruefen unveraenderte Quantity/Owned/Status; keine save/update/Reconciliation im Sortierpfad.
+
+28. Query-/Performance-Verhalten
+Kein API-Aufruf, keine Netzwerkanfrage, keine DB-Abfrage pro Part. Beide Views laden ihre Querysets/Gruppen wie zuvor einmal vor Python-Sortierung; Fraction/isqrt arbeiten nur im Speicher.
+
+29. Geaenderte Dateien
+apps/catalog/part_sorting.py, apps/catalog/test_size_form_sort.py, apps/catalog/test_physical_size_rework.py, tests/test_responsive_browser.py, scripts/responsive_ui_audit.mjs, brickmissing_version.py, apps/core/tests.py, README.md, CHANGELOG.md. Zusaetzlich lokale untracked Release Notes und dieser Report.
+
+30. Gezielte Tests
+22 Size/Form-Tests PASS. Basisdimensionen, lange Teile, 3D, L-Laengen, gemischte Formen, Farben, Unknown, Stabilitaet, Filter und Design 30248 abgedeckt.
+
+31. Catalog-Tests
+Gemeinsamer gezielter Lauf mit apps.catalog.tests PASS; insgesamt 128 Tests einschliesslich Sortierung/Fehlteile/CSV.
+
+32. Fehlteile-Regressionen
+apps.catalog.test_group_status_hotfix PASS; volle Suite und Edge/CDP ebenfalls PASS.
+
+33. 8.5.4 CSV-/Mengenregressionen
+apps.data_portability.test_lego_export_authoritative_quantity PASS im 128-Test-Lauf; volle Suite PASS.
+
+34. Reconciliation-Regressionen
+Bestehende Catalog- und Gesamtsuite PASS; Reconciliation-Code unveraendert.
+
+35. Vollstaendige Django-Suite
+PASS: 546 Tests in 219.062 s.
+
+36. manage.py check
+PASS: 0 Issues.
+
+37. Ruff
+PASS: ruff check .
+
+38. Migration-Check
+PASS: No changes detected.
+
+39. git diff --check
+PASS. Git meldet nur lokale LF/CRLF-Konvertierungshinweise, keine Whitespace-Fehler.
+
+40. Node
+PASS: node --check scripts/responsive_ui_audit.mjs.
+
+41. Browser/Edge-CDP
+PASS: vorhandene Edge-Browsersuite (1 Test, 34.512 s) auf lokalem StaticLiveServer. Erweiterung prueft /teile/ und /fehlteile/ fuer beide Sortierwerte, aktiven Select, 4 sichtbare Treffer, geaenderte Reihenfolge und Unknown am Ende. Keine haengende Ladeanzeige oder JavaScript-Fehler festgestellt. Kein Produktionsbrowserzugriff.
+
+42. Release-Build
+PASS: dist/brickmissing-8.5.5 lokal erstellt.
+
+43. Verify
+PASS: Verified BrickMissing 8.5.5: 350 files.
+
+44. Dependency-free Verify
+PASS: .venv/Scripts/python.exe -S scripts/verify_release.py dist/brickmissing-8.5.5; 350 files.
+
+45. Manifest 8.5.5
+PASS: RELEASE_MANIFEST.json version=8.5.5, 350 Dateien.
+
+46. Keine Migration
+Bestaetigt; keine Model-Aenderung, Migrationscheck PASS.
+
+47. Keine Dependency
+Bestaetigt; keine Requirements-/pyproject-Dependency geaendert.
+
+48. Kein Produktionszugriff
+Bestaetigt; nur lokale SQLite read-only, Django-Testdatenbank und lokaler Edge-Testserver. Keine Produktion geoeffnet.
+
+49. Keine Secrets
+Keine Secrets gelesen, ausgegeben oder in den Release-Build uebernommen. Manifest/Verify-Schutz PASS.
+
+50. Kein Commit/Push/Tag/Release/Deployment
+Bestaetigt. Release Notes und Report lokal untracked. Nachgelagerter Workflow bleibt PC -> GitHub -> Produktionsserver -> Release-Build -> Verify -> Deploy -> manuelle Produktionspruefung -> Git-Tag v8.5.5 -> GitHub Release 8.5.5.
+
+Manuelle Produktionspruefung spaeter: Beide Sortierrichtungen auf /teile/ und /fehlteile/, lange/schmale Teile, Wings/Panels/Technic/Spezialteile, 6259802, Unknown-Ende, Farbe/Suche/Status/Set-Filter, Mengen und Set-/Minifiguren-Zuordnung, keine fehlenden/zusaetzlichen Parts, UI/Healthcheck/Manifest-Version 8.5.5. PRODUCTION VALIDATION bleibt bis dahin PENDING.

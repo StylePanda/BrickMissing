@@ -1,5 +1,13 @@
 # Changelog
 
+## 8.5.6 - 22 September 2026
+
+- Einzelne Rebrickable-Minifiguren lassen sich ohne Set suchen, importieren und verwalten.
+- Bestandteile, Fehlteile und CSV/JSON-Export verwenden die bestehenden autoritativen Mengen.
+- JSON-Import stellt lose Minifiguren und Bestandteile wieder her; Setvarianten bleiben normale Sets.
+- Die Minifiguren-Setzuordnung ist optional; bestehende Setfiguren bleiben unverändert.
+
+
 ## 8.5.5 - 22 September 2026
 
 ### Changed
