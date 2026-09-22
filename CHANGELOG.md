@@ -1,5 +1,16 @@
 # Changelog
 
+## 8.5.5 - 22 September 2026
+
+### Changed
+
+- Size/Form sorting now ranks physical size globally across all shapes on both parts pages.
+- Length, footprint and available height inform one deterministic size score. Technic L lengths, fractional dimensions and locally observed metric tyre/wheel names are parsed more reliably.
+- Unknown size stays last in either direction; form and identity only break size ties.
+- Sorting is read-only and leaves quantities, grouping and status unchanged.
+
+No database migration or dependency change.
+
 ## 8.5.4 — 19 September 2026
 
 ### Fixed

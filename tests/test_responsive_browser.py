@@ -73,6 +73,15 @@ class ResponsiveBrowserTests(StaticLiveServerTestCase):
                 quantity=0,
                 owned_quantity=0,
             )
+        for index, name in enumerate((
+            "SortAudit Brick 1 x 1", "SortAudit Plate 2 x 4",
+            "SortAudit Wing 8 x 16", "SortAudit Unknown",
+        )):
+            Part.objects.create(
+                owner=self.user, element_id=f"sort-audit-{index}",
+                part_number=f"sort-audit-{index}", name=name, color="Red",
+                quantity=1, owned_quantity=0,
+            )
         figure = SetMinifigure.objects.create(
             owner=self.user,
             lego_set=self.lego_set,

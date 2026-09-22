@@ -1249,6 +1249,39 @@ try {
       }
     }
   }
+  await client.send("Page.addScriptToEvaluateOnNewDocument", {source: `
+    window.__sizeSortErrors = [];
+    window.addEventListener("error", (event) => window.__sizeSortErrors.push(event.message));
+    window.addEventListener("unhandledrejection", (event) => window.__sizeSortErrors.push(String(event.reason)));
+  `});
+  for (const [name, path, selector] of [
+    ["parts", routes.authenticated.parts, ".table-wrap tbody tr td:first-child strong"],
+    ["missingParts", routes.authenticated.missingParts, "[data-missing-card] .missing-card-identity h3"],
+  ]) {
+    const samples = [];
+    for (const direction of ["size_form", "-size_form"]) {
+      await navigate(client, `${path}?q=SortAudit&sort=${direction}`);
+      const result = await evaluate(client, `(() => ({
+        selected: document.querySelector('select[name="sort"]').value,
+        names: [...document.querySelectorAll(${JSON.stringify(selector)})].map((node) => node.textContent.trim()),
+        loading: Boolean(document.querySelector('.loading.is-active')),
+        errors: window.__sizeSortErrors || [],
+      }))()`);
+      assert(result.selected === direction, `${name} sort selection was lost`);
+      assert(result.names.length === 4, `${name} sort changed result count`);
+      assert(!result.loading, `${name} remained loading`);
+      assert(result.errors.length === 0, `${name} JavaScript errors: ${result.errors}`);
+      samples.push(result.names);
+    }
+    assert(JSON.stringify(samples[0]) === JSON.stringify([
+      "SortAudit Brick 1 x 1", "SortAudit Plate 2 x 4",
+      "SortAudit Wing 8 x 16", "SortAudit Unknown",
+    ]), `${name} ascending physical order is wrong: ${samples[0]}`);
+    assert(JSON.stringify(samples[1]) === JSON.stringify([
+      "SortAudit Wing 8 x 16", "SortAudit Plate 2 x 4",
+      "SortAudit Brick 1 x 1", "SortAudit Unknown",
+    ]), `${name} descending physical order is wrong: ${samples[1]}`);
+  }
   await auditMinifigureQuantity(client);
   await auditMissingStatusSave(client);
   process.stdout.write("Responsive browser audit passed.\n");

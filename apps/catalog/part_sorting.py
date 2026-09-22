@@ -1,69 +1,44 @@
-import re
-from math import prod
+"""Shared, read-only physical size ordering for catalog and missing parts."""
 
-_DIMENSIONS = re.compile(r"\b(\d+)\s*[x×]\s*(\d+)(?:\s*[x×]\s*(\d+))?\b", re.IGNORECASE)
-_LENGTH_L = re.compile(r"\b(\d+)\s*l\b", re.IGNORECASE)
-_NAMED_LENGTH = re.compile(r"\b(?:axle|beam|liftarm)\s+(\d+)\b", re.IGNORECASE)
+import re
+from fractions import Fraction
+from math import isqrt
+
+_NUMBER = r"(?:\d{1,3}(?:\.\d+|/\d+)?)"
+_DIMENSIONS = re.compile(
+    rf"(?<!\w)({_NUMBER})\s*[x\u00d7]\s*({_NUMBER})(?:\s*[x\u00d7]\s*({_NUMBER}))?(?![\w/])",
+    re.IGNORECASE,
+)
+_LENGTH_L = re.compile(r"(?<!\w)(\d{1,2})\s*L\b", re.IGNORECASE)
+_NAMED_LENGTH = re.compile(r"\b(?:axle|beam|liftarm|hose|bar)\s+(\d{1,2})\b", re.IGNORECASE)
+_LENGTH_CONTEXT = re.compile(r"\b(?:technic|axle|beam|liftarm|hose|bar)\b", re.IGNORECASE)
 _WORDS = re.compile(r"[a-z0-9]+")
 _PLURAL_FAMILIES = {
-    "arches": "arch",
-    "axles": "axle",
-    "beams": "beam",
-    "bricks": "brick",
-    "connectors": "connector",
-    "gears": "gear",
-    "liftarms": "liftarm",
-    "panels": "panel",
-    "pins": "pin",
-    "plates": "plate",
-    "slopes": "slope",
-    "tiles": "tile",
-    "tires": "tire",
-    "wedges": "wedge",
-    "wheels": "wheel",
+    "arches": "arch", "axles": "axle", "beams": "beam", "bricks": "brick",
+    "connectors": "connector", "gears": "gear", "liftarms": "liftarm",
+    "panels": "panel", "pins": "pin", "plates": "plate", "slopes": "slope",
+    "tiles": "tile", "tires": "tire", "wedges": "wedge", "wheels": "wheel",
+    "wings": "wing", "bases": "base", "bows": "bow", "bars": "bar",
+    "hoses": "hose", "baseplates": "base",
 }
-
-
 _FAMILY_RULES = (
-    ("technic_liftarm", ("liftarm",)),
-    ("technic_liftarm", ("beam",)),
-    ("technic_axle", ("axle",)),
-    ("technic_pin", ("pin",)),
-    ("technic_connector", ("connector",)),
-    ("technic_brick", ("technic", "brick")),
-    ("brick", ("brick",)),
-    ("plate", ("plate",)),
-    ("tile", ("tile",)),
-    ("slope", ("slope",)),
-    ("wedge", ("wedge",)),
-    ("arch", ("arch",)),
-    ("panel", ("panel",)),
-    ("gear", ("gear",)),
-    ("wheel", ("wheel",)),
-    ("wheel", ("tire",)),
+    ("technic_liftarm", ("liftarm",)), ("technic_liftarm", ("beam",)),
+    ("technic_axle", ("axle",)), ("technic_pin", ("pin",)),
+    ("technic_connector", ("connector",)), ("technic_brick", ("technic", "brick")),
+    ("brick", ("brick",)), ("plate", ("plate",)), ("tile", ("tile",)),
+    ("slope", ("slope",)), ("wedge", ("wedge",)), ("wing", ("wing",)),
+    ("arch", ("arch",)), ("panel", ("panel",)), ("base", ("base",)),
+    ("bow", ("bow",)), ("bar", ("bar",)), ("hose", ("hose",)),
+    ("gear", ("gear",)), ("wheel", ("wheel",)), ("wheel", ("tire",)),
     ("minifigure", ("minifig",)),
 )
 _FAMILY_ORDER = {
-    family: index
-    for index, family in enumerate(
-        (
-            "brick",
-            "plate",
-            "tile",
-            "slope",
-            "wedge",
-            "arch",
-            "panel",
-            "technic_brick",
-            "technic_liftarm",
-            "technic_axle",
-            "technic_pin",
-            "technic_connector",
-            "gear",
-            "wheel",
-            "minifigure",
-        )
-    )
+    family: index for index, family in enumerate((
+        "brick", "plate", "tile", "slope", "wedge", "wing", "arch",
+        "panel", "base", "bow", "technic_brick", "technic_liftarm",
+        "technic_axle", "technic_pin", "technic_connector", "bar", "hose",
+        "gear", "wheel", "minifigure",
+    ))
 }
 
 
@@ -72,73 +47,70 @@ def _normalized(value):
 
 
 def _family_words(value):
-    return {
-        _PLURAL_FAMILIES.get(word, word)
-        for word in _WORDS.findall((value or "").casefold())
-    }
+    return {_PLURAL_FAMILIES.get(word, word) for word in _WORDS.findall((value or "").casefold())}
 
 
 def part_form_family(name, category=""):
-    """Return a stable physical family using structured category first when present."""
+    """Use local category when supplied, falling back to words in the name."""
     category_words = _family_words(category)
     name_words = _family_words(name)
     for family, required_words in _FAMILY_RULES:
         required = set(required_words)
         if required <= category_words or required <= name_words:
             return family
-    fallback = _normalized(category)
-    if not fallback:
-        fallback = next(iter(_WORDS.findall((name or "").casefold())), "unknown")
+    fallback = _normalized(category) or next(iter(_WORDS.findall((name or "").casefold())), "unknown")
     return f"other:{fallback}"
 
 
-def parsed_part_dimensions(name):
-    """Return a conservative, comparable metric and dimensions parsed from a part name."""
-    dimension_matches = []
-    for match in _DIMENSIONS.finditer(name or ""):
-        dimensions = tuple(sorted(int(value) for value in match.groups() if value is not None))
-        dimension_matches.append((prod(dimensions), dimensions))
-    if dimension_matches:
-        return max(dimension_matches)
+def _size_score(dimensions):
+    """Score outer extent, footprint, and height without estimating material mass."""
+    width, length = (Fraction(1), dimensions[0]) if len(dimensions) == 1 else dimensions[:2]
+    height = dimensions[2] if len(dimensions) == 3 else Fraction(1)
+    area = width * length
+    # 100 * (longest extent + sqrt(footprint) + height / 2).
+    footprint = isqrt((10000 * area.numerator) // area.denominator)
+    return int(100 * max(width, length, height)) + footprint + int(50 * height)
 
-    lengths = [int(value) for value in _LENGTH_L.findall(name or "")]
-    if not lengths:
-        named = _NAMED_LENGTH.search(name or "")
-        if named:
-            lengths = [int(named.group(1))]
-    if lengths:
-        length = max(lengths)
-        return length, (length,)
+
+def parsed_part_dimensions(name):
+    """Return (physical score, dimensions), or None if size is unknown."""
+    candidates = []
+    for match in _DIMENSIONS.finditer(name or ""):
+        values = tuple(Fraction(value) for value in match.groups() if value is not None)
+        if not all(0 < value <= 96 for value in values):
+            continue
+        # Rebrickable names commonly give bare tyre/wheel dimensions in mm.
+        # Other parts use stud units. The threshold preserves 2 x 2 wheels.
+        if re.match(r"^(?:tyre|wheel)\b", name or "", re.IGNORECASE) and max(values) >= 10:
+            values = tuple(value / 8 for value in values)
+        dimensions = (*sorted(values[:2]), *values[2:])
+        candidates.append((_size_score(dimensions), dimensions))
+    if candidates:
+        return max(candidates)
+
+    if _LENGTH_CONTEXT.search(name or ""):
+        lengths = [int(value) for value in _LENGTH_L.findall(name or "")]
+        lengths.extend(int(value) for value in _NAMED_LENGTH.findall(name or ""))
+        lengths = [value for value in lengths if 0 < value <= 64]
+        if lengths:
+            length = max(lengths)
+            return _size_score((Fraction(length),)), (length,)
     return None
 
-
 def part_size_form_sort_key(
-    name,
-    *,
-    category="",
-    design_id="",
-    part_number="",
-    element_id="",
-    color="",
-    descending=False,
+    name, *, category="", design_id="", part_number="", element_id="",
+    color="", descending=False,
 ):
-    """Build the shared form/size key; descending reverses size, not family order."""
+    """Global size first, family only for identical scores, unknowns last."""
     family = part_form_family(name, category)
     family_key = (_FAMILY_ORDER.get(family, len(_FAMILY_ORDER)), family)
     parsed = parsed_part_dimensions(name)
     if parsed is None:
-        size_key = (1, 0, (0, 0, 0))
+        size_key = (1, 0, ())
     else:
-        metric, dimensions = parsed
-        padded = (*dimensions, *(0 for _ in range(3 - len(dimensions))))[:3]
-        direction = -1 if descending else 1
-        size_key = (0, direction * metric, tuple(direction * value for value in padded))
+        score, dimensions = parsed
+        size_key = (0, -score if descending else score, dimensions)
     return (
-        *family_key,
-        *size_key,
-        _normalized(name),
-        _normalized(design_id),
-        _normalized(part_number),
-        _normalized(element_id),
-        _normalized(color),
+        *size_key, *family_key, _normalized(name), _normalized(design_id),
+        _normalized(part_number), _normalized(element_id), _normalized(color),
     )

@@ -25,19 +25,19 @@ class PartSizeFormKeyTests(SimpleTestCase):
         self.assertEqual(
             self.sorted_names(names),
             [
-                "Brick 1 x 1", "Brick 1 x 2", "Brick 1 x 3", "Brick 1 x 4",
-                "Brick 2 x 2", "Brick 2 x 3", "Brick 2 x 4",
+                "Brick 1 x 1", "Brick 1 x 2", "Brick 2 x 2", "Brick 1 x 3",
+                "Brick 2 x 3", "Brick 1 x 4", "Brick 2 x 4",
             ],
         )
 
-    def test_descending_reverses_size_inside_family_not_family_order(self):
+    def test_descending_reverses_global_size_only(self):
         names = ["Plate 1 x 1", "Brick 1 x 1", "Plate 2 x 4", "Brick 2 x 4"]
         self.assertEqual(
             self.sorted_names(names, descending=True),
-            ["Brick 2 x 4", "Brick 1 x 1", "Plate 2 x 4", "Plate 1 x 1"],
+            ["Brick 2 x 4", "Plate 2 x 4", "Brick 1 x 1", "Plate 1 x 1"],
         )
 
-    def test_form_families_are_deterministic_and_stay_together(self):
+    def test_form_families_only_break_equal_size_ties(self):
         names = [
             "Tile 1 x 1", "Brick 2 x 4", "Slope 1 x 2", "Plate 2 x 2",
             "Brick 1 x 1", "Tile 2 x 2", "Plate 1 x 1",
@@ -45,12 +45,12 @@ class PartSizeFormKeyTests(SimpleTestCase):
         families = [part_form_family(name) for name in self.sorted_names(names)]
         self.assertEqual(
             families,
-            ["brick", "brick", "plate", "plate", "tile", "tile", "slope"],
+            ["brick", "plate", "tile", "slope", "plate", "tile", "brick"],
         )
 
     def test_technic_lengths_are_parsed_conservatively(self):
-        self.assertEqual(parsed_part_dimensions("Technic Liftarm 5L"), (5, (5,)))
-        self.assertEqual(parsed_part_dimensions("Technic Axle 6"), (6, (6,)))
+        self.assertEqual(parsed_part_dimensions("Technic Liftarm 5L"), (773, (5,)))
+        self.assertEqual(parsed_part_dimensions("Technic Axle 6"), (894, (6,)))
         self.assertLess(
             part_size_form_sort_key("Technic Liftarm 3L"),
             part_size_form_sort_key("Technic Liftarm 7L"),
@@ -74,7 +74,7 @@ class PartSizeFormKeyTests(SimpleTestCase):
     def test_multiple_dimension_phrases_use_the_largest_reliable_footprint(self):
         self.assertEqual(
             parsed_part_dimensions("Bracket 1 x 2 - 1 x 4 [Square Corners]"),
-            (4, (1, 4)),
+            (650, (1, 4)),
         )
 
     def test_unknown_parts_have_stable_name_and_identifier_fallbacks(self):
