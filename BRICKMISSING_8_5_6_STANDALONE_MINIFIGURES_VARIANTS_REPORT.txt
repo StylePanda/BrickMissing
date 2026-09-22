@@ -1,0 +1,68 @@
+IMPLEMENTATION STATUS: READY
+PRODUCTION VALIDATION: PENDING
+
+Version vorher: 8.5.5
+Version nachher: 8.5.6
+
+1. Bestehende Architektur: Set-Formular legt owner-scoped LegoSet an; Rebrickable-Client synchronisiert SetInventoryItem und SetMinifigure/MinifigurePart. Zuordnungsmengen sind autoritativ; Part dient als Gateway/Mirror. Minifigurenseite, Fehlteile, CSV, JSON und generisches Löschen nutzen diese Modelle.
+2. Rebrickable-Minifigurenfähigkeit: vorhandener Client verwendet /sets/{set_num}/minifigs/ und /minifigs/{fig-id}/parts/; für Einzelobjekte ergänzt: /minifigs/?search=, /minifigs/{fig-id}/ und paginiertes /minifigs/{fig-id}/parts/. Keine lokale API-Key-Konfiguration vorhanden; Mocks statt Live-API.
+3. Identifier: LegoSet.set_number speichert Rebrickable-Setnummer inklusive Variantensuffix; SetMinifigure.figure_number speichert Rebrickable fig-Nummer. BrickLink col07-4 wird nicht als Rebrickable-ID interpretiert. MinifigurePart.part_number/element_id stammen aus Rebrickable; interne PK identifiziert die Besitzinstanz.
+4. Suche: Name oder genaue fig-Nummer; Bild, Name und Kennung aus der Rebrickable-Antwort. Keine erfundenen Serienmetadaten.
+5. Hinzufügen: /organisation/minifiguren/hinzufuegen/ mit Suche, Vorschau und POST-Import; Aktion auf bestehender Minifigurenseite. Serverseitiger Flow ohne zusätzliche JavaScript-Abhängigkeit.
+6. Datenmodell: SetMinifigure.lego_set ist optional (null=True, blank=True); bestehende Set-Figuren behalten ihre Relation. Keine zweite Part- oder Mengenstruktur.
+7. Migration: organizer 0006_standalone_minifigures ändert nur die FK-Nullability; keine Datenbereinigung und kein Reconciliation-Schritt.
+8. Standalone-Relation: NULL bei lego_set kennzeichnet eine eigenständige owner-scoped Minifigureninstanz.
+9. Fake-Set: keines angelegt; loser Besitz wird nicht mit einem Set vermischt.
+10. MinifigurePart-Import: gemeinsamer Komponenten-Upsert für Set- und Einzelimport; strengere Vollständigkeitsprüfung beim Einzelimport.
+11. Initialisierung: neu als vollständig besessene Einzelfigur, quantity=owned_quantity=1; ihre Komponenten owned_quantity=quantity. Set-Sync bewahrt weiterhin bestehende Bestände und sein Purchase-Initialisierungsverhalten.
+12. Unvollständige Figuren: vorhandener autoritativer Mengen-Endpoint erlaubt 0 bis quantity; Minifigurenstatus, Fehlteile und CSV folgen der Zuordnung.
+13. /minifiguren/: owner-scoped Standalone-Figuren erscheinen mit Bestandteilen und Status in der bestehenden Collection.
+14. Set-Anzeige: Ohne Set / Einzeln hinzugefügt; Labels und Fehlteile verwenden neutrale Bezeichnungen.
+15. Set plus lose Figur: getrennte SetMinifigure-Instanzen; kein Zusammenführen.
+16. Mehrere gleiche lose Figuren: mehrere NULL-FK-Zeilen zulässig, je eigene PK und eigene Komponenten. Vorhandene Set-Unique-Constraint bleibt.
+17. Löschen: bestehender owner-scoped POST-Löschweg löscht genau diese Instanz; FK-Cascade entfernt nur ihre Komponenten. Andere Figuren/Sets bleiben.
+18. Fehlteile: Standalone-MinifigureParts werden nach Owner, nicht Spare und autoritativem Fehlbestand gelesen; fehlende Parts erscheinen auf /fehlteile/.
+19. Part-Mirror: für lose Figur kein Set-Mirror erzeugt/gesucht; bestehende Mirrorlogik für Set-Figuren bleibt. Keine parallele Part.owned_quantity-Wahrheit.
+20. CSV: exportfähige lose MinifigureParts (Element-ID, nicht Spare, fehlende Menge) addieren ihre eigene autoritative Differenz. Farbfilter und Owner-Isolation bleiben. Zwei konstante DB-Abfragen statt einer; kein N+1.
+21. JSON-Export: brickmissing-8 enthält zusätzlich minifigures mit Quell-ID, optionaler Setnummer, Kennung, Name, Bild, Notiz, Figurmenge sowie Komponenten und deren Soll/Ist-Werten. Alte Felder bleiben.
+22. JSON-Import/Roundtrip: optionale minifigures-Liste; validierte Werte und Komponenten werden atomar importiert. Quell-ID/legacy_id erhalten identische lose Instanzen unterscheidbar. Alte JSON-Dateien ohne Liste bleiben importierbar.
+23. 71049-Varianten: 71049-1, -2, -3 bleiben unabhängige Rebrickable-Setnummern; vorhandener Set-Workflow akzeptiert Suffixe. Kein Complete-Set automatisch.
+24. Normales Set: bestehende Set-Synchronisation und Mengeninitialisierung unverändert.
+25. Normale Set-Minifiguren: gemeinsame Komponentenroutine, bestehende Set-Relation und Bestandswahrung unverändert.
+26. Owner-Isolation: Suche/Import erzeugt nur Owner-Daten; Seiten, Fehlteile, CSV, JSON, Änderung und Löschung filtern Owner. Tests mit zweitem User.
+27. Permissions: bestehendes Login-/E-Mail-Verifikations-Middleware-Verhalten; neue View login_required, POST-CSRF und per-user Rate-Limit.
+28. Null-Safety: Liste, Fehlteile, Labels, Bestandsantwort, Dashboard, Orders und Mirror-Gateway für optionales Set angepasst. Admin-list_display zeigt NULL-FK ohne direkte Dereferenzierung.
+29. Admin: SetMinifigureAdmin nutzt FK als Anzeige/Lookup; optionales Set ist zulässig.
+30. Fehlerbehandlung: ungültige Kennung, Not Found, API-Fehler, fehlender Key, Rate-Limit, fehlerhafte/fehlende Parts und DB-Fehler führen zu nutzerlesbaren Meldungen. Keine endlose Ladeanzeige (Server-Render).
+31. Atomicity: Einzelimport samt AuditEvent in Transaktion; ungültiges Inventar rollt Minifigur zurück.
+32. API/Queries: externe Requests nur bei Suche/Vorschau/Import; kein Request beim normalen Seitenaufruf. Listen prefetch/select_related; CSV zwei konstante Queries.
+33. Geänderte Dateien: organizer model/views/urls/migration/template; integrations services/sync; catalog services/views; data_portability services/views/tests; orders view; Labels; Browseraudit; Version/README/CHANGELOG; neue Tests und Release Notes.
+34. Neue Tests: eigenständiger Import, zwei lose Figuren, Set plus lose Figur, Rollback, Quantity-Endpoint, CSV, Owner, Delete, JSON, Varianten.
+35. Rebrickable-Tests: Name/ID-Suche, strikte Kennung, paginierte Parts, leeres Inventory mit Mocks: PASS.
+36. Minifigure-Tests: bestehende und neue gezielte Tests: PASS.
+37. Set-Import-Tests: bestehende Tests und 71049-Varianten über bestehenden Synchronisationsservice: PASS.
+38. Fehlteile-Tests: neue Sichtbarkeits-/Owner-Assertions und bestehende Suite: PASS.
+39. CSV-Tests: neue Standalone-Assertion und bestehende Mengenkonsistenztests: PASS; Performance-Grenze auf zwei konstante Quellenabfragen aktualisiert.
+40. JSON-Tests: zwei gleiche lose Figuren samt Soll/Ist nach Export/Import: PASS; ältere Formate kompatibel.
+41. 8.5.4 Regressionen: CSV-/Fehlteile-Mengenprüfungen: PASS.
+42. 8.5.5 Regressionen: zentrale Size/Form-Tests unverändert: PASS.
+43. Reconciliation/Quantity: vorhandene Regressionen: PASS; keine Reconciliation-Mutation beim Import.
+44. Security/Owner: neue Cross-Owner-Assertions und bestehende Suite: PASS.
+45. Vollständige Django-Suite: PASS, 556 Tests in 219.201 s.
+46. manage.py check: PASS, 0 Issues.
+47. Ruff check .: PASS.
+48. makemigrations --check --dry-run: PASS, No changes detected.
+49. git diff --check: PASS (nur Git-Zeilenende-Hinweise).
+50. Node: node --check scripts/responsive_ui_audit.mjs PASS.
+51. Browser/Edge-CDP: vorhandene Suite PASS, inklusive neuer Add-Seite und Overflow-Checks. API-Importflow mit Mock per Django-Client PASS; kein echter Live-API-Import im Browser mangels lokalem Key.
+52. Responsive: Add-Seite bei mobilen und Desktop-Breiten im Edge/CDP-Audit geprüft.
+53. Release-Build: dist/brickmissing-8.5.6 lokal erstellt, 354 Dateien.
+54. Verify: PASS, 354 Dateien.
+55. Dependency-free Verify: python -S scripts/verify_release.py PASS.
+56. Manifest: Version 8.5.6 geprüft.
+57. Migration: YES (nullable Set-FK).
+58. Dependency: NO.
+59. DATA RECONCILIATION REQUIRED: NO.
+60. Produktionszugriff: keiner.
+61. Secrets: keine ausgegeben; lokal kein konfigurierter Rebrickable-Key, Mocks verwendet.
+62. Commit/Push/Tag/Release/Deployment: keines durchgeführt.

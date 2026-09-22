@@ -1,5 +1,12 @@
 # Changelog
 
+## 8.5.7 - 22 September 2026
+
+- Geschlossene Minifigurenkarten nutzen die verfügbare Breite in einem adaptiven, kompakteren CSS-Grid.
+- Geöffnete Karten überspannen auf größeren Bildschirmen mehrere Spalten; Bestandteile erhalten mehr Platz.
+- Set- und Standalone-Figuren verwenden dasselbe responsive Verhalten.
+- Keine Datenmodell-, Mengen- oder Importänderung.
+
 ## 8.5.6 - 22 September 2026
 
 - Einzelne Rebrickable-Minifiguren lassen sich ohne Set suchen, importieren und verwalten.

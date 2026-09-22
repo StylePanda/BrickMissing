@@ -175,3 +175,67 @@ class ResponsiveBrowserTests(StaticLiveServerTestCase):
         self.status_test_part.refresh_from_db()
         self.assertEqual((self.status_test_part.status, self.status_test_part.owned_quantity),
                          (Part.Status.ORDERED, 0))
+
+    def test_minifigure_grid_reflows_for_set_and_standalone_figures(self):
+        edge = Path(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe")
+        node = shutil.which("node")
+        if not edge.exists() or not node:
+            self.skipTest("Microsoft Edge and Node.js are required for real layout assertions.")
+
+        for index in range(5):
+            figure = SetMinifigure.objects.create(
+                owner=self.user, lego_set=self.lego_set,
+                figure_number=f"responsive-grid-{index}", name=f"Grid Figure {index}",
+                quantity=1, owned_quantity=1,
+            )
+            MinifigurePart.objects.create(
+                minifigure=figure, part_number=f"grid-part-{index}",
+                name=f"Grid Part {index}", color_name="Dark Bluish Gray",
+                quantity=1, owned_quantity=1,
+            )
+        long_figure = SetMinifigure.objects.create(
+            owner=self.user, lego_set=self.lego_set,
+            figure_number="responsive-grid-long",
+            name="Langer Minifigurenname mit vielen Wörtern und einer zusätzlichen Katalogbezeichnung für den Umbruch",
+            quantity=1, owned_quantity=1,
+        )
+        MinifigurePart.objects.create(
+            minifigure=long_figure, part_number="grid-long-part",
+            name="Langer Bestandteilname mit vielen Wörtern und einer ausgedehnten Variantenbezeichnung",
+            color_name="Sehr lange Farbbezeichnung mit vielen Wörtern und einer zusätzlichen Katalogvariante",
+            quantity=2, owned_quantity=1,
+        )
+        for index in range(2):
+            loose = SetMinifigure.objects.create(
+                owner=self.user, lego_set=None, figure_number="responsive-figure",
+                name="Responsive Minifigure", quantity=1, owned_quantity=1,
+            )
+            MinifigurePart.objects.create(
+                minifigure=loose, part_number="973", name=f"Loose Figure Torso {index}",
+                color_name="White", quantity=1, owned_quantity=1,
+            )
+        before = list(MinifigurePart.objects.order_by("pk").values_list(
+            "pk", "quantity", "owned_quantity"
+        ))
+        root = Path(__file__).resolve().parents[1]
+        environment = os.environ.copy()
+        environment.update({
+            "BRICKMISSING_AUDIT_USERNAME": self.user.username,
+            "BRICKMISSING_AUDIT_PASSWORD": self.password,
+            "BRICKMISSING_AUDIT_GRID_ONLY": "1",
+        })
+        routes = {
+            "login": reverse("accounts:login"),
+            "authenticated": {"minifigures": reverse("organizer:minifigure_list")},
+        }
+        result = subprocess.run(  # noqa: S603 - fixed local executable and arguments
+            [node, str(root / "scripts" / "responsive_ui_audit.mjs"),
+             self.live_server_url, str(edge), json.dumps(routes),
+             str(root / "var" / "responsive-artifacts")],
+            cwd=root, env=environment, capture_output=True, text=True,
+            timeout=180, check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(before, list(MinifigurePart.objects.order_by("pk").values_list(
+            "pk", "quantity", "owned_quantity"
+        )))

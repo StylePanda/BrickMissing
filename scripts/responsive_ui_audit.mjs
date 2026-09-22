@@ -371,7 +371,8 @@ async function auditMinifigures(client, width) {
     const select = document.querySelector('select[name="completeness"]');
     return {
       kpis, filters, sets: sets.length, firstOpen: sets[0].open, secondClosed,
-      singleCardCompact: ${width} <= 1000 || singleCard.width <= Math.min(singleGrid.width, 681),
+      singleCardCompact: singleCard.width <= Math.min(singleGrid.width, 681),
+      columns: getComputedStyle(sets[0].querySelector(".minifigure-grid")).gridTemplateColumns.split(" ").length,
       singleCard, singleGrid,
       closedGeometry: {
         set: inspect(sets[0]), header: inspect(sets[0].querySelector(".minifigure-set-summary")),
@@ -379,7 +380,7 @@ async function auditMinifigures(client, width) {
         figures: figures.map((figure) => ({card: inspect(figure), main: inspect(figure.querySelector(".minifigure-card-main")),
           image: inspect(figure.querySelector(".minifigure-card-image")), info: inspect(figure.querySelector(".minifigure-card-content")),
           progress: inspect(figure.querySelector(".minifigure-progress")), status: inspect(figure.querySelector("[data-figure-status]")),
-          actions: inspect(figure.querySelector(".minifigure-card-actions")), button: inspect(figure.querySelector(".minifigure-parts-toggle")),
+          actions: inspect(figure.querySelector(".minifigure-card-actions")), button: inspect(figure.querySelector(".minifigure-parts-toggle")), edit: inspect(figure.querySelector(".minifigure-edit")),
           text: inspect(figure.querySelector(".minifigure-parts-open-label")), chevron: inspect(figure.querySelector(".minifigure-parts-chevron")),
           details: inspect(figure.querySelector(".minifigure-parts")), partGrid: inspect(figure.querySelector(".minifigure-part-grid"))})),
       },
@@ -405,7 +406,7 @@ async function auditMinifigures(client, width) {
   assert(closed.grid.style.alignItems === "start", `Minifigure grid stretches its cards at ${width}px`);
   assert(Math.abs(closed.set.rect.bottom - closed.grid.rect.bottom - px(closed.setBody.style.paddingBottom) - px(closed.set.style.borderBottomWidth)) <= 1,
     `Minifigure set keeps empty space after the card grid at ${width}px`);
-  for (const {card, main, image, info, status, actions, button, text, chevron, details} of closed.figures) {
+  for (const {card, main, image, info, status, actions, button, edit, text, chevron, details} of closed.figures) {
     const bottomBorder = px(card.style.borderBottomWidth);
     const topBorder = px(card.style.borderTopWidth);
     assert(details.rect.height <= 1 && Math.abs(card.rect.bottom - actions.rect.bottom - bottomBorder) <= 1,
@@ -420,8 +421,9 @@ async function auditMinifigures(client, width) {
       && Math.abs(centerY(text.rect) - centerY(chevron.rect)) <= 1.5
       && Math.abs(centerY(button.rect) - centerY(chevron.rect)) <= 1.5,
       `Closed minifigure chevron is not centered at ${width}px`);
-    if (width > 600) assert(actions.rect.height <= Math.max(button.rect.height, 44) + px(actions.style.paddingTop) + px(actions.style.paddingBottom) + px(actions.style.borderTopWidth) + 1,
-      `Closed minifigure action row has excess height at ${width}px`);
+    assert(actions.rect.height <= button.rect.height + edit.rect.height
+      + px(actions.style.paddingTop) + px(actions.style.paddingBottom) + px(actions.style.gap) + 2,
+      `Closed minifigure actions have excess space at ${width}px`);
     assert(status.rect.bottom <= main.rect.bottom - px(main.style.paddingBottom) + 1,
       `Minifigure status leaves the main content at ${width}px`);
   }
@@ -433,8 +435,9 @@ async function auditMinifigures(client, width) {
   assert(initial.figureFallback && initial.partFallback, `Minifigure image fallbacks are missing at ${width}px`);
   assert(initial.links && initial.progress, `Minifigure actions or progress are missing at ${width}px`);
   assert(noPairOverlap(initial.kpis) && noPairOverlap(initial.filters) && noPairOverlap(initial.figureRects), `Minifigure cards or filters overlap at ${width}px`);
-  if (width >= 1001) assert(Math.abs(initial.figureRects[0].top - initial.figureRects[1].top) <= 1, `Minifigures are not side by side at ${width}px`);
+  if (initial.columns >= 2) assert(Math.abs(initial.figureRects[0].top - initial.figureRects[1].top) <= 1, `Minifigures are not side by side at ${width}px`);
   else assert(initial.figureRects[1].top >= initial.figureRects[0].bottom, `Minifigures are not stacked at ${width}px`);
+  if (initial.columns >= 2) assert(initial.figureRects[0].width < closed.grid.rect.width / 1.5, `Closed cards are not compact at ${width}px`);
   if (width >= 1001) {
     const unequalNeighbors = await evaluate(client, `(() => {
       const figures = document.querySelectorAll("[data-set-group] [data-minifigure]");
@@ -498,8 +501,8 @@ async function auditMinifigures(client, width) {
   const inside = (child, parent) => child.left >= parent.left - 1 && child.right <= parent.right + 1 && child.top >= parent.top - 1 && child.bottom <= parent.bottom + 1;
   assert(expanded.detailsOpen && expanded.visibleText.includes("Einzelteile ausblenden"), `Minifigure part accordion did not open at ${width}px`);
   assert(expanded.parts.length === 2 && noPairOverlap(expanded.parts), `Minifigure part cards overlap at ${width}px`);
-  if (width > 600) assert(Math.abs(expanded.parts[0].top - expanded.parts[1].top) <= 1, `Minifigure part cards are not side by side at ${width}px`);
-  else assert(expanded.parts[1].top >= expanded.parts[0].bottom, `Minifigure part cards are not stacked at ${width}px`);
+  assert(Math.abs(expanded.parts[0].top - expanded.parts[1].top) <= 1
+    || expanded.parts[1].top >= expanded.parts[0].bottom, `Minifigure part cards do not reflow at ${width}px`);
   assert(expanded.parts.every((part) => inside(part, expanded.figure)), `Minifigure part cards leave the figure card at ${width}px`);
   assert(expanded.controls.every((control) => control.width === 0 || expanded.parts.some((part) => inside(control, part))), `Minifigure quantity controls are clipped at ${width}px: ${JSON.stringify({controls: expanded.controls, form: expanded.form, formGrid: expanded.formGrid, parts: expanded.parts})}`);
   assert(inside(expanded.progress, expanded.figure) && inside(expanded.status, expanded.figure), `Minifigure progress or status is clipped at ${width}px`);
@@ -518,8 +521,8 @@ async function auditMinifigures(client, width) {
   if (width > 600) assert(Math.abs(expanded.edit.top - expanded.accordion.top) <= 12
     && expanded.edit.left - expanded.accordion.right <= 16,
     `Minifigure actions are not grouped at ${width}px`);
-  if (width >= 1440) assert(expanded.content.width <= 450 && expanded.parts.every((part) => part.width <= 610),
-    `Minifigure information or part cards stretch at ${width}px`);
+  if (width >= 1440) assert(expanded.parts.every((part) => part.width <= 610),
+    `Minifigure part cards stretch at ${width}px`);
   assert(expanded.images.every(({image, wrapper, objectFit, src, currentSrc, naturalWidth, naturalHeight}) => objectFit === "contain" && inside(image, wrapper) && src && currentSrc && naturalWidth > 0 && naturalHeight > 0), `Minifigure images are cropped or unloaded at ${width}px: ${JSON.stringify(expanded.images)}`);
   await delay(200);
   const openedChevron = await evaluate(client, `(() => {
@@ -1145,6 +1148,138 @@ async function auditFormControls(client) {
   for (const height of result.textareas) assert(height >= 96 && height <= 420, `Textarea has an unreasonable ${height}px height`);
 }
 
+async function auditMinifigureGrid(client) {
+  await client.send("Page.addScriptToEvaluateOnNewDocument", {source: `
+    window.__gridErrors = [];
+    window.addEventListener("error", (event) => window.__gridErrors.push(event.message));
+    window.addEventListener("unhandledrejection", (event) => window.__gridErrors.push(String(event.reason)));
+  `});
+  for (const width of [320, 390, 768, 1024, 1280, 1440, 1920]) {
+    await setViewport(client, width, width < 700 ? 844 : 1024);
+    await navigate(client, routes.authenticated.minifigures);
+    await auditOverflow(client, "minifigureGrid", width);
+    const initial = await evaluate(client, `(() => {
+      const rect = (node) => { const box = node.getBoundingClientRect(); return {left: box.left, right: box.right, top: box.top, bottom: box.bottom, width: box.width, height: box.height}; };
+      const groups = [...document.querySelectorAll("[data-set-group]")];
+      const setGroup = groups.find((group) => group.querySelector("summary")?.textContent.includes("10307-1"));
+      const looseGroup = groups.find((group) => group.querySelector("summary")?.textContent.includes("Ohne Set"));
+      setGroup.open = true;
+      looseGroup.open = true;
+      const grid = setGroup.querySelector(".minifigure-grid");
+      const cards = [...grid.querySelectorAll(":scope > [data-minifigure]")];
+      const looseCards = [...looseGroup.querySelectorAll("[data-minifigure]")];
+      const boxes = cards.map(rect);
+      const container = rect(grid);
+      const overlaps = (a, b) => a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1;
+      return {groups: groups.length, cards: cards.length, loose: looseCards.length,
+        columns: getComputedStyle(grid).gridTemplateColumns.split(" ").length,
+        first: boxes[0], container, nonoverlap: boxes.every((box, index) => boxes.slice(index + 1).every((next) => !overlaps(box, next))),
+        inside: boxes.every((box) => box.left >= container.left - 1 && box.right <= container.right + 1),
+        looseTitle: looseGroup.querySelector("summary").textContent.includes("Einzeln hinzugef"),
+        sameDesign: cards.some((card) => card.querySelector(".minifigure-card-id")?.textContent.trim() === "responsive-figure")
+          && looseCards.filter((card) => card.querySelector(".minifigure-card-id")?.textContent.trim() === "responsive-figure").length === 2,
+        longSetFits: setGroup.querySelector(".minifigure-set-title").scrollWidth <= setGroup.querySelector(".minifigure-set-title").clientWidth + 1,
+      };
+    })()`);
+    assert(initial.groups === 3 && initial.cards === 8 && initial.loose === 2, `Grid fixture is incomplete at ${width}px: ${JSON.stringify(initial)}`);
+    assert(initial.nonoverlap && initial.inside && initial.sameDesign && initial.looseTitle && initial.longSetFits,
+      `Closed set/standalone cards do not fit at ${width}px: ${JSON.stringify(initial)}`);
+    if (width >= 1280) assert(initial.columns >= 4, `Desktop grid has too few compact columns at ${width}px`);
+    if (width <= 390) assert(initial.columns === 1, `Mobile grid is not a single column at ${width}px`);
+    if (initial.columns > 1) assert(initial.first.width < initial.container.width / 1.5,
+      `A closed figure stretches across its set group at ${width}px`);
+
+    const opened = await evaluate(client, `(() => {
+      const setGroup = [...document.querySelectorAll("[data-set-group]")].find((group) => group.querySelector("summary")?.textContent.includes("10307-1"));
+      const cards = [...setGroup.querySelectorAll(".minifigure-grid > [data-minifigure]")];
+      const first = cards[0], button = first.querySelector(".minifigure-parts-toggle");
+      button.focus(); button.click();
+      const rect = (node) => { const box = node.getBoundingClientRect(); return {left: box.left, right: box.right, top: box.top, bottom: box.bottom, width: box.width, height: box.height}; };
+      const boxes = cards.map(rect), grid = rect(setGroup.querySelector(".minifigure-grid"));
+      const overlaps = (a,b) => a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1;
+      const partCards = [...first.querySelectorAll("[data-minifigure-part]")];
+      return {width: boxes[0].width, closedWidth: boxes[1].width, focus: document.activeElement === button,
+        open: first.querySelector(".minifigure-parts").open, aria: button.getAttribute("aria-expanded"),
+        nonoverlap: boxes.every((box,index) => boxes.slice(index+1).every((next) => !overlaps(box,next))),
+        inside: boxes.every((box) => box.left >= grid.left - 1 && box.right <= grid.right + 1),
+        partsInside: partCards.every((card) => { const box=rect(card); return box.left >= boxes[0].left-1 && box.right <= boxes[0].right+1; }),
+        controlsInside: [...first.querySelectorAll(".minifigure-part-quantity input, .minifigure-part-quantity button")].every((control) => {
+          const box=rect(control); return box.width === 0 || (box.left >= boxes[0].left-1 && box.right <= boxes[0].right+1);
+        }),
+      };
+    })()`);
+    assert(opened.focus && opened.open && opened.aria === "true" && opened.nonoverlap && opened.inside
+      && opened.partsInside && opened.controlsInside, `Expanded grid is invalid at ${width}px: ${JSON.stringify(opened)}`);
+    if (initial.columns > 1) assert(opened.width >= initial.first.width * 1.8,
+      `Expanded card does not gain enough width at ${width}px: ${JSON.stringify(opened)}`);
+    await auditOverflow(client, "minifigureGridExpanded", width);
+
+    const multiple = await evaluate(client, `(() => {
+      const group = [...document.querySelectorAll("[data-set-group]")].find((item) => item.querySelector("summary")?.textContent.includes("10307-1"));
+      const cards = [...group.querySelectorAll(".minifigure-grid > [data-minifigure]")];
+      cards[1].querySelector(".minifigure-parts-toggle").click();
+      cards[2].querySelector(".minifigure-parts-toggle").click();
+      const rect = (node) => { const box=node.getBoundingClientRect(); return {left:box.left,right:box.right,top:box.top,bottom:box.bottom,width:box.width}; };
+      const boxes=cards.map(rect), container=rect(group.querySelector(".minifigure-grid"));
+      const overlaps=(a,b)=>a.left<b.right-1&&a.right>b.left+1&&a.top<b.bottom-1&&a.bottom>b.top+1;
+      return {open: cards.slice(0,3).every((card) => card.querySelector(".minifigure-parts").open),
+        nonoverlap: boxes.every((box,index)=>boxes.slice(index+1).every((next)=>!overlaps(box,next))),
+        inside: boxes.every((box)=>box.left>=container.left-1&&box.right<=container.right+1),
+        otherGroupInside: [...document.querySelectorAll("[data-set-group]")].every((item,index,all)=>
+          all.slice(index+1).every((next)=>!overlaps(rect(item),rect(next)))),
+      };
+    })()`);
+    assert(multiple.open && multiple.nonoverlap && multiple.inside && multiple.otherGroupInside,
+      `Multiple expanded cards overlap at ${width}px: ${JSON.stringify(multiple)}`);
+    await auditOverflow(client, "minifigureGridMultiple", width);
+
+    const restored = await evaluate(client, `(() => {
+      const groups=[...document.querySelectorAll("[data-set-group]")];
+      const setGroup=groups.find((group)=>group.querySelector("summary")?.textContent.includes("10307-1"));
+      const loose=groups.find((group)=>group.querySelector("summary")?.textContent.includes("Ohne Set"));
+      const cards=[...setGroup.querySelectorAll(".minifigure-grid > [data-minifigure]")];
+      for (const card of cards.slice(0,3)) card.querySelector(".minifigure-parts-toggle").click();
+      const first=cards[0], before=first.getBoundingClientRect().width;
+      const looseCard=loose.querySelector("[data-minifigure]");
+      looseCard.querySelector(".minifigure-parts-toggle").click();
+      const looseOpened=looseCard.querySelector(".minifigure-parts").open;
+      looseCard.querySelector(".minifigure-parts-toggle").click();
+      return {width:before, closed:cards.slice(0,3).every((card)=>!card.querySelector(".minifigure-parts").open
+        && card.querySelector(".minifigure-parts-toggle").getAttribute("aria-expanded")==="false"),
+        looseOpened, looseClosed:!looseCard.querySelector(".minifigure-parts").open};
+    })()`);
+    assert(restored.closed && restored.looseOpened && restored.looseClosed
+      && Math.abs(restored.width - initial.first.width) <= 1,
+      `Grid did not return to compact state at ${width}px: ${JSON.stringify(restored)}`);
+    assert((await evaluate(client, "window.__gridErrors || []")).length === 0, `JavaScript errors at ${width}px`);
+    if (artifactDirectory && [390, 1440, 1920].includes(width)) {
+      await mkdir(artifactDirectory, {recursive:true});
+      const capture=await client.send("Page.captureScreenshot", {format:"png",fromSurface:true,captureBeyondViewport:true});
+      await writeFile(join(artifactDirectory, `minifigure-grid-${width}.png`), Buffer.from(capture.data,"base64"));
+    }
+  }
+  await setViewport(client, 1440, 900);
+  await navigate(client, `${routes.authenticated.minifigures}?q=responsive-grid-long`);
+  const filtered=await evaluate(client, `(() => {
+    const cards=[...document.querySelectorAll("[data-minifigure]")];
+    const text=cards[0]?.querySelector("h4")?.textContent || "";
+    const content=cards[0]?.querySelector(".minifigure-card-content");
+    cards[0]?.querySelector(".minifigure-parts-toggle")?.click();
+    const part=cards[0]?.querySelector(".minifigure-part-top > div");
+    return {count:cards.length, name:text, open:cards[0]?.querySelector(".minifigure-parts")?.open,
+      longNameFits:content?.scrollWidth <= content?.clientWidth+1,
+      longPartFits:part?.scrollWidth <= part?.clientWidth+1};
+  })()`);
+  assert(filtered.count === 1 && filtered.name.includes("Langer") && filtered.open
+    && filtered.longNameFits && filtered.longPartFits, `Filtered long-name card overflows: ${JSON.stringify(filtered)}`);
+  await navigate(client, `${routes.authenticated.minifigures}?q=no-grid-result-857`);
+  const empty=await evaluate(client, `(() => ({cards:document.querySelectorAll("[data-minifigure]").length,
+    empty:document.querySelector(".empty")?.textContent.includes("Keine Minifiguren"),
+    add:document.querySelector('a[href*="hinzufuegen"]')?.textContent.includes("Minifigur hinzuf") }))()`);
+  assert(empty.cards === 0 && empty.empty && empty.add, `Minifigure empty state is broken: ${JSON.stringify(empty)}`);
+  process.stdout.write("Minifigure grid browser audit passed.\n");
+}
+
 let client;
 let targetId;
 try {
@@ -1167,6 +1302,9 @@ try {
   const loginPath = await evaluate(client, "location.pathname");
   assert(loginPath !== routes.login, "Browser audit login failed");
 
+  if (process.env.BRICKMISSING_AUDIT_GRID_ONLY === "1") {
+    await auditMinifigureGrid(client);
+  } else {
   const mobileWidths = [320, 375, 390, 430];
   const desktopWidths = [768, 1024, 1280, 1440, 1920];
   for (const width of mobileWidths) {
@@ -1295,6 +1433,7 @@ try {
   await auditMinifigureQuantity(client);
   await auditMissingStatusSave(client);
   process.stdout.write("Responsive browser audit passed.\n");
+  }
 } finally {
   if (client && targetId) {
     try {
