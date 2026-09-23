@@ -27,6 +27,7 @@ from .part_sorting import part_size_form_sort_key
 from .part_status import (
     effective_workflow_status,
     group_quantity_status,
+    missing_group_status,
     stock_state,
     workflow_status_is_consistent,
     workflow_status_label,
@@ -525,9 +526,8 @@ def missing_parts(request):
     query = request.GET.get("q", "").strip()
     selected_colors = [value for value in request.GET.getlist("color") if value]
     status = request.GET.get("status", "")
-    if status in Part.Status.values:
-        queryset = queryset.filter(status=status)
-    else:
+    group_filter_values = {*Part.Status.values, "partial"}
+    if status not in group_filter_values:
         status = ""
     stock = request.GET.get("stock", "all")
     if stock not in {"all", "complete", "partial", "none"}:
@@ -714,8 +714,8 @@ def missing_parts(request):
     groups = normalized_groups
     for group in groups:
         if not group.get("is_minifigure"):
-            group["status"], group["status_label"] = group_quantity_status(
-                group["required"], group["owned"], group["missing"]
+            group["status"], group["status_label"] = missing_group_status(
+                group["allocations"], group["required"], group["owned"], group["missing"]
             )
             group["stock"], group["stock_label"] = stock_state(
                 group["required"], group["owned"]
@@ -728,7 +728,7 @@ def missing_parts(request):
     if status:
         groups = [
             group for group in groups
-            if not group.get("is_minifigure") or status == Part.Status.MISSING
+            if group["status"] == status
         ]
     if stock != "all":
         groups = [group for group in groups if group["stock"] == stock]
@@ -765,7 +765,7 @@ def missing_parts(request):
             "selected_colors": selected_colors,
             "color_summary": f"{len(selected_colors)} Farben" if selected_colors else "Alle Farben",
             "status": status,
-            "statuses": Part.Status.choices,
+            "statuses": [*Part.Status.choices, ("partial", "Teilweise")],
             "stock": stock,
             "part_statuses": Part.Status.choices,
             "minimum": minimum,

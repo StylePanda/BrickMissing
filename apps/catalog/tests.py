@@ -452,7 +452,7 @@ class CatalogFlowTests(TestCase):
         )
         response = self.client.get(
             reverse("catalog:missing_parts"),
-            {"q": "Castle", "color": "Red", "status": "partial", "minimum": "4", "sort": "-quantity"},
+            {"q": "Castle", "color": "Red", "status": "ordered", "minimum": "4", "sort": "-quantity"},
         )
         self.assertContains(response, "Red Brick")
         self.assertNotContains(response, "Foreign")
@@ -557,8 +557,12 @@ class CatalogFlowTests(TestCase):
         groups = response.context["page_obj"].object_list
         self.assertEqual(len(groups), 3)
         self.assertEqual({group["status"] for group in groups}, {"missing", "partial"})
-        found = self.client.get(reverse("catalog:missing_parts"), {"status": "found"})
-        self.assertEqual(found.context["page_obj"].object_list[0]["status_label"], "Teilweise")
+        partial = self.client.get(reverse("catalog:missing_parts"), {"status": "partial"})
+        self.assertEqual(len(partial.context["page_obj"].object_list), 2)
+        self.assertTrue(all(group["status_label"] == "Teilweise" for group in partial.context["page_obj"].object_list))
+        self.assertEqual(
+            list(self.client.get(reverse("catalog:missing_parts"), {"status": "found"}).context["page_obj"].object_list), []
+        )
 
     def test_group_filters_sort_and_bulk_apply_to_visible_allocations(self):
         first = LegoSet.objects.create(owner=self.user, set_number="100", name="Erstes Set")
@@ -655,19 +659,23 @@ class CatalogFlowTests(TestCase):
         self.assertFalse(form.is_valid())
         self.assertIn("status", form.errors)
 
-    def test_each_workflow_status_filter_is_exact(self):
+    def test_each_workflow_status_filter_matches_visible_group(self):
         url = reverse("catalog:missing_parts")
-        records = {}
         for status, label in Part.Status.choices:
-            records[status] = Part.objects.create(
+            Part.objects.create(
                 owner=self.user, element_id=f"filter-{status}", name=f"Teil {label}",
                 quantity=2, owned_quantity=1, status=status,
             )
         for status, _label in Part.Status.choices:
             with self.subTest(status=status):
                 groups = self.client.get(url, {"status": status}).context["page_obj"].object_list
-                allocations = [part for group in groups for part in group["allocations"]]
-                self.assertEqual(allocations, [records[status]])
+                self.assertTrue(all(group["status"] == status for group in groups))
+                self.assertEqual(len(groups), 1 if status in {
+                    Part.Status.ORDERED, Part.Status.SHIPPED
+                } else 0)
+        partial = self.client.get(url, {"status": "partial"}).context["page_obj"].object_list
+        self.assertEqual(len(partial), 4)
+        self.assertTrue(all(group["status_label"] == "Teilweise" for group in partial))
 
     def test_stock_filter_is_independent_from_workflow_status(self):
         url = reverse("catalog:missing_parts")

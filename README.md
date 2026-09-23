@@ -1,10 +1,10 @@
-# BrickMissing 8.5.7
+# BrickMissing 8.5.8
 
-BrickMissing 8.5.7 ist der Django-Neuaufbau der LEGO-Sammlungs- und
+BrickMissing 8.5.8 ist der Django-Neuaufbau der LEGO-Sammlungs- und
 Fehlteileverwaltung. Production verwendet Nginx → Gunicorn → Django → MariaDB.
 Der alte Python-HTTP-Server ist nur noch Legacy-Referenz und kein V8-Server.
 
-> Release-Status: **8.5.7 – Production Sign-off ausstehend**. Der V8-Runtimepfad
+> Release-Status: **8.5.8 – Production Sign-off ausstehend**. Der V8-Runtimepfad
 > ist Django-only. Der vollständige MariaDB-11.8.6-Rehearsal einschließlich
 > Reconciliation, 106 Tests, echten Locking-Tests und Cleanup ist PASS.
 
@@ -44,7 +44,7 @@ Legacy-Datei `data/brickmissing.db` wird nicht als Django-Datenbank verwendet.
 
 ## Tests und Qualität
 
-Lokaler Stand 8.5.7: vollständige automatisierte Validierung und Release-Verifikation. Die manuelle Produktionsprüfung steht noch aus.
+Lokaler Stand 8.5.8: vollständige automatisierte Validierung und Release-Verifikation. Die manuelle Produktionsprüfung steht noch aus.
 
 ```powershell
 .\.venv\Scripts\python.exe manage.py check

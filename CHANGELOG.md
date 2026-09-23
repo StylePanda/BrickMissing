@@ -1,5 +1,11 @@
 # Changelog
 
+## 8.5.8 - 23 September 2026
+
+- Der Statusfilter auf /fehlteile/ verwendet denselben abgeleiteten Gruppenstatus wie der sichtbare Badge. Ein veraltetes „Erhalten“ am Part-Mirror erzeugt keinen widersprüchlichen Filtertreffer mehr.
+- Einheitliche Gruppenstatusableitung für normale Teile; Minifigurenteile behalten ihren mengenbasierten Status. Nach AJAX-Statusänderungen wird die Seite frisch geladen.
+- Regressionstests für den reproduzierten Erhalten-Fehler, Workflowfilter, gemischte Zuordnungen und Statusänderungen.
+
 ## 8.5.7 - 22 September 2026
 
 - Geschlossene Minifigurenkarten nutzen die verfügbare Breite in einem adaptiven, kompakteren CSS-Grid.

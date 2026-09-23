@@ -36,6 +36,32 @@ def group_quantity_status(required_quantity, owned_quantity, missing_quantity=No
     return "partial", "Teilweise"
 
 
+def missing_group_status(allocations, required_quantity, owned_quantity, missing_quantity):
+    """One visible/filterable status for an open group.
+
+    A uniform actionable workflow status is shown as such. A missing or mixed
+    workflow group uses the established quantity status, so one allocation
+    cannot label an entire card as received or ordered.
+    """
+    quantity_status = group_quantity_status(
+        required_quantity, owned_quantity, missing_quantity
+    )
+    statuses = {
+        effective_workflow_status(
+            part.status,
+            part.authoritative_required_quantity,
+            part.authoritative_owned_quantity,
+            part.authoritative_missing_quantity,
+        )
+        for part in allocations
+    }
+    if len(statuses) == 1:
+        workflow = next(iter(statuses))
+        if workflow != Part.Status.MISSING:
+            return workflow, workflow_status_label(workflow)
+    return quantity_status
+
+
 def effective_workflow_status(
     status, required_quantity, owned_quantity, missing_quantity=None
 ):

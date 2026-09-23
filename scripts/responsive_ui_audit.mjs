@@ -346,12 +346,35 @@ async function auditMissingStatusSave(client) {
   }
   const accepted = await submit("ordered", "real");
   assert(accepted.request?.status === 200 && accepted.request.contentType?.includes("application/json")
-    && JSON.parse(accepted.request.body).ok === true && accepted.status === "ordered"
-    && accepted.selected === "ordered" && accepted.badge === "Bestellt"
-    && accepted.group === baseline.group && accepted.owned === baseline.owned
-    && accepted.missing === baseline.missing && accepted.progress === baseline.progress
+    && JSON.parse(accepted.request.body).ok === true
     && !accepted.error && !accepted.loading,
   `Valid status save fails or leaves the spinner: ${JSON.stringify(accepted)}`);
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  await navigate(client, routes.authenticated.missingParts + "?status=ordered");
+  const ordered = await evaluate(client, `(() => [...document.querySelectorAll("[data-missing-card]")]
+    .map((card) => ({badge: card.querySelector("[data-group-status]")?.textContent.trim(),
+      status: card.querySelector("[data-group-status]")?.className})))()`);
+  assert(ordered.length && ordered.every((card) => card.badge === "Bestellt"
+    && card.status.includes("ordered")), `Ordered filter/badge mismatch: ${JSON.stringify(ordered)}`);
+  await navigate(client, routes.authenticated.missingParts + "?status=received");
+  const received = await evaluate(client, `(() => [...document.querySelectorAll("[data-missing-card]")]
+    .map((card) => card.querySelector("[data-group-status]")?.textContent.trim()))()`);
+  assert(received.length === 0,
+    `Received filter/badge mismatch: ${JSON.stringify(received)}`);
+  await navigate(client, routes.authenticated.missingParts + "?status=ordered&color=Black&sort=size_form");
+  const combined = await evaluate(client, `(() => [...document.querySelectorAll("[data-missing-card]")]
+    .map((card) => ({badge: card.querySelector("[data-group-status]")?.textContent.trim(),
+      color: card.querySelector(".missing-card-color")?.textContent.trim()})))()`);
+  assert(combined.length === 1 && combined[0].badge === "Bestellt"
+    && combined[0].color === "Black",
+    `Status/color/size filter mismatch: ${JSON.stringify(combined)}`);
+  await navigate(client, routes.authenticated.missingParts + "?status=partial&kind=minifigure");
+  const miniPartial = await evaluate(client, `(() => [...document.querySelectorAll("[data-missing-card]")]
+    .map((card) => ({badge: card.querySelector("[data-group-status]")?.textContent.trim(),
+      minifigure: card.textContent.includes("Minifigurenteil")})))()`);
+  assert(miniPartial.length && miniPartial.every((card) => card.badge === "Teilweise" && card.minifigure),
+    `Minifigure status filter mismatch: ${JSON.stringify(miniPartial)}`);
+
 }
 
 async function auditMinifigures(client, width) {

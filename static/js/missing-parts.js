@@ -1,35 +1,10 @@
 (() => {
   "use strict";
-  const activeStatus = new URLSearchParams(window.location.search).get("status") || "";
-
-  function updateGroup(row) {
-    const allocations = [...row.querySelectorAll("[data-part-allocation]")];
-    if (!allocations.length) {
-      row.remove();
-      return;
-    }
-    const badge = row.querySelector("[data-group-status]");
-    if (!badge) return;
-    const owned = allocations.reduce((total, allocation) => total + Number(allocation.querySelector("[data-allocation-owned]")?.textContent || 0), 0);
-    const missing = allocations.reduce((total, allocation) => total + Number(allocation.querySelector("[data-allocation-missing]")?.textContent || 0), 0);
-    if (missing <= 0) {
-      badge.textContent = "Erhalten";
-      badge.className = "badge complete";
-    } else if (owned <= 0) {
-      badge.textContent = "Fehlt";
-      badge.className = "badge missing";
-    } else {
-      badge.textContent = "Teilweise";
-      badge.className = "badge partial";
-    }
-  }
-
   document.querySelectorAll(".status-form").forEach((form) => {
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       if (form.dataset.saving === "true") return;
       const allocation = form.closest("[data-part-allocation]");
-      const row = form.closest("[data-part-group]");
       const button = form.querySelector("button");
       const select = form.querySelector('select[name="status"]');
       const controller = new AbortController();
@@ -54,15 +29,8 @@
           if (typeof payload?.message === "string" && payload.message.trim()) errorMessage = payload.message;
           throw new Error("Status response failed");
         }
-        allocation.dataset.partStatus = payload.part.status;
-        const label = allocation.querySelector("[data-allocation-status-label]");
-        if (label) {
-          label.textContent = payload.part.status_label;
-          label.dataset.status = payload.part.status;
-        }
         allocation.querySelector("[data-status-error]")?.remove();
-        if (activeStatus && activeStatus !== payload.part.status) allocation.remove();
-        updateGroup(row);
+        window.setTimeout(() => window.location.reload(), 100);
       } catch {
         if (select && allocation?.dataset.partStatus) select.value = allocation.dataset.partStatus;
         let notice = allocation?.querySelector("[data-status-error]");

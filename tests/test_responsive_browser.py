@@ -64,6 +64,18 @@ class ResponsiveBrowserTests(StaticLiveServerTestCase):
             )
             if index == 1:
                 self.status_test_part = part
+        self.status_test_part = Part.objects.create(
+            owner=self.user, lego_set=self.lego_set,
+            part_number="browser-status", element_id="browser-status",
+            name="Browser status audit allocation", color="Black",
+            quantity=2, owned_quantity=0,
+        )
+        Part.objects.create(
+            owner=self.user, lego_set=self.lego_set,
+            part_number="browser-donut", element_id="",
+            name="Stale received fixture", color="",
+            quantity=995, owned_quantity=975, status=Part.Status.RECEIVED,
+        )
         for index, color in enumerate(("Black", "Glow in Dark White", "White")):
             Part.objects.create(
                 owner=self.user,

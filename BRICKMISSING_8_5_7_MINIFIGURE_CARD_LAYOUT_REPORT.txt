@@ -1,0 +1,53 @@
+IMPLEMENTATION STATUS: READY
+PRODUCTION VALIDATION: PENDING
+
+Version vorher: 8.5.6
+Version nachher: 8.5.7
+
+1. Bisheriges Kartenlayout: die Minifiguren-Gruppe verwendete ein starres Zwei-Spalten-Grid; einzelne Karten konnten bis etwa 680 px breit sein. Set- und Standalone-Figuren nutzten dieselbe Kartenstruktur.
+2. Bisheriges Expand/Collapse: ein Button schaltet ein natives details-Element um; aria-expanded wird durch minifigure-inventory.js synchronisiert. Mehrere Karten dürfen gleichzeitig geöffnet sein. CSS erkannte den Zustand bereits über :has(.minifigure-parts[open]).
+3. Ursache: zwei feste Grid-Spalten, ein 210 px hohes Figurenbild, eine 140–190 px breite Bildspalte sowie großzügige Hauptzeilenabstände machten geschlossene Karten groß. Ein geöffnetes Element belegte bislang die ganze Grid-Zeile.
+4. Neue Grid-Architektur: CSS Grid mit repeat(auto-fill, minmax(min(100%, 270px), 1fr)); die Anzahl geschlossener Spalten folgt der verfügbaren Containerbreite. align-items:start verhindert gedehnte Nachbarkarten.
+5. Geschlossene Kartenbreite: eine Grid-Spalte mit kompakterem 96 px Bildbereich, 120 px Bildhöhe und engeren Abständen. Bild, Kennung, Name, Status, Mengen, Fortschritt und Aktionen bleiben sichtbar.
+6. Expanded-Verhalten: geöffnete Karten nutzen denselben details-State und bekommen mehr Breite. Hauptbild und Kopfbereich werden im geöffneten Zustand größer.
+7. Grid-Span: standardmäßig zwei Grid-Spalten, ab 1200 px Ansichtsbreite drei Spalten; bis 700 px die gesamte verfügbare Grid-Zeile. Kein JavaScript für Pixel-/Positionsberechnung.
+8. Reflow: CSS-Grid platziert Nachbarkarten neu, ohne Überlappung, Abschneiden oder Überschreiten der Set-Gruppe. Kein grid-auto-flow:dense, damit visuelle und Tastatur-Reihenfolge zusammenpassen.
+9. Mehrere Expanded-Karten: unverändertes gleichzeitiges Öffnen; CDP prüft drei offene Karten und alle Bounding-Boxes.
+10. Set-Gruppen: jedes Grid bleibt in seinem eigenen details-Container; ein Set mit einer Figur bleibt geschlossen kompakt. Acht Figuren in einer Gruppe wurden geprüft.
+11. Standalone-Minifiguren: gleiche Template-/CSS-Karten; zwei gleiche lose Figuren sowie identisches Design aus Set und lose wurden im Browser geprüft. Ohne Set / Einzeln hinzugefügt bleibt sichtbar.
+12. Bestandteile: vorhandene Bilder, Namen, Farben, Soll-/Ist-Werte, Status und Controls bleiben erhalten. Das innere Part-Grid nutzt ebenfalls adaptive Mindestbreiten, damit Controls nicht zusammengepresst werden.
+13. Lange Namen: bestehendes overflow-wrap und min-width:0 bleiben; Browserfixture enthält lange Figuren-, Part-, Farb- und Setnamen. Filter und Bounding-Boxes wurden geprüft.
+14. Bilder: unveränderte Quelle und object-fit:contain. Geschlossen 96 x 120 px Bereich; geöffnet größerer Bildbereich. Keine Bildlogik geändert.
+15. Desktop: 1280, 1440 und 1920 px per Edge/CDP geprüft. Ab 1280 px mindestens vier geschlossene Spalten in der Testgruppe; geöffnete Karte deutlich breiter.
+16. Tablet: 768 und 1024 px geprüft; automatische Spaltenreduktion und Expanded-Span ohne Overflow.
+17. Mobile: 320 und 390 px geprüft; eine geschlossene Karte pro Zeile und geöffnete Karte über volle Breite. Kein horizontaler Seitenscrollbalken.
+18. Accessibility: vorhandener Button mit aria-expanded, Fokus und native details-Semantik bleiben; CDP prüft den erhaltenen Fokus. Keine visuelle Umordnung durch dense placement.
+19. Filter: bestehende Filter unverändert; Suchfilter mit langer Figur und Empty-State-Suche im Browser geprüft.
+20. Status-/Mengencontrols: bestehende AJAX-Steuerung und Zustandslogik unverändert; Browser-Quantity-Audit prüft Statusaktualisierung ohne Seitenwechsel. Expanded-Control-Grenzen geprüft.
+21. Empty State: unverändert; der Minifigur-hinzufügen-Link bleibt erreichbar und wurde im Browser geprüft.
+22. Backendänderungen: NO; nur Versionsassertion in Core-Test aktualisiert.
+23. Modeländerungen: NO.
+24. Migration: NO.
+25. Dependency: NO.
+26. DATA RECONCILIATION REQUIRED: NO.
+27. Geänderte Dateien: static/css/app.css; scripts/responsive_ui_audit.mjs; tests/test_responsive_browser.py; brickmissing_version.py; apps/core/tests.py; README.md; CHANGELOG.md. Lokale Release Notes und dieser Report bleiben untracked.
+28. Relevante Minifiguren-Tests: PASS; gezielter Lauf mit Organizer-, Standalone-, Size/Form- und CSV/JSON-Tests: 142 Tests in 132.680 s.
+29. 8.5.6 Regressionen: PASS in der vollständigen Suite; Standalone-Import, mehrere lose Figuren, Delete, JSON/CSV und Owner-Isolation unverändert.
+30. 8.5.5 Regressionen: PASS in der vollständigen Suite; zentraler Size/Form-Sortierhelper unverändert.
+31. 8.5.4 Regressionen: PASS in der vollständigen Suite; autoritative Fehlteile- und CSV-Mengen unverändert.
+32. Browser/Edge-CDP: zwei Tests PASS; ursprünglicher Layout-/Mengen-Audit und neuer Mehrkarten-/Standalone-Reflow-Audit. Im LiveServer-Protokoll trat sporadisch ein SQLite-Savepoint-Fehler bei paralleler Service-Worker-Anfrage auf; Layout- und JavaScript-Assertions bestanden.
+33. Responsive: 320, 390, 768, 1024, 1280, 1440, 1920 px per Bounding-Boxes und Overflow geprüft; Screenshots unter var/responsive-artifacts visuell geprüft.
+34. JavaScript-Fehler: im neuen Minifiguren-Grid-Audit keine window error/unhandledrejection; produktive Minifiguren-JS-Datei nicht geändert.
+35. Vollständige Django-Suite: PASS, 557 Tests in 230.748 s.
+36. manage.py check: PASS, 0 Issues.
+37. Ruff check .: PASS.
+38. makemigrations --check --dry-run: PASS, No changes detected.
+39. git diff --check: PASS.
+40. Node --check scripts/responsive_ui_audit.mjs: PASS.
+41. Release-Build: dist/brickmissing-8.5.7 lokal erstellt, 354 Dateien.
+42. Verify: PASS, 354 Dateien.
+43. Dependency-free Verify: python -S scripts/verify_release.py PASS.
+44. Manifest: Version 8.5.7 geprüft.
+45. Produktionszugriff: keiner.
+46. Secrets: keine ausgegeben oder ins Artefakt übernommen.
+47. Commit/Push/Tag/Release/Deployment: keines durchgeführt.
