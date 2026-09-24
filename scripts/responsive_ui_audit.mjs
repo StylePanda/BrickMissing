@@ -11,7 +11,8 @@ if (!baseUrl || !browserPath || !routesJson) {
 const routes = JSON.parse(routesJson);
 const username = process.env.BRICKMISSING_AUDIT_USERNAME;
 const password = process.env.BRICKMISSING_AUDIT_PASSWORD;
-if (!username || !password) throw new Error("Audit credentials are required.");
+const docsOnly = process.env.BRICKMISSING_AUDIT_DOCS_ONLY === "1";
+if (!docsOnly && (!username || !password)) throw new Error("Audit credentials are required.");
 
 const port = 12000 + Math.floor(Math.random() * 7000);
 const profile = join(tmpdir(), `brickmissing-edge-${process.pid}-${Date.now()}`);
@@ -187,6 +188,66 @@ async function auditOverflow(client, routeName, width) {
   for (const image of dimensions.images) {
     assert(image.left >= -1 && image.right <= width + 1, `${routeName} image escapes at ${width}px`);
   }
+}
+
+async function auditDocumentation(client) {
+  await client.send("Page.enable");
+  await client.send("Page.addScriptToEvaluateOnNewDocument", {source: `
+    window.__docsErrors = [];
+    window.addEventListener("error", (event) => window.__docsErrors.push(event.message));
+    window.addEventListener("unhandledrejection", (event) => window.__docsErrors.push(String(event.reason)));
+  `});
+  for (const width of [320, 390, 768, 1024, 1280, 1440, 1920]) {
+    await setViewport(client, width, width >= 1440 ? 900 : 844);
+    for (const [name, path] of Object.entries(routes.docs)) {
+      await navigate(client, path);
+      const result = await evaluate(client, `(() => {
+        const bounds = (node) => {
+          const rectangle = node?.getBoundingClientRect();
+          return rectangle && {left: rectangle.left, right: rectangle.right};
+        };
+        const wrappers = [...document.querySelectorAll(".docs-table-wrap")];
+        const blocks = [...document.querySelectorAll(".docs-content pre")];
+        return {
+          width: document.documentElement.scrollWidth,
+          bodyWidth: document.body.scrollWidth,
+          title: document.querySelector(".docs-content h1")?.textContent,
+          current: document.querySelectorAll('.docs-menu a[aria-current="page"]').length,
+          help: Boolean(document.querySelector('.site-footer a[href="/docs/"]')),
+          menuOpen: document.querySelector(".docs-menu")?.open,
+          internalLinks: [...document.querySelectorAll('.docs-content a[href^="/docs/"]')].length,
+          tables: wrappers.map((node) => ({bounds: bounds(node), overflow: getComputedStyle(node).overflowX})),
+          code: blocks.map((node) => ({bounds: bounds(node), overflow: getComputedStyle(node).overflowX})),
+          instrumented: Array.isArray(window.__docsErrors),
+          errors: window.__docsErrors || [],
+        };
+      })()`);
+      assert(result.width <= width + 1 && result.bodyWidth <= width + 1,
+        `Documentation ${name} overflows at ${width}px: ${JSON.stringify(result)}`);
+      assert(result.title && result.current === 1 && result.help,
+        `Documentation ${name} navigation is incomplete at ${width}px: ${JSON.stringify(result)}`);
+      assert(result.menuOpen === (width > 760),
+        `Documentation menu has unexpected disclosure state at ${width}px`);
+      assert(result.instrumented, `Documentation JavaScript error capture is unavailable at ${width}px`);
+      assert(result.errors.length === 0,
+        `Documentation ${name} JavaScript errors at ${width}px: ${result.errors}`);
+      if (name === "index") assert(result.internalLinks >= 10, "Documentation index links are missing");
+      if (name === "parts") assert(result.tables.length > 0, "Documentation table is missing");
+      if (name === "testing") assert(result.code.length > 0, "Documentation code block is missing");
+      for (const container of [...result.tables, ...result.code]) {
+        assert(container.bounds.left >= -1 && container.bounds.right <= width + 1,
+          `Documentation scroll container escapes at ${width}px: ${JSON.stringify(container)}`);
+        assert(["auto", "scroll"].includes(container.overflow),
+          `Documentation table or code block cannot scroll at ${width}px`);
+      }
+      if (artifactDirectory && [390, 1440].includes(width)) {
+        await mkdir(artifactDirectory, {recursive: true});
+        const capture = await client.send("Page.captureScreenshot", {format: "png", fromSurface: true});
+        await writeFile(join(artifactDirectory, `docs-${name}-${width}.png`), Buffer.from(capture.data, "base64"));
+      }
+    }
+  }
+  process.stdout.write("Documentation browser audit passed (320–1920px).\n");
 }
 
 async function auditMissingParts(client, width) {
@@ -1313,6 +1374,9 @@ try {
   const attached = await client.send("Target.attachToTarget", {targetId: target.targetId}, null);
   client.sessionId = attached.sessionId;
   await delay(500);
+  if (docsOnly) {
+    await auditDocumentation(client);
+  } else {
   await setViewport(client, 390, 844);
   await navigate(client, routes.login);
   await evaluate(client, `(() => {
@@ -1456,6 +1520,7 @@ try {
   await auditMinifigureQuantity(client);
   await auditMissingStatusSave(client);
   process.stdout.write("Responsive browser audit passed.\n");
+  }
   }
 } finally {
   if (client && targetId) {

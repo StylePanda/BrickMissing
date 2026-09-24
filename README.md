@@ -30,7 +30,7 @@ py -3.12 -m venv .venv
 
 ## Dokumentation
 
-- [Benutzer-Dokumentation](docs/index.md) und [Erste Schritte](docs/getting-started.md)
-- [Entwickler-Dokumentation](docs/developer/index.md), einschließlich [Deployment](docs/developer/deployment.md), [Tests](docs/developer/testing.md) und [Releases](docs/developer/releases.md)
+- In der laufenden BrickMissing-Anwendung unter `/docs/` mit Benutzeranleitung und Entwicklerbereich
+- [Markdown-Quellen](docs/index.md) und [Entwickler-Quellen](docs/developer/index.md); diese Dateien werden direkt für die Webansicht gerendert
 
 Der produktive Django-Pfad verwendet Nginx, Gunicorn und MariaDB. Release-Artefakte werden mit `scripts/build_release.py` gebaut und mit `scripts/verify_release.py` geprüft. Historische Migrations- und Auditnotizen liegen ebenfalls unter `docs/`; die aktuelle Funktionsbeschreibung beginnt bei `docs/index.md`.

@@ -1,0 +1,23 @@
+{% extends "base.html" %}{% load static %}
+{% block title %}{{ page.title }}{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'css/docs.css' %}?v={{ application_version }}">{% endblock %}
+{% block content %}
+<div class="docs-layout">
+  <aside class="docs-sidebar" aria-label="Dokumentationsnavigation">
+    <details class="docs-menu" data-responsive-disclosure open>
+      <summary>Dokumentation durchsuchen</summary>
+      <nav aria-label="Dokumentationsseiten">
+        {% for section in navigation %}
+        <div class="docs-nav-section">
+          <h2>{{ section.title }}</h2>
+          {% for item in section.pages %}<a href="{{ item.url }}"{% if item.active %} aria-current="page"{% endif %}>{{ item.title }}</a>{% endfor %}
+        </div>
+        {% endfor %}
+      </nav>
+    </details>
+  </aside>
+  <article class="docs-article panel" aria-label="{{ page.title }}">
+    <div class="docs-content">{{ document_html }}</div>
+  </article>
+</div>
+{% endblock %}

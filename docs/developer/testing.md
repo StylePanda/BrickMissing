@@ -1,6 +1,6 @@
 # Tests und Prüfungen
 
-Die Django-Tests liegen in `apps/*/tests.py`, zusätzlichen `test_*.py` sowie `tests/`. Sie prüfen unter anderem Ownership, Mengen, Status, CSV/JSON, Rebrickable, Accounts, Backups und Release-Werkzeuge. `tests/test_responsive_browser.py` und `scripts/responsive_ui_audit.mjs` decken Browser-/Responsive-Verhalten ab; dafür kann eine Browserumgebung nötig sein. Eine bestandene Django-Suite ersetzt keinen visuellen Browserdurchlauf.
+Die Django-Tests liegen in `apps/*/tests.py`, zusätzlichen `test_*.py` sowie `tests/`. Sie prüfen unter anderem Ownership, Mengen, Status, CSV/JSON, Rebrickable, Accounts, Backups und Release-Werkzeuge. `apps/documentation/tests.py` prüft zusätzlich die freigegebenen Dokumentationsseiten, Links und Sicherheitsgrenzen. `tests/test_responsive_browser.py`, `tests/test_documentation_browser.py` und `scripts/responsive_ui_audit.mjs` decken Browser-/Responsive-Verhalten ab; dafür kann eine Browserumgebung nötig sein. Eine bestandene Django-Suite ersetzt keinen visuellen Browserdurchlauf.
 
 Lokale Grundprüfung vom Repository-Root:
 

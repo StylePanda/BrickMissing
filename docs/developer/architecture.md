@@ -2,6 +2,8 @@
 
 `manage.py` startet das Django-Projekt in `config/`. `config/settings/base.py` enthält gemeinsame Einstellungen, `config/settings/development.py` nutzt eine lokale SQLite-Datenbank, `config/settings/production.py` verlangt MariaDB und explizite Sicherheitsvariablen. `config/urls.py` bindet die App-Routen ein; `templates/` enthält serverseitig gerenderte Seiten, `static/js/` ergänzt Interaktion, Filter, Mengenaktualisierung, Batch-Sync und Druckvorschau. `frontend/`, `brickmissing/` und `server.py` enthalten zusätzlich einen älteren Runtimepfad; die V8-Webanwendung wird über Django/WSGI ausgeliefert.
 
+`apps.documentation` stellt die freigegebenen Markdown-Dateien aus `docs/` unter `/docs/` bereit. Eine feste Zuordnung von URL-Slug zu Datei verhindert freie Dateipfade. `markdown-it-py` rendert die Dateien bei der Anfrage mit deaktiviertem Raw HTML; der Renderer prüft Links und leitet interne Markdown-Links auf Dokumentationsrouten um. Die öffentliche Ansicht verwendet das gemeinsame Base-Template mit eigener responsiver Seitennavigation; es gibt keine zweite HTML-Kopie der Inhalte.
+
 | App | Verantwortung |
 | --- | --- |
 | `accounts`, `legal` | Konten, Anmeldung, 2FA, Profil, Datenschutz- und Rechtstexte. |

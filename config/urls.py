@@ -20,6 +20,7 @@ admin.site.index_title = "Systemverwaltung"
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("docs/", include("apps.documentation.urls")),
     path("konto/", include("apps.accounts.urls")),
     path("", include("apps.legal.urls")),
     path("", dashboard, name="dashboard"),
