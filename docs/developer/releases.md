@@ -1,0 +1,7 @@
+# Releases und Versionierung
+
+Die einzige aktuelle Versionsquelle ist `brickmissing_version.py` (`APP_VERSION`). `brickmissing/version.py`, Django-Einstellungen, UI-Kontext und Release-Skripte lesen sie. Ein Release aktualisiert diese Quelle, die kompakte README-Versionsangabe und `CHANGELOG.md`; historische Changelog-Einträge und Migrationen bleiben unverändert. Die Regeln für `MAJOR.MINOR.PATCH` stehen auch in [Versionierung](../VERSIONING.md).
+
+Nach Tests und Driftcheck erzeugt `scripts/build_release.py` ein lokales Artifact. `scripts/verify_release.py` prüft es mit und ohne Projektabhängigkeiten. Erst ein eigener, autorisierter Deploymentvorgang darf das Artifact auf dem Server mit `scripts/deploy.sh` aktivieren. Das Skript prüft Manifest, installiert die Produktionsumgebung, führt Migrations- und Static-Schritte aus und schaltet `current` erst danach um; bei fehlgeschlagenem Smoke Test aktiviert es nach Möglichkeit das vorige Release. Ein Datenbankschema-Rollback ist dabei nicht enthalten.
+
+**Repo-Regel:** `BRICKMISSING_*_REPORT*.txt` und `RELEASE_NOTES_*.md` sind ausschließlich lokale Arbeitsdateien. `.gitignore` muss beide Muster behalten. Solche Dateien werden weder mit `git add` aufgenommen noch committed, gepusht oder Bestandteil des GitHub-Repositories. Vor einem Release `git check-ignore` für die lokalen Dateien prüfen und sie auch nicht durch erzwungenes Hinzufügen in Git bringen. Committable sind Quellcode, `docs/`, README und Changelog. Ein lokaler Release-Build unter `dist/` bleibt ebenfalls ignoriert.

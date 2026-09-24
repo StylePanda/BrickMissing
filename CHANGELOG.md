@@ -1,5 +1,12 @@
 # Changelog
 
+## 8.6.0 - 24 September 2026
+
+- Neue, am aktuellen Django-Code geprüfte Benutzer- und Entwicklerdokumentation unter `docs/` für Sets, Teile, Fehlteile, Minifiguren, Import/Export, Etiketten, Konto, Mengen- und Statuslogik sowie Betrieb.
+- README auf eine kompakte Projektübersicht und Einstiege in die Dokumentation ausgerichtet.
+- Keine Funktions-, Datenmodell-, Migrations- oder Dependency-Änderung.
+
+
 ## 8.5.8 - 23 September 2026
 
 - Der Statusfilter auf /fehlteile/ verwendet denselben abgeleiteten Gruppenstatus wie der sichtbare Badge. Ein veraltetes „Erhalten“ am Part-Mirror erzeugt keinen widersprüchlichen Filtertreffer mehr.
