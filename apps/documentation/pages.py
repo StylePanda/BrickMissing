@@ -10,6 +10,10 @@ class DocumentationPage:
     title: str
 
     @property
+    def audience(self) -> str:
+        return "admin" if self.slug == "developer" or self.slug.startswith("developer/") else "public"
+
+    @property
     def route_name(self):
         return "index" if not self.slug else self.slug.replace("/", "_").replace("-", "_")
 

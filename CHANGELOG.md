@@ -3,7 +3,7 @@
 ## 8.6.0 - 24 September 2026
 
 - Die Markdown-Dokumentation unter `docs/` ist über `/docs/` direkt in der Django-Anwendung erreichbar; interne Links bleiben in der Anwendung, mit responsivem Layout und eigenem Navigationsbereich.
-- Die Dokumentationsseiten sind öffentlich lesbar und verwenden eine feste Datei-Freigabe sowie sicheres serverseitiges Markdown-Rendering.
+- Die Benutzerdokumentation ist öffentlich lesbar; der Entwicklerbereich erfordert Administratorzugriff (`is_staff`). Alle Seiten verwenden eine feste Datei-Freigabe sowie sicheres serverseitiges Markdown-Rendering.
 - Neue, am aktuellen Django-Code geprüfte Benutzer- und Entwicklerdokumentation unter `docs/` für Sets, Teile, Fehlteile, Minifiguren, Import/Export, Etiketten, Konto, Mengen- und Statuslogik sowie Betrieb.
 - README auf eine kompakte Projektübersicht und Einstiege in die Dokumentation ausgerichtet.
 - Keine Änderung an Datenmodell, Migrationen oder fachlicher Bestands- und Statuslogik. Für die Webansicht ist `markdown-it-py==4.0.0` ergänzt.

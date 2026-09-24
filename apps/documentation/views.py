@@ -4,6 +4,7 @@ from django.conf import settings
 from django.http import Http404
 from django.shortcuts import render
 from django.urls import reverse
+from django.utils.cache import patch_vary_headers
 from django.utils.safestring import mark_safe
 
 from .pages import PAGES, PAGES_BY_SLUG
@@ -16,7 +17,7 @@ def document_root() -> Path:
 
 def documentation_page(request, slug):
     page = PAGES_BY_SLUG.get(slug)
-    if page is None:
+    if page is None or (page.audience == "admin" and not request.user.is_staff):
         raise Http404("Dokumentationsseite nicht gefunden.")
     try:
         root = document_root().resolve(strict=True)
@@ -27,24 +28,23 @@ def documentation_page(request, slug):
     except (OSError, UnicodeError) as exc:
         raise Http404("Dokumentationsseite nicht gefunden.") from exc
 
-    navigation = [
-        {
+    navigation = []
+    for title, audience in (("Benutzer", "public"), ("Entwickler", "admin")):
+        if audience == "admin" and not request.user.is_staff:
+            continue
+        navigation.append({
             "title": title,
             "pages": [
                 {"title": item.title, "url": reverse(f"documentation:{item.route_name}"),
                  "active": item.slug == page.slug}
-                for item in PAGES if is_member(item)
+                for item in PAGES if item.audience == audience
             ],
-        }
-        for title, is_member in (
-            ("Benutzer", lambda item: not item.slug.startswith("developer")),
-            ("Entwickler", lambda item: item.slug.startswith("developer")),
-        )
-    ]
+        })
     response = render(request, "documentation/page.html", {
         "page": page,
         "navigation": navigation,
         "document_html": mark_safe(render_document(page.source, markdown)),  # noqa: S308 - raw HTML is disabled and every URL is constrained by render_document
     })
-    response["Cache-Control"] = "public, max-age=300"
+    response["Cache-Control"] = "private, no-store"
+    patch_vary_headers(response, ("Cookie",))
     return response

@@ -14,7 +14,3 @@ BrickMissing verwaltet LEGO-Sets, deren Soll-/Ist-Inventar, Minifiguren und Fehl
 - [Organisation, Lager und Bestellungen](organization.md)
 - [Konto und Datenschutz](account.md)
 - [Häufige Fragen](faq.md)
-
-## Für Entwickler und Betrieb
-
-[Entwicklerübersicht](developer/index.md) mit Architektur, Datenmodell, Mengen- und Statuslogik, Rebrickable, Deployment, Tests und Releases.

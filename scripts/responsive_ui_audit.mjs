@@ -12,7 +12,10 @@ const routes = JSON.parse(routesJson);
 const username = process.env.BRICKMISSING_AUDIT_USERNAME;
 const password = process.env.BRICKMISSING_AUDIT_PASSWORD;
 const docsOnly = process.env.BRICKMISSING_AUDIT_DOCS_ONLY === "1";
-if (!docsOnly && (!username || !password)) throw new Error("Audit credentials are required.");
+const docsRole = process.env.BRICKMISSING_AUDIT_DOCS_ROLE || "anonymous";
+if ((!docsOnly || docsRole !== "anonymous") && (!username || !password)) {
+  throw new Error("Audit credentials are required.");
+}
 
 const port = 12000 + Math.floor(Math.random() * 7000);
 const profile = join(tmpdir(), `brickmissing-edge-${process.pid}-${Date.now()}`);
@@ -200,6 +203,7 @@ async function auditDocumentation(client) {
   for (const width of [320, 390, 768, 1024, 1280, 1440, 1920]) {
     await setViewport(client, width, width >= 1440 ? 900 : 844);
     for (const [name, path] of Object.entries(routes.docs)) {
+      if (name === "testing" && docsRole !== "admin") continue;
       await navigate(client, path);
       const result = await evaluate(client, `(() => {
         const bounds = (node) => {
@@ -214,6 +218,9 @@ async function auditDocumentation(client) {
           title: document.querySelector(".docs-content h1")?.textContent,
           current: document.querySelectorAll('.docs-menu a[aria-current="page"]').length,
           help: Boolean(document.querySelector('.site-footer a[href="/docs/"]')),
+          developerHeading: [...document.querySelectorAll(".docs-nav-section h2")]
+            .some((node) => node.textContent.trim() === "Entwickler"),
+          developerLinks: document.querySelectorAll('.docs-menu a[href^="/docs/developer/"]').length,
           menuOpen: document.querySelector(".docs-menu")?.open,
           internalLinks: [...document.querySelectorAll('.docs-content a[href^="/docs/"]')].length,
           tables: wrappers.map((node) => ({bounds: bounds(node), overflow: getComputedStyle(node).overflowX})),
@@ -226,6 +233,9 @@ async function auditDocumentation(client) {
         `Documentation ${name} overflows at ${width}px: ${JSON.stringify(result)}`);
       assert(result.title && result.current === 1 && result.help,
         `Documentation ${name} navigation is incomplete at ${width}px: ${JSON.stringify(result)}`);
+      assert(result.developerHeading === (docsRole === "admin")
+        && (result.developerLinks > 0) === (docsRole === "admin"),
+        `Documentation ${name} exposes the wrong navigation for ${docsRole} at ${width}px`);
       assert(result.menuOpen === (width > 760),
         `Documentation menu has unexpected disclosure state at ${width}px`);
       assert(result.instrumented, `Documentation JavaScript error capture is unavailable at ${width}px`);
@@ -247,7 +257,13 @@ async function auditDocumentation(client) {
       }
     }
   }
-  process.stdout.write("Documentation browser audit passed (320–1920px).\n");
+  const protectedStatuses = await evaluate(client, `Promise.all([
+    fetch("/docs/developer/"), fetch("/docs/developer/versioning/")
+  ]).then((responses) => responses.map((response) => response.status))`);
+  const expectedStatus = docsRole === "admin" ? 200 : 404;
+  assert(protectedStatuses.every((status) => status === expectedStatus),
+    `Documentation direct URL access is wrong for ${docsRole}: ${protectedStatuses}`);
+  process.stdout.write(`Documentation browser audit passed for ${docsRole} (320–1920px).\n`);
 }
 
 async function auditMissingParts(client, width) {
@@ -1375,6 +1391,19 @@ try {
   client.sessionId = attached.sessionId;
   await delay(500);
   if (docsOnly) {
+    if (docsRole !== "anonymous") {
+      await setViewport(client, 390, 844);
+      await navigate(client, routes.login);
+      await evaluate(client, `(() => {
+        const form = document.querySelector("form[method=post]");
+        form.elements.username.value = ${JSON.stringify(username)};
+        form.elements.password.value = ${JSON.stringify(password)};
+        form.submit();
+      })()`);
+      await waitForReady(client);
+      assert(await evaluate(client, "location.pathname") !== routes.login,
+        `Documentation browser login failed for ${docsRole}`);
+    }
     await auditDocumentation(client);
   } else {
   await setViewport(client, 390, 844);
