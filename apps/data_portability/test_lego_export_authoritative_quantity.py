@@ -314,7 +314,7 @@ class LegoExportAuthoritativeQuantityTests(TestCase):
             is_spare=True,
         )
 
-        self.assertEqual(self.exported()[1][1:], [["3711b", "1"]])
+        self.assertEqual(self.exported()[1][1:], [["3711b", "5"]])
 
     def test_exact_element_match_takes_precedence_over_blank_fallback_candidate(self):
         lego_set, _item, _part = self.allocation(

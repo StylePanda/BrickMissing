@@ -70,6 +70,179 @@ class CompletenessAndColorTests(TestCase):
         self.assertEqual(duplicates, 1)
 
 
+class SpareBulkActionTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            "spare-bulk", "spare-bulk@example.test", "Strong-password-123"
+        )
+        self.client.force_login(self.user)
+        self.url = reverse("catalog:mark_all_spares_missing")
+
+    def make_set(self, number, name):
+        return LegoSet.objects.create(owner=self.user, set_number=number, name=name)
+
+    def test_bulk_action_updates_owned_spares_across_sets_and_preserves_other_data(self):
+        first = self.make_set("spare-1", "Spare One")
+        second = self.make_set("spare-2", "Spare Two")
+        first_spare = SetInventoryItem.objects.create(
+            lego_set=first, part_number="spare-red", element_id="spare-red",
+            name="Red spare", color_name="Red", required_quantity=2,
+            owned_quantity=1, is_spare=True,
+        )
+        SetInventoryItem.objects.create(
+            lego_set=first, part_number="spare-blue", element_id="spare-blue",
+            name="Blue spare", color_name="Blue", required_quantity=1,
+            owned_quantity=1, is_spare=True,
+        )
+        zero_spare = SetInventoryItem.objects.create(
+            lego_set=first, part_number="spare-zero", name="Already missing",
+            required_quantity=1, owned_quantity=0, is_spare=True,
+        )
+        normal = SetInventoryItem.objects.create(
+            lego_set=first, part_number="normal", name="Normal", required_quantity=3,
+            owned_quantity=2,
+        )
+        second_spare = SetInventoryItem.objects.create(
+            lego_set=second, part_number="spare-green", name="Green spare",
+            color_name="Green", required_quantity=4, owned_quantity=3, is_spare=True,
+        )
+        figure = SetMinifigure.objects.create(
+            owner=self.user, lego_set=first, figure_number="spare-bulk-figure",
+            name="Figure unaffected by spare action",
+        )
+        minifigure_part = MinifigurePart.objects.create(
+            minifigure=figure, part_number="figure-part", name="Figure part",
+            quantity=2, owned_quantity=1,
+        )
+        mirror = Part.objects.create(
+            owner=self.user, lego_set=first, element_id="spare-red",
+            part_number="spare-red", name="Existing mirror", color="Red",
+            quantity=2, owned_quantity=1, status=Part.Status.ORDERED,
+            notes="Keep this mirror",
+        )
+
+        response = self.client.post(self.url, follow=True)
+
+        self.assertContains(response, "3 Ersatzteile in 2 Sets wurden als nicht vorhanden markiert.")
+        first_spare.refresh_from_db()
+        second_spare.refresh_from_db()
+        zero_spare.refresh_from_db()
+        normal.refresh_from_db()
+        minifigure_part.refresh_from_db()
+        mirror.refresh_from_db()
+        self.assertEqual((first_spare.owned_quantity, first_spare.required_quantity), (0, 2))
+        self.assertEqual((second_spare.owned_quantity, second_spare.required_quantity), (0, 4))
+        self.assertEqual(zero_spare.owned_quantity, 0)
+        self.assertEqual((normal.owned_quantity, normal.required_quantity), (2, 3))
+        self.assertEqual((minifigure_part.owned_quantity, minifigure_part.quantity), (1, 2))
+        self.assertEqual((mirror.status, mirror.notes, mirror.quantity),
+                         (Part.Status.ORDERED, "Keep this mirror", 2))
+        self.assertEqual(Part.objects.filter(lego_set=first).count(), 1)
+
+    def test_no_owned_spares_returns_informative_message(self):
+        self.make_set("spare-empty", "No spares")
+        response = self.client.post(self.url, follow=True)
+        self.assertContains(response, "Es gibt keine vorhandenen Ersatzteile zum Markieren.")
+
+    def test_action_is_post_only_and_owner_scoped(self):
+        lego_set = self.make_set("spare-owner", "Owned")
+        item = SetInventoryItem.objects.create(
+            lego_set=lego_set, part_number="spare", name="Spare", owned_quantity=1,
+            is_spare=True,
+        )
+        self.assertEqual(self.client.get(self.url).status_code, 405)
+        self.client.logout()
+        self.assertEqual(self.client.post(self.url).status_code, 302)
+        self.client.force_login(self.user)
+        foreign = get_user_model().objects.create_user(
+            "spare-foreign", "spare-foreign@example.test", "Other-password-123"
+        )
+        foreign_set = LegoSet.objects.create(owner=foreign, set_number="spare-foreign", name="Foreign")
+        foreign_item = SetInventoryItem.objects.create(
+            lego_set=foreign_set, part_number="spare", name="Foreign spare",
+            owned_quantity=1, is_spare=True,
+        )
+        self.client.post(self.url)
+        item.refresh_from_db()
+        foreign_item.refresh_from_db()
+        self.assertEqual((item.owned_quantity, foreign_item.owned_quantity), (0, 1))
+
+    def test_failure_rolls_back_every_spare_update(self):
+        lego_set = self.make_set("spare-rollback", "Rollback")
+        items = [
+            SetInventoryItem.objects.create(
+                lego_set=lego_set, part_number=f"spare-{index}", name="Spare",
+                owned_quantity=1, is_spare=True,
+            )
+            for index in range(2)
+        ]
+        with patch(
+            "apps.catalog.views.set_authoritative_owned_quantity",
+            side_effect=[items[0], RuntimeError("simulated update failure")],
+        ), self.assertRaises(RuntimeError):
+            self.client.post(self.url)
+        self.assertEqual(
+            list(SetInventoryItem.objects.filter(pk__in=[item.pk for item in items])
+                 .order_by("pk").values_list("owned_quantity", flat=True)),
+            [1, 1],
+        )
+
+    def test_create_missing_deduplicates_identity_and_aggregates_spare_missing(self):
+        lego_set = self.make_set("spare-missing", "Missing aggregation")
+        SetInventoryItem.objects.create(
+            lego_set=lego_set, part_number="design", element_id="shared-element",
+            name="Shared brick", color_name="Red", required_quantity=1,
+            owned_quantity=0,
+        )
+        SetInventoryItem.objects.create(
+            lego_set=lego_set, part_number="design", element_id="shared-element",
+            name="Shared brick spare", color_name="Red", required_quantity=1,
+            owned_quantity=1, is_spare=True,
+        )
+        SetInventoryItem.objects.create(
+            lego_set=lego_set, part_number="design", element_id="shared-element",
+            name="Shared blue spare", color_name="Blue", required_quantity=2,
+            owned_quantity=1, is_spare=True,
+        )
+        existing = Part.objects.create(
+            owner=self.user, lego_set=lego_set, element_id="shared-element",
+            part_number="design", name="Existing mirrored brick", color="Red",
+            quantity=1, owned_quantity=0, status=Part.Status.ORDERED,
+            notes="Preserve existing metadata",
+        )
+
+        response = self.client.post(
+            reverse("catalog:set_inventory_action", args=[lego_set.pk, "create-missing"]),
+            follow=True,
+        )
+
+        self.assertContains(response, "2 fehlende Positionen wurden zur Fehlliste hinzugefügt.")
+        self.assertEqual(Part.objects.filter(lego_set=lego_set, element_id="shared-element").count(), 2)
+        missing = self.client.get(reverse("catalog:missing_parts"))
+        groups = {group["color"].casefold(): group for group in missing.context["page_obj"].object_list}
+        self.assertEqual((groups["red"]["required"], groups["red"]["owned"], groups["red"]["missing"]), (2, 1, 1))
+        self.assertEqual((groups["blue"]["required"], groups["blue"]["owned"], groups["blue"]["missing"]), (2, 1, 1))
+        response = self.client.post(self.url, follow=True)
+        self.assertContains(response, "2 Ersatzteile in 1 Sets wurden als nicht vorhanden markiert.")
+        missing_after_bulk = self.client.get(reverse("catalog:missing_parts"))
+        groups_after_bulk = {
+            group["color"].casefold(): group
+            for group in missing_after_bulk.context["page_obj"].object_list
+        }
+        self.assertEqual(groups_after_bulk["red"]["missing"], 2)
+        self.assertEqual(groups_after_bulk["blue"]["missing"], 2)
+        existing.refresh_from_db()
+        self.assertEqual((existing.status, existing.notes),
+                         (Part.Status.ORDERED, "Preserve existing metadata"))
+
+    def test_sets_page_renders_csrf_post_form_and_confirmation(self):
+        response = self.client.get(reverse("catalog:set_list"))
+        self.assertContains(response, 'method="post"')
+        self.assertContains(response, "Alle Ersatzteile als nicht vorhanden markieren")
+        self.assertContains(response, "data-confirm=")
+        self.assertContains(response, "csrfmiddlewaretoken")
+
+
 class MissingPartKindTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create(username="kinds", email="kinds@example.test")

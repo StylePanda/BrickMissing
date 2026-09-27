@@ -1418,6 +1418,33 @@ try {
   const loginPath = await evaluate(client, "location.pathname");
   assert(loginPath !== routes.login, "Browser audit login failed");
 
+  if (process.env.BRICKMISSING_AUDIT_GRID_ONLY !== "1") {
+  await navigate(client, routes.authenticated.sets);
+  const spareAction = await evaluate(client, `(() => {
+    const form = document.querySelector('form[action*="ersatzteile/als-fehlend-markieren"]');
+    const button = form?.querySelector('button[type="submit"]');
+    const confirmation = form?.dataset.confirm || "";
+    window.confirm = (message) => {
+      localStorage.setItem("spare-action-confirmation", message);
+      return true;
+    };
+    button?.click();
+    return {exists: Boolean(form && button), method: form?.method, confirmation};
+  })()`);
+  assert(spareAction.exists && spareAction.method === "post"
+    && spareAction.confirmation.includes("alle Ersatzteile aller Sets"),
+    "Global spare action form, POST method or confirmation is missing");
+  await waitForReady(client);
+  const spareSuccess = await evaluate(client, `({
+    path: location.pathname,
+    confirmation: localStorage.getItem("spare-action-confirmation"),
+    success: document.body.innerText.includes("1 Ersatzteile in 1 Sets wurden als nicht vorhanden markiert.")
+  })`);
+  assert(spareSuccess.path === new URL(routes.authenticated.sets, baseUrl).pathname
+    && spareSuccess.confirmation.includes("alle Ersatzteile aller Sets") && spareSuccess.success,
+  `Global spare action browser confirmation or success message failed: ${JSON.stringify(spareSuccess)}`);
+  }
+
   if (process.env.BRICKMISSING_AUDIT_GRID_ONLY === "1") {
     await auditMinifigureGrid(client);
   } else {

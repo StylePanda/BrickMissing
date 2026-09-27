@@ -471,8 +471,8 @@ class MissingPartGroupStatusRegressionTests(TestCase):
 
         group = self.groups()[0]
 
-        self.assertEqual((group["required"], group["owned"], group["missing"]), (2, 0, 2))
-        self.assertEqual(group["status_label"], "Fehlt")
+        self.assertEqual((group["required"], group["owned"], group["missing"]), (3, 1, 2))
+        self.assertEqual(group["status_label"], "Teilweise")
 
     def test_minifigure_part_uses_the_same_quantity_status_semantics(self):
         lego_set = LegoSet.objects.create(owner=self.user, set_number="mini", name="Mini")

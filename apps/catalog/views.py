@@ -521,7 +521,8 @@ def missing_parts(request):
                 lego_set__deleted_at__isnull=True,
             )
         )
-        .select_related("lego_set")
+        .select_related("lego_set"),
+        include_spares=True,
     ).filter(authoritative_missing_quantity__gt=0)
     query = request.GET.get("q", "").strip()
     selected_colors = [value for value in request.GET.getlist("color") if value]
@@ -1108,7 +1109,7 @@ def set_inventory_action(request, set_pk, action):
             set_authoritative_owned_quantity("set", item, 0, request.user)
     elif action == "create-missing":
         added = 0
-        for item in records.filter(owned_quantity__lt=F("required_quantity"), is_spare=False):
+        for item in records.filter(owned_quantity__lt=F("required_quantity")):
             quantity = item.required_quantity - item.owned_quantity
             part, created = Part.objects.get_or_create(owner=request.user, lego_set=lego_set, element_id=item.element_id or item.part_number, color=item.color_name, deleted_at__isnull=True, defaults={"part_number": item.part_number, "name": item.name, "quantity": quantity, "owned_quantity": 0, "status": Part.Status.MISSING, "image_url": item.image_url})
             if not created:
@@ -1133,6 +1134,45 @@ def set_inventory_action(request, set_pk, action):
         return redirect("catalog:set_detail", pk=lego_set.pk)
     AuditEvent.objects.create(actor=request.user, target_user=request.user, action=f"set_inventory.{action}", entity_type="set", entity_id=str(lego_set.pk), request_id=request.request_id)
     return redirect("catalog:set_detail", pk=lego_set.pk)
+
+
+@login_required
+@require_POST
+@transaction.atomic
+def mark_all_spares_missing(request):
+    if limited(request, "inventory-bulk", 60, 3600, per_user=True):
+        return HttpResponse("Rate limit exceeded", status=429)
+    records = list(
+        SetInventoryItem.objects.select_for_update()
+        .filter(
+            lego_set__owner=request.user,
+            lego_set__deleted_at__isnull=True,
+            is_spare=True,
+            owned_quantity__gt=0,
+        )
+        .select_related("lego_set")
+        .order_by("lego_set_id", "pk")
+    )
+    affected_sets = {item.lego_set_id for item in records}
+    for item in records:
+        set_authoritative_owned_quantity("set", item, 0, request.user)
+    if records:
+        messages.success(
+            request,
+            f"{len(records)} Ersatzteile in {len(affected_sets)} Sets wurden als nicht vorhanden markiert.",
+        )
+    else:
+        messages.info(request, "Es gibt keine vorhandenen Ersatzteile zum Markieren.")
+    AuditEvent.objects.create(
+        actor=request.user,
+        target_user=request.user,
+        action="set_inventory.spares_marked_missing",
+        entity_type="user",
+        entity_id=str(request.user.pk),
+        details={"items": len(records), "sets": len(affected_sets)},
+        request_id=request.request_id,
+    )
+    return redirect("catalog:set_list")
 
 
 @login_required

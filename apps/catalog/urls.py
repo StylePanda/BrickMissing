@@ -5,6 +5,7 @@ from . import views
 app_name = "catalog"
 urlpatterns = [
     path("sets/", views.set_list, name="set_list"),
+    path("sets/ersatzteile/als-fehlend-markieren/", views.mark_all_spares_missing, name="mark_all_spares_missing"),
     path("sets/neu/", views.set_edit, name="set_create"),
     path("sets/mehrere-neue/", views.batch_set_import, name="set_batch_import"),
     path("sets/mehrere-neue/vorschau/", views.batch_set_import_preview, name="set_batch_preview"),

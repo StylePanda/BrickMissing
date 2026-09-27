@@ -1,5 +1,12 @@
 # Changelog
 
+## 8.6.1 - 28 September 2026
+
+- Globale POST-Aktion zum Markieren aller vorhandenen Ersatzteile in den eigenen Sets als nicht vorhanden; atomare Mengenänderung mit Bestätigung und dynamischer Erfolgsmeldung.
+- Die Fehlliste berücksichtigt Fehlmengen von Ersatzteilen. Part-Mirrors gruppieren normale Teile und Ersatzteile derselben Set-/Element-/Farbidentität ohne Duplikate und summieren Fehlmengen aus den autoritativen Inventarpositionen.
+- Regressionstests für Mengen, Farben, Mirror-Erhalt, Transaktionsrollback, Eigentümerzugriff, POST-only und UI-Bestätigung.
+- Keine Datenbankmigration oder Dependency-Änderung.
+
 ## 8.6.0 - 24 September 2026
 
 - Die Markdown-Dokumentation unter `docs/` ist über `/docs/` direkt in der Django-Anwendung erreichbar; interne Links bleiben in der Anwendung, mit responsivem Layout und eigenem Navigationsbereich.

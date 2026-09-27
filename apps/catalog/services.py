@@ -356,7 +356,7 @@ def set_completeness(lego_set):
     }
 
 
-def with_authoritative_missing_quantity(queryset):
+def with_authoritative_missing_quantity(queryset, *, include_spares=False):
     """Annotate Part rows with the missing quantity used by inventory UI.
 
     A Part linked to a set is an optional workflow mirror.  Its quantity fields
@@ -393,8 +393,9 @@ def with_authoritative_missing_quantity(queryset):
         lego_set__owner_id=OuterRef("owner_id"),
         lego_set__deleted_at__isnull=True,
         color_name=OuterRef("color"),
-        is_spare=False,
     )
+    if not include_spares:
+        normal_base = normal_base.filter(is_spare=False)
     normal_exact = normal_base.exclude(element_id="").filter(
         element_id=OuterRef("element_id")
     )
@@ -608,7 +609,7 @@ def _part_identity_values(part):
     return {value for value in (part.design_id, part.part_number, part.element_id) if value}
 
 
-def _matching_authoritative_allocations(part, *, lock=False):
+def _matching_authoritative_allocations(part, *, lock=False, include_spares=False):
     """Return exact-precedence normal/minifigure allocations for one Part."""
     from apps.organizer.models import MinifigurePart
 
@@ -622,8 +623,9 @@ def _matching_authoritative_allocations(part, *, lock=False):
         lego_set__owner_id=part.owner_id,
         lego_set__deleted_at__isnull=True,
         color_name=part.color,
-        is_spare=False,
     )
+    if not include_spares:
+        normal = normal.filter(is_spare=False)
     minifigure = MinifigurePart.objects.filter(
         minifigure__lego_set_id=part.lego_set_id,
         minifigure__owner_id=part.owner_id,
@@ -872,7 +874,9 @@ def set_authoritative_owned_quantity(kind, allocation, quantity, actor):
 
     mirrors = []
     for part in _candidate_part_mirrors(kind, locked, lock=True):
-        matches = _matching_authoritative_allocations(part, lock=True)
+        matches = _matching_authoritative_allocations(
+            part, lock=True, include_spares=True
+        )
         target_matches = [
             candidate
             for candidate_kind, candidate in matches
@@ -931,7 +935,7 @@ def authoritative_lego_export_parts(user, *, colors=()):
     )
     if colors:
         queryset = queryset.filter(color__in=colors)
-    return with_authoritative_missing_quantity(queryset).filter(
+    return with_authoritative_missing_quantity(queryset, include_spares=True).filter(
         authoritative_missing_quantity__gt=0
     )
 

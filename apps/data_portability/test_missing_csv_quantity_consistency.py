@@ -154,8 +154,9 @@ class MissingCsvQuantityConsistencyTests(TestCase):
         _response, groups = self.ui()
         _csv_response, rows = self.csv_rows()
 
-        self.assertEqual(groups, [])
-        self.assertEqual(rows, [["elementId", "quantity"]])
+        self.assertEqual(len(groups), 1)
+        self.assertEqual((groups[0]["required"], groups[0]["owned"], groups[0]["missing"]), (8, 1, 7))
+        self.assertEqual(rows, [["elementId", "quantity"], ["spare", "7"]])
 
     def test_exact_element_precedes_blank_fallback_without_double_counting(self):
         lego_set, item, part = self.allocation(
