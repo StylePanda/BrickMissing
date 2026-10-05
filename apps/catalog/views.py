@@ -1178,6 +1178,38 @@ def mark_all_spares_missing(request):
 @login_required
 @require_POST
 @transaction.atomic
+def mark_all_spares_present(request):
+    if limited(request, "inventory-bulk", 60, 3600, per_user=True):
+        return HttpResponse("Rate limit exceeded", status=429)
+    records = SetInventoryItem.objects.select_for_update().filter(
+        lego_set__owner=request.user,
+        lego_set__deleted_at__isnull=True,
+        is_spare=True,
+        owned_quantity__lt=F("required_quantity"),
+    ).order_by("lego_set_id", "pk")
+    updated = records.update(owned_quantity=F("required_quantity"))
+    if updated:
+        messages.success(
+            request,
+            f"{updated} Ersatzteil-Einträge wurden als vollständig vorhanden markiert.",
+        )
+    else:
+        messages.info(request, "Alle Ersatzteile sind bereits vollständig vorhanden; es waren keine Änderungen notwendig.")
+    AuditEvent.objects.create(
+        actor=request.user,
+        target_user=request.user,
+        action="set_inventory.spares_marked_present",
+        entity_type="user",
+        entity_id=str(request.user.pk),
+        details={"items": updated},
+        request_id=request.request_id,
+    )
+    return redirect("catalog:set_list")
+
+
+@login_required
+@require_POST
+@transaction.atomic
 def set_inventory_quantity(request, set_pk, pk):
     lego_set = get_object_or_404(LegoSet, pk=set_pk, owner=request.user, deleted_at__isnull=True)
     item = get_object_or_404(SetInventoryItem.objects.select_for_update(), pk=pk, lego_set=lego_set)

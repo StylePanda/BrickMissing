@@ -187,6 +187,60 @@ class SpareBulkActionTests(TestCase):
             [1, 1],
         )
 
+    def test_mark_all_spares_present_changes_only_incomplete_owned_spares(self):
+        first = self.make_set("spare-present-1", "First")
+        second = self.make_set("spare-present-2", "Second")
+        missing = SetInventoryItem.objects.create(
+            lego_set=first, part_number="missing", name="Missing",
+            required_quantity=3, owned_quantity=0, is_spare=True,
+        )
+        partial = SetInventoryItem.objects.create(
+            lego_set=first, part_number="partial", name="Partial",
+            required_quantity=5, owned_quantity=2, is_spare=True,
+        )
+        complete = SetInventoryItem.objects.create(
+            lego_set=second, part_number="complete", name="Complete",
+            required_quantity=2, owned_quantity=2, is_spare=True,
+        )
+        normal = SetInventoryItem.objects.create(
+            lego_set=second, part_number="normal", name="Normal",
+            required_quantity=4, owned_quantity=1, is_spare=False,
+        )
+        response = self.client.post(reverse("catalog:mark_all_spares_present"), follow=True)
+        self.assertContains(response, "2 Ersatzteil-Einträge wurden als vollständig vorhanden markiert.")
+        for item in (missing, partial, complete, normal):
+            item.refresh_from_db()
+        self.assertEqual((missing.owned_quantity, missing.required_quantity), (3, 3))
+        self.assertEqual((partial.owned_quantity, partial.required_quantity), (5, 5))
+        self.assertEqual((complete.owned_quantity, complete.required_quantity), (2, 2))
+        self.assertEqual((normal.owned_quantity, normal.required_quantity), (1, 4))
+        self.assertEqual(SetInventoryItem.objects.count(), 4)
+
+    def test_mark_all_spares_present_is_owner_scoped_and_reports_noop(self):
+        own_set = self.make_set("spare-present-own", "Own")
+        own = SetInventoryItem.objects.create(
+            lego_set=own_set, part_number="own", name="Own spare",
+            required_quantity=2, owned_quantity=1, is_spare=True,
+        )
+        other = get_user_model().objects.create_user(
+            "spare-present-foreign", "spare-present-foreign@example.test", "Other-password-123"
+        )
+        other_set = LegoSet.objects.create(owner=other, set_number="spare-present-foreign", name="Other")
+        foreign = SetInventoryItem.objects.create(
+            lego_set=other_set, part_number="foreign", name="Foreign spare",
+            required_quantity=9, owned_quantity=0, is_spare=True,
+        )
+        url = reverse("catalog:mark_all_spares_present")
+        self.assertEqual(self.client.get(url).status_code, 405)
+        self.client.post(url)
+        own.refresh_from_db()
+        foreign.refresh_from_db()
+        self.assertEqual(own.owned_quantity, 2)
+        self.assertEqual(foreign.owned_quantity, 0)
+        response = self.client.post(url, follow=True)
+        self.assertContains(response, "Alle Ersatzteile sind bereits vollständig vorhanden")
+        self.assertEqual(own.owned_quantity, 2)
+
     def test_create_missing_deduplicates_identity_and_aggregates_spare_missing(self):
         lego_set = self.make_set("spare-missing", "Missing aggregation")
         SetInventoryItem.objects.create(

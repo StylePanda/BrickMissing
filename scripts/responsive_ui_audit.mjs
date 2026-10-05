@@ -1443,6 +1443,29 @@ try {
   assert(spareSuccess.path === new URL(routes.authenticated.sets, baseUrl).pathname
     && spareSuccess.confirmation.includes("alle Ersatzteile aller Sets") && spareSuccess.success,
   `Global spare action browser confirmation or success message failed: ${JSON.stringify(spareSuccess)}`);
+  const presentAction = await evaluate(client, `(() => {
+    const form = document.querySelector('form[action*="ersatzteile/als-vorhanden-markieren"]');
+    const button = form?.querySelector('button[type="submit"]');
+    const confirmation = form?.dataset.confirm || "";
+    window.confirm = (message) => {
+      localStorage.setItem("spare-present-confirmation", message);
+      return true;
+    };
+    button?.click();
+    return {exists: Boolean(form && button), method: form?.method, confirmation};
+  })()`);
+  assert(presentAction.exists && presentAction.method === "post"
+    && presentAction.confirmation.includes("vollständig vorhanden"),
+    "Global mark-spares-present form, POST method or confirmation is missing");
+  await waitForReady(client);
+  const presentSuccess = await evaluate(client, `({
+    path: location.pathname,
+    confirmation: localStorage.getItem("spare-present-confirmation"),
+    success: document.body.innerText.includes("2 Ersatzteil-Einträge wurden als vollständig vorhanden markiert.")
+  })`);
+  assert(presentSuccess.path === new URL(routes.authenticated.sets, baseUrl).pathname
+    && presentSuccess.confirmation.includes("vollständig vorhanden") && presentSuccess.success,
+  `Global mark-spares-present browser confirmation or success message failed: ${JSON.stringify(presentSuccess)}`);
   }
 
   if (process.env.BRICKMISSING_AUDIT_GRID_ONLY === "1") {

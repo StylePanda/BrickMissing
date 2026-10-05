@@ -1,5 +1,12 @@
 # Changelog
 
+## 8.6.2 - 5 October 2026
+
+- Globale POST-Aktion zum atomaren Markieren aller eigenen Ersatzteile als vollständig vorhanden; nur `SetInventoryItem.owned_quantity` wird geändert.
+- Bestätigungsdialog, Meldung mit Änderungsanzahl und Regressionstests für Benutzertrennung, normale Teile, mehrere Sets und bereits vollständige Ersatzteile.
+- Browser-Audit prüft Bestätigung und Erfolgsmeldung beider globaler Ersatzteilaktionen.
+- Keine Datenbankmigration oder Dependency-Änderung.
+
 ## 8.6.1 - 28 September 2026
 
 - Globale POST-Aktion zum Markieren aller vorhandenen Ersatzteile in den eigenen Sets als nicht vorhanden; atomare Mengenänderung mit Bestätigung und dynamischer Erfolgsmeldung.

@@ -47,6 +47,14 @@ class ResponsiveBrowserTests(StaticLiveServerTestCase):
             owned_quantity=1,
             is_spare=True,
         )
+        SetInventoryItem.objects.create(
+            lego_set=self.lego_set,
+            part_number="browser-spare-present",
+            name="Browser spare present confirmation fixture",
+            required_quantity=2,
+            owned_quantity=0,
+            is_spare=True,
+        )
         related_sets = []
         for index in range(2):
             related_sets.append(LegoSet.objects.create(
