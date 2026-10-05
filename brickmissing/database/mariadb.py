@@ -132,7 +132,11 @@ class MariaConnection:
         value = value.replace("datetime('now','-30 days')", "DATE_SUB(NOW(), INTERVAL 30 DAY)")
         value = value.replace("date('now')", "CURRENT_DATE")
         value = re.sub(r"\bdate\(([^)]+)\)", r"DATE(\1)", value, flags=re.I)
-        value = value.replace("MAX(required_quantity-owned_quantity,0)", "GREATEST(required_quantity-owned_quantity,0)")
+        value = value.replace(
+            "MAX(required_quantity-owned_quantity,0)",
+            "(CASE WHEN owned_quantity>=required_quantity THEN 0 "
+            "ELSE required_quantity-owned_quantity END)",
+        )
         value = value.replace("MIN(owned_quantity,required_quantity)", "LEAST(owned_quantity,required_quantity)")
         if " ON CONFLICT(" in value.upper():
             match = re.search(

@@ -1,4 +1,4 @@
-﻿# BrickMissing 8.6.1
+﻿# BrickMissing 8.6.3
 
 BrickMissing ist eine Django-Anwendung zur Verwaltung einer LEGO-Sammlung. Sets, Exemplare, Soll-/Ist-Teile, Minifiguren und Fehlteile gehören zu persönlichen Benutzerkonten. Für automatische Set- und Figurendaten kann ein eigener Rebrickable API-Key hinterlegt werden.
 

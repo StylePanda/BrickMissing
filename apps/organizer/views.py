@@ -17,6 +17,7 @@ from apps.audit.models import AuditEvent
 from apps.catalog.models import LegoSet
 from apps.catalog.services import (
     AmbiguousAuthoritativeAllocation,
+    missing_quantity_expression,
     set_authoritative_owned_quantity,
     set_completeness,
 )
@@ -296,7 +297,7 @@ def minifigure_list(request):
             output_field=integer_field,
         ),
     ).annotate(
-        missing_total=models.F("required_total") - models.F("owned_total"),
+        missing_total=missing_quantity_expression("required_total", "owned_total"),
         completeness_order=models.Case(
             models.When(required_total=0, then=models.Value(3)),
             models.When(missing_total=0, then=models.Value(0)),

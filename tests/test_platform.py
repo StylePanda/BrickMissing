@@ -99,6 +99,17 @@ class PlatformTests(unittest.TestCase):
         self.assertIn("value=VALUES(value)", translated)
         self.assertNotIn("ON CONFLICT", translated)
 
+    def test_mariadb_missing_quantity_translation_guards_unsigned_subtraction(self) -> None:
+        translated = MariaConnection._sql(
+            "SELECT MAX(required_quantity-owned_quantity,0) FROM inventory"
+        )
+        self.assertIn(
+            "CASE WHEN owned_quantity>=required_quantity THEN 0 "
+            "ELSE required_quantity-owned_quantity END",
+            translated,
+        )
+        self.assertNotIn("GREATEST(required_quantity-owned_quantity,0)", translated)
+
     def test_mariadb_runtime_schema_contains_operational_tables(self) -> None:
         schema = "\n".join(
             MariaDbAdminService.runtime_schema_statements()

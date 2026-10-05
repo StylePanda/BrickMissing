@@ -38,6 +38,7 @@ from .services import (
     filter_sets_by_missing_colors,
     group_authoritative_missing_parts,
     missing_color_values,
+    missing_quantity_expression,
     set_authoritative_owned_quantity,
     set_part_owned_quantity,
     soft_delete,
@@ -194,7 +195,7 @@ def set_detail(request, pk):
     }
     sort = sort if sort in inventory_sorting else "name"
     inventory = inventory.annotate(
-        missing_amount=F("required_quantity") - F("owned_quantity")
+        missing_amount=missing_quantity_expression("required_quantity")
     )
     if sort == "color" and len(selected_colors) > 1:
         inventory = inventory.annotate(
@@ -212,9 +213,12 @@ def set_detail(request, pk):
     page_obj = Paginator(inventory, 50).get_page(request.GET.get("page"))
     all_inventory = lego_set.inventory_items.all()
     colors = list(all_inventory.exclude(color_name="").values_list("color_name", flat=True).distinct().order_by("color_name"))
-    stats = all_inventory.aggregate(positions=Count("pk"), required=Sum("required_quantity"), owned=Sum("owned_quantity"))
+    stats = all_inventory.aggregate(
+        positions=Count("pk"), required=Sum("required_quantity"),
+        owned=Sum("owned_quantity"),
+        missing=Sum(missing_quantity_expression("required_quantity")),
+    )
     stats = {key: value or 0 for key, value in stats.items()}
-    stats["missing"] = max(stats["required"] - stats["owned"], 0)
     stats["percent"] = min(round(stats["owned"] * 100 / stats["required"]), 100) if stats["required"] else 0
     return render(request, "catalog/set_detail.html", {"lego_set": lego_set, "page_obj": page_obj, "inventory_stats": stats, "inventory_kind": kind, "inventory_query": query, "inventory_stock": stock, "inventory_sort": sort, "color_groups": grouped_colors(colors), "selected_colors": selected_colors, "color_summary": f"{len(selected_colors)} Farben" if selected_colors else "Alle Farben", "derived_completeness": _set_completeness(lego_set), "minifigure_records": minifigure_records})
 

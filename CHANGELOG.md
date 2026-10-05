@@ -1,5 +1,12 @@
 # Changelog
 
+## 8.6.3 - 5 October 2026
+
+- Set-, Dashboard-, Fehlteile- und Minifigurenansichten begrenzen fehlende Mengen vor der Subtraktion mit einer gemeinsamen CASE-Expression. Bestände oberhalb der benötigten Menge bleiben gültig; ein MariaDB/MySQL-UNSIGNED-Unterlauf (Fehler 1690) wird verhindert.
+- Set-Detailstatistiken summieren Fehlmengen pro Inventarposition, sodass Überbestände keine Fehlmenge anderer Positionen aufheben.
+- Regressionstests prüfen überzählige normale Teile und Ersatzteile, Mengenfilter, Set- und Fehlteileansichten, authoritative Mengen, vorhandene Ersatzteil-Sammelaktion sowie die generierte MySQL-SQL-Struktur.
+- Keine Datenbankmigration und keine Änderung gespeicherter Bestände.
+
 ## 8.6.2 - 5 October 2026
 
 - Globale POST-Aktion zum atomaren Markieren aller eigenen Ersatzteile als vollständig vorhanden; nur `SetInventoryItem.owned_quantity` wird geändert.

@@ -26,6 +26,20 @@ from .models import LegoSet, Part, PartHistory, SetInventoryItem
 from .part_status import synchronize_presence_marker, synchronize_workflow_status
 
 
+def missing_quantity_expression(required_field, owned_field="owned_quantity"):
+    """Build a CASE expression that never subtracts an over-owned quantity.
+
+    PositiveIntegerField subtraction can underflow on MariaDB/MySQL before a
+    surrounding clamp is applied. Keeping the comparison in CASE and the
+    subtraction exclusively in its ELSE branch avoids that unsigned operation.
+    """
+    return Case(
+        When(**{f"{owned_field}__gte": F(required_field)}, then=Value(0)),
+        default=F(required_field) - F(owned_field),
+        output_field=IntegerField(),
+    )
+
+
 def dashboard_collection_data(user):
     """Return owner-scoped dashboard facts from authoritative allocations.
 
@@ -75,16 +89,7 @@ def dashboard_collection_data(user):
                 Value(0),
             ),
             missing=Coalesce(
-                Sum(
-                    Case(
-                        When(
-                            owned_quantity__lt=F(required_field),
-                            then=F(required_field) - F("owned_quantity"),
-                        ),
-                        default=Value(0),
-                        output_field=IntegerField(),
-                    )
-                ),
+                Sum(missing_quantity_expression(required_field)),
                 Value(0),
             ),
             missing_positions=Count(
@@ -106,7 +111,7 @@ def dashboard_collection_data(user):
             .annotate(
                 name=Max("name"),
                 image_url=Max("image_url"),
-                missing=Sum(F(required_field) - F("owned_quantity")),
+                missing=Sum(missing_quantity_expression(required_field)),
             )
         )
 
@@ -191,20 +196,7 @@ def _quantity_total(queryset, group_field, quantity_field):
 def _missing_total(queryset, group_field, required_field):
     return (
         queryset.values(group_field)
-        .annotate(
-            total=Sum(
-                Case(
-                    When(
-                        **{
-                            "owned_quantity__lt": F(required_field),
-                            "then": F(required_field) - F("owned_quantity"),
-                        }
-                    ),
-                    default=Value(0),
-                    output_field=IntegerField(),
-                )
-            )
-        )
+        .annotate(total=Sum(missing_quantity_expression(required_field)))
         .values("total")[:1]
     )
 
@@ -575,7 +567,10 @@ def with_authoritative_missing_quantity(queryset, *, include_spares=False):
                     + F("_minifigure_inventory_missing")
                 ),
             ),
-            When(quantity__gt=F("owned_quantity"), then=F("quantity") - F("owned_quantity")),
+            When(
+                quantity__gt=F("owned_quantity"),
+                then=missing_quantity_expression("quantity"),
+            ),
             default=Value(0),
             output_field=IntegerField(),
         ),
